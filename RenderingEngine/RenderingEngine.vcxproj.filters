@@ -1,0 +1,80 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="源文件">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="头文件">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="资源文件">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="头文件\include">
+      <UniqueIdentifier>{89639877-29a3-4c69-903c-b4ff4d1ec34d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\include\core">
+      <UniqueIdentifier>{4bf58d86-abe2-4e4b-bb79-5e50957ae93e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\include\intergration">
+      <UniqueIdentifier>{d550c4a1-c2df-45bd-8d5e-176e1f6e9d41}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\include\materials">
+      <UniqueIdentifier>{235b28f6-fd82-476f-ac95-47be0d48abb3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\include\renderers">
+      <UniqueIdentifier>{ebaf9612-d403-4c8c-873f-bd24722d633b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="资源文件\shaders">
+      <UniqueIdentifier>{e194dbe5-03bb-4176-a3b1-f7ee43d47777}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="资源文件\shaders\bulinn_phon">
+      <UniqueIdentifier>{26a386ac-2f21-4e49-aabb-74fb86447d56}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="源文件\core">
+      <UniqueIdentifier>{46451482-8c1f-4507-b9f7-017a4230e6e7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="源文件\intergration">
+      <UniqueIdentifier>{79a03cca-c870-42d9-be5d-2fa97d6c329a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="源文件\materials">
+      <UniqueIdentifier>{99e896e2-ec40-47b2-822d-cd1f78b583a5}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="resources\shaders\blinn_phon\cube.frag">
+      <Filter>资源文件\shaders\bulinn_phon</Filter>
+    </None>
+    <None Include="resources\shaders\blinn_phon\cube.vert">
+      <Filter>资源文件\shaders\bulinn_phon</Filter>
+    </None>
+    <None Include="resources\shaders\blinn_phon\lighting.frag">
+      <Filter>资源文件\shaders\bulinn_phon</Filter>
+    </None>
+    <None Include="resources\shaders\blinn_phon\lighting.vert">
+      <Filter>资源文件\shaders\bulinn_phon</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\materials\BlinnPhongMaterial.cpp">
+      <Filter>源文件\materials</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\Renderer.cpp">
+      <Filter>源文件\core</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\VS2022\OpenGL\require\glad.c">
+      <Filter>资源文件</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\materials\BlinnPhongMaterial.hpp">
+      <Filter>头文件\include\materials</Filter>
+    </ClInclude>
+    <ClInclude Include="include\materials\MaterialBase.hpp">
+      <Filter>头文件\include\materials</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
