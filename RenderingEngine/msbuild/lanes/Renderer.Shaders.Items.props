@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Shaders"><UniqueIdentifier>{bd89aa22-ec22-44b6-85f2-8ca71b47bcd8}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="resources\shaders\pbr\PbrPathTrace.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\whitted\WhittedTrace.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\whitted\Present.hlsl"><Filter>Shaders</Filter></None>
+  </ItemGroup>
+  <ItemGroup>
+    <VulkanShaderCompile Include="resources\shaders\pbr\PbrPathTrace.hlsl"><EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>PbrPathTrace.comp.spv</OutputFile></VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\whitted\WhittedTrace.hlsl"><EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>WhittedTrace.comp.spv</OutputFile></VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\whitted\Present.hlsl"><EntryPoint>VSMain</EntryPoint><Profile>vs_6_6</Profile><OutputFile>Present.vert.spv</OutputFile></VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\whitted\Present.hlsl"><EntryPoint>PSMain</EntryPoint><Profile>ps_6_6</Profile><OutputFile>Present.frag.spv</OutputFile></VulkanShaderCompile>
+  </ItemGroup>
+</Project>

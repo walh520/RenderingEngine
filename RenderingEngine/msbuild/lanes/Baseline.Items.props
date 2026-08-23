@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files"><UniqueIdentifier>{7c72e61d-2e6a-43fc-94d8-4821b58b970d}</UniqueIdentifier></Filter>
+    <Filter Include="Source Files\Core"><UniqueIdentifier>{25af47ce-3044-49a3-92e5-69ecf436db42}</UniqueIdentifier></Filter>
+    <Filter Include="Source Files\Renderers"><UniqueIdentifier>{2f4fe39a-b899-4b13-b82e-b7a12e2668f0}</UniqueIdentifier></Filter>
+    <Filter Include="Source Files\Scene"><UniqueIdentifier>{4c73158e-39c9-42bf-b38e-bbca3c9bfef0}</UniqueIdentifier></Filter>
+    <Filter Include="Header Files"><UniqueIdentifier>{38a04aa0-8fa5-4ce9-ac46-c8f550c15da8}</UniqueIdentifier></Filter>
+    <Filter Include="Header Files\Core"><UniqueIdentifier>{eb8709c1-8699-43e8-bab4-d9701935fdde}</UniqueIdentifier></Filter>
+    <Filter Include="Header Files\Renderers"><UniqueIdentifier>{64038ce1-6f3c-442a-be0a-dc77a02cc0e0}</UniqueIdentifier></Filter>
+    <Filter Include="Header Files\Scene"><UniqueIdentifier>{1ba40a6d-262d-43d8-aa0b-aee15d2a70e1}</UniqueIdentifier></Filter>
+    <Filter Include="Project Documents"><UniqueIdentifier>{1cd3d29a-6842-4dd3-8990-bb87ce0d5ae2}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\core\Main.cpp"><Filter>Source Files\Core</Filter></ClCompile>
+    <ClCompile Include="src\renderers\VulkanWhittedRenderer.cpp"><Filter>Source Files\Renderers</Filter></ClCompile>
+    <ClCompile Include="src\scene\GpuScene.cpp"><Filter>Source Files\Scene</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\core\Camera.hpp"><Filter>Header Files\Core</Filter></ClInclude>
+    <ClInclude Include="include\renderers\VulkanWhittedRenderer.hpp"><Filter>Header Files\Renderers</Filter></ClInclude>
+    <ClInclude Include="include\scene\GpuScene.hpp"><Filter>Header Files\Scene</Filter></ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md"><Filter>Project Documents</Filter></None>
+    <None Include="PBR_IMPLEMENTATION.md"><Filter>Project Documents</Filter></None>
+    <None Include="THIRD_PARTY_NOTICES.md"><Filter>Project Documents</Filter></None>
+    <None Include="tools\Validate-Pbr.ps1"><Filter>Project Documents</Filter></None>
+  </ItemGroup>
+</Project>

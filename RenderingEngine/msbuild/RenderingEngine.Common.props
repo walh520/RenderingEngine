@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <RenderingEngineSourceRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\'))</RenderingEngineSourceRoot>
+    <RenderingEngineRepositoryRoot>$([System.IO.Path]::GetFullPath('$(RenderingEngineSourceRoot)..\'))</RenderingEngineRepositoryRoot>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <!-- /MP compiles translation units concurrently; /FS serializes their
+           shared compiler-PDB writes through mspdbsrv. -->
+      <AdditionalOptions>/FS /utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>$(RenderingEngineSourceRoot)include;$(VULKAN_SDK)\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+</Project>

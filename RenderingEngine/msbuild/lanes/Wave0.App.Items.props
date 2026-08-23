@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files\App"><UniqueIdentifier>{f255e556-f0bc-49ab-83ba-0f43e407a95c}</UniqueIdentifier></Filter>
+    <Filter Include="Header Files\App"><UniqueIdentifier>{d9cb57bb-e35b-4b5d-84ef-feb2ae12d250}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\app\**\*.cpp"><Filter>Source Files\App</Filter></ClCompile>
+    <ClInclude Include="include\app\**\*.hpp"><Filter>Header Files\App</Filter></ClInclude>
+  </ItemGroup>
+</Project>

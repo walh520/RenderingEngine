@@ -1,13 +1,10 @@
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#define VK_USE_PLATFORM_WIN32_KHR
-#include <Windows.h>
-#include <windowsx.h>
 #include <vulkan/vulkan.h>
 
 #include "renderers/VulkanWhittedRenderer.hpp"
 
 #include "core/Camera.hpp"
+#include "core/ExecutablePath.hpp"
+#include "platform/IPlatformHost.hpp"
 #include "scene/GpuScene.hpp"
 
 #include <algorithm>
@@ -34,8 +31,6 @@ namespace RenderingEngine
 {
     namespace
     {
-        constexpr std::uint32_t kInitialWidth = 1280;
-        constexpr std::uint32_t kInitialHeight = 720;
         constexpr std::uint32_t kFramesInFlight = 2;
         constexpr std::uint32_t kMaximumAccumulationSamples = 4096;
         constexpr VkFormat kHdrFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
@@ -46,6 +41,29 @@ namespace RenderingEngine
 #else
         constexpr bool kRequestValidation = true;
 #endif
+
+        [[nodiscard]] constexpr bool ResolveRuntimeToggle(
+            RuntimeToggle toggle,
+            bool rendererDefault) noexcept
+        {
+            switch (toggle)
+            {
+            case RuntimeToggle::Enabled:
+                return true;
+            case RuntimeToggle::Disabled:
+                return false;
+            case RuntimeToggle::RendererDefault:
+            default:
+                return rendererDefault;
+            }
+        }
+
+        [[nodiscard]] constexpr bool IsRuntimeToggleValid(RuntimeToggle toggle) noexcept
+        {
+            return toggle == RuntimeToggle::RendererDefault
+                || toggle == RuntimeToggle::Enabled
+                || toggle == RuntimeToggle::Disabled;
+        }
 
         struct alignas(16) FrameConstants
         {
@@ -117,17 +135,6 @@ namespace RenderingEngine
                 throw std::runtime_error(
                     std::string(operation) + " failed with VkResult " + std::to_string(static_cast<int>(result)));
             }
-        }
-
-        [[nodiscard]] std::filesystem::path ExecutableDirectory()
-        {
-            std::array<wchar_t, 32768> pathBuffer{};
-            const DWORD length = GetModuleFileNameW(nullptr, pathBuffer.data(), static_cast<DWORD>(pathBuffer.size()));
-            if (length == 0 || length == pathBuffer.size())
-            {
-                throw std::runtime_error("Unable to resolve the executable directory.");
-            }
-            return std::filesystem::path(pathBuffer.data(), pathBuffer.data() + length).parent_path();
         }
 
         [[nodiscard]] std::vector<std::uint32_t> ReadSpirv(const std::filesystem::path& path)
@@ -230,6 +237,15 @@ namespace RenderingEngine
     class VulkanWhittedRenderer::Impl final
     {
     public:
+        explicit Impl(std::unique_ptr<IPlatformHost> platform)
+            : platform_(std::move(platform))
+        {
+            if (platform_ == nullptr)
+            {
+                throw std::invalid_argument("VulkanWhittedRenderer requires a platform host.");
+            }
+        }
+
         ~Impl()
         {
             Cleanup();
@@ -248,6 +264,22 @@ namespace RenderingEngine
             if (options.maximumTraceDepth < 1 || options.maximumTraceDepth > 12)
             {
                 throw std::out_of_range("RunOptions::maximumTraceDepth must be from 1 to 12.");
+            }
+            if (options.initialWidth == 0 || options.initialHeight == 0)
+            {
+                throw std::out_of_range("RunOptions initial extent must be non-zero.");
+            }
+            if (options.targetSamplesPerPixel > kMaximumAccumulationSamples)
+            {
+                throw std::out_of_range("RunOptions::targetSamplesPerPixel exceeds the accumulation limit.");
+            }
+            if (!(options.verticalFovDegrees >= 25.0f && options.verticalFovDegrees <= 80.0f))
+            {
+                throw std::out_of_range("RunOptions::verticalFovDegrees must be from 25 to 80.");
+            }
+            if (!IsRuntimeToggleValid(options.vsync) || !IsRuntimeToggleValid(options.validation))
+            {
+                throw std::invalid_argument("RunOptions contains an invalid runtime toggle.");
             }
             if (options.integrator != Integrator::Whitted && options.integrator != Integrator::Pbr)
             {
@@ -274,6 +306,11 @@ namespace RenderingEngine
             integrator_ = options.integrator;
             shadowMethod_ = options.shadowMethod;
             debugView_ = options.debugView;
+            targetSamplesPerPixel_ = options.targetSamplesPerPixel;
+            baseSeed_ = options.baseSeed;
+            vsyncMode_ = options.vsync;
+            validationMode_ = options.validation;
+            camera_.SetVerticalFovDegrees(options.verticalFovDegrees);
             Initialize();
             MainLoop(options);
         }
@@ -281,7 +318,7 @@ namespace RenderingEngine
     private:
         void Initialize()
         {
-            CreateApplicationWindow();
+            platform_->SetCursorCaptured(true);
             CreateInstance();
             CreateDebugMessenger();
             CreateSurface();
@@ -304,74 +341,6 @@ namespace RenderingEngine
             initialized_ = true;
         }
 
-        void CreateApplicationWindow()
-        {
-            windowInstance_ = GetModuleHandleW(nullptr);
-            if (windowInstance_ == nullptr)
-            {
-                throw std::runtime_error("GetModuleHandleW failed.");
-            }
-
-            WNDCLASSEXW windowClass{};
-            windowClass.cbSize = sizeof(windowClass);
-            windowClass.style = CS_HREDRAW | CS_VREDRAW;
-            windowClass.lpfnWndProc = WindowProcedure;
-            windowClass.hInstance = windowInstance_;
-            windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-            windowClass.lpszClassName = windowClassName_;
-            windowClassAtom_ = RegisterClassExW(&windowClass);
-            if (windowClassAtom_ == 0)
-            {
-                throw std::runtime_error("RegisterClassExW failed with Win32 error "
-                    + std::to_string(GetLastError()) + '.');
-            }
-
-            RECT windowRectangle{
-                0,
-                0,
-                static_cast<LONG>(kInitialWidth),
-                static_cast<LONG>(kInitialHeight)
-            };
-            constexpr DWORD windowStyle = WS_OVERLAPPEDWINDOW;
-            if (AdjustWindowRectEx(&windowRectangle, windowStyle, FALSE, 0) == FALSE)
-            {
-                throw std::runtime_error("AdjustWindowRectEx failed.");
-            }
-
-            window_ = CreateWindowExW(
-                0,
-                windowClassName_,
-                L"Vulkan HLSL Renderer",
-                windowStyle,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                windowRectangle.right - windowRectangle.left,
-                windowRectangle.bottom - windowRectangle.top,
-                nullptr,
-                nullptr,
-                windowInstance_,
-                this);
-            if (window_ == nullptr)
-            {
-                throw std::runtime_error("CreateWindowExW failed with Win32 error "
-                    + std::to_string(GetLastError()) + '.');
-            }
-
-            RAWINPUTDEVICE rawMouse{};
-            rawMouse.usUsagePage = 0x01;
-            rawMouse.usUsage = 0x02;
-            rawMouse.dwFlags = 0;
-            rawMouse.hwndTarget = window_;
-            if (RegisterRawInputDevices(&rawMouse, 1, sizeof(rawMouse)) == FALSE)
-            {
-                throw std::runtime_error("RegisterRawInputDevices failed.");
-            }
-
-            ShowWindow(window_, SW_SHOW);
-            UpdateWindow(window_);
-            SetMouseCapture(true);
-        }
-
         [[nodiscard]] bool ValidationLayerAvailable() const
         {
             std::uint32_t count = 0;
@@ -386,9 +355,15 @@ namespace RenderingEngine
 
         void CreateInstance()
         {
-            validationEnabled_ = kRequestValidation && ValidationLayerAvailable();
-            if (kRequestValidation && !validationEnabled_)
+            const bool validationRequested = ResolveRuntimeToggle(validationMode_, kRequestValidation);
+            validationEnabled_ = validationRequested && ValidationLayerAvailable();
+            if (validationRequested && !validationEnabled_)
             {
+                if (validationMode_ == RuntimeToggle::Enabled)
+                {
+                    throw std::runtime_error(
+                        "Vulkan validation was explicitly enabled, but VK_LAYER_KHRONOS_validation is unavailable.");
+                }
                 std::cerr << "[Vulkan] Validation layer is unavailable; continuing without it.\n";
             }
 
@@ -400,10 +375,23 @@ namespace RenderingEngine
             applicationInfo.engineVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
             applicationInfo.apiVersion = VK_API_VERSION_1_3;
 
-            std::vector<const char*> extensions{
-                VK_KHR_SURFACE_EXTENSION_NAME,
-                VK_KHR_WIN32_SURFACE_EXTENSION_NAME
-            };
+            const std::vector<std::string> platformExtensions =
+                platform_->RequiredVulkanInstanceExtensions();
+            if (platformExtensions.empty())
+            {
+                throw std::runtime_error("The platform host did not provide Vulkan instance extensions.");
+            }
+
+            std::vector<const char*> extensions;
+            extensions.reserve(platformExtensions.size() + 1);
+            for (const std::string& extension : platformExtensions)
+            {
+                if (extension.empty())
+                {
+                    throw std::runtime_error("The platform host provided an empty Vulkan instance extension.");
+                }
+                extensions.push_back(extension.c_str());
+            }
             if (validationEnabled_)
             {
                 extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
@@ -445,11 +433,11 @@ namespace RenderingEngine
 
         void CreateSurface()
         {
-            VkWin32SurfaceCreateInfoKHR createInfo{};
-            createInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-            createInfo.hinstance = windowInstance_;
-            createInfo.hwnd = window_;
-            Check(vkCreateWin32SurfaceKHR(instance_, &createInfo, nullptr, &surface_), "vkCreateWin32SurfaceKHR");
+            surface_ = platform_->CreateVulkanSurface(instance_);
+            if (surface_ == VK_NULL_HANDLE)
+            {
+                throw std::runtime_error("The platform host returned a null Vulkan surface.");
+            }
         }
 
         [[nodiscard]] std::optional<std::uint32_t> FindUnifiedQueueFamily(VkPhysicalDevice device) const
@@ -647,6 +635,15 @@ namespace RenderingEngine
 
         [[nodiscard]] VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR>& modes) const
         {
+            if (vsyncMode_ == RuntimeToggle::Enabled)
+            {
+                return VK_PRESENT_MODE_FIFO_KHR;
+            }
+            if (vsyncMode_ == RuntimeToggle::Disabled
+                && std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_IMMEDIATE_KHR) != modes.end())
+            {
+                return VK_PRESENT_MODE_IMMEDIATE_KHR;
+            }
             if (std::find(modes.begin(), modes.end(), VK_PRESENT_MODE_MAILBOX_KHR) != modes.end())
             {
                 return VK_PRESENT_MODE_MAILBOX_KHR;
@@ -661,17 +658,11 @@ namespace RenderingEngine
                 return capabilities.currentExtent;
             }
 
-            RECT clientRectangle{};
-            if (GetClientRect(window_, &clientRectangle) == FALSE)
-            {
-                throw std::runtime_error("GetClientRect failed.");
-            }
-            const LONG width = clientRectangle.right - clientRectangle.left;
-            const LONG height = clientRectangle.bottom - clientRectangle.top;
+            const ClientExtent framebufferExtent = platform_->GetFramebufferExtent();
             return {
-                std::clamp(static_cast<std::uint32_t>(width),
+                std::clamp(framebufferExtent.width,
                     capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
-                std::clamp(static_cast<std::uint32_t>(height),
+                std::clamp(framebufferExtent.height,
                     capabilities.minImageExtent.height, capabilities.maxImageExtent.height)
             };
         }
@@ -1384,8 +1375,8 @@ namespace RenderingEngine
             constants.samplingAndDebug = {
                 accumulationFrame_,
                 static_cast<std::uint32_t>(debugView_),
-                0,
-                0
+                static_cast<std::uint32_t>(baseSeed_ & 0xffffffffull),
+                static_cast<std::uint32_t>(baseSeed_ >> 32u)
             };
             std::memcpy(frame.uniformBuffer.mapped, &constants, sizeof(constants));
         }
@@ -1612,122 +1603,78 @@ namespace RenderingEngine
             }
         }
 
-        void ProcessInput(float deltaSeconds)
+        void HandlePlatformEvents(const PlatformFrameEvents& events)
         {
-            const auto keyDown = [](int virtualKey)
+            shouldClose_ = shouldClose_ || events.closeRequested;
+            framebufferResized_ = framebufferResized_ || events.framebufferResized;
+
+            if (mouseCaptured_
+                && (events.input.mouseDeltaX != 0.0f || events.input.mouseDeltaY != 0.0f))
             {
-                return (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
+                camera_.Rotate(events.input.mouseDeltaX, -events.input.mouseDeltaY);
+                ResetAccumulation();
+            }
+            if (events.input.mouseWheelDelta != 0.0f)
+            {
+                camera_.Zoom(events.input.mouseWheelDelta);
+                ResetAccumulation();
+            }
+        }
+
+        void ProcessInput(const RawInputFrame& input, float deltaSeconds)
+        {
+            if (!input.focused)
+            {
+                tabWasPressed_ = false;
+                return;
+            }
+
+            const auto keyDown = [&input](PhysicalKey key)
+            {
+                return input.IsKeyDown(key);
             };
 
-            if (keyDown(VK_ESCAPE))
+            if (keyDown(PhysicalKey::Escape))
             {
                 shouldClose_ = true;
             }
 
-            const float forward = static_cast<float>(keyDown('W')) - static_cast<float>(keyDown('S'));
-            const float right = static_cast<float>(keyDown('D')) - static_cast<float>(keyDown('A'));
-            const float vertical = static_cast<float>(keyDown(VK_SPACE)) - static_cast<float>(keyDown(VK_CONTROL));
-            const bool sprint = keyDown(VK_SHIFT);
+            const float forward = static_cast<float>(keyDown(PhysicalKey::W))
+                - static_cast<float>(keyDown(PhysicalKey::S));
+            const float right = static_cast<float>(keyDown(PhysicalKey::D))
+                - static_cast<float>(keyDown(PhysicalKey::A));
+            const bool control = keyDown(PhysicalKey::LeftControl)
+                || keyDown(PhysicalKey::RightControl);
+            const float vertical = static_cast<float>(keyDown(PhysicalKey::Space))
+                - static_cast<float>(control);
+            const bool sprint = keyDown(PhysicalKey::LeftShift)
+                || keyDown(PhysicalKey::RightShift);
             if (forward != 0.0f || right != 0.0f || vertical != 0.0f)
             {
                 camera_.Move(forward, right, vertical, deltaSeconds, sprint);
                 ResetAccumulation();
             }
 
-            const bool tabPressed = keyDown(VK_TAB);
+            const bool tabPressed = keyDown(PhysicalKey::Tab);
             if (tabPressed && !tabWasPressed_)
             {
-                SetMouseCapture(!mouseCaptured_);
+                mouseCaptured_ = !mouseCaptured_;
+                platform_->SetCursorCaptured(mouseCaptured_);
             }
             tabWasPressed_ = tabPressed;
 
-            if (keyDown('1'))
+            if (keyDown(PhysicalKey::Digit1))
             {
                 SetShadowMethod(ShadowMethod::Pcf);
             }
-            else if (keyDown('2'))
+            else if (keyDown(PhysicalKey::Digit2))
             {
                 SetShadowMethod(ShadowMethod::Pcss);
             }
-            else if (keyDown('3'))
+            else if (keyDown(PhysicalKey::Digit3))
             {
                 SetShadowMethod(ShadowMethod::Physical);
             }
-        }
-
-        void SetMouseCapture(bool captured)
-        {
-            mouseCaptured_ = captured;
-            if (window_ == nullptr)
-            {
-                return;
-            }
-
-            if (captured)
-            {
-                SetCapture(window_);
-                UpdateCursorClip();
-                while (ShowCursor(FALSE) >= 0)
-                {
-                }
-            }
-            else
-            {
-                ReleaseCapture();
-                ClipCursor(nullptr);
-                while (ShowCursor(TRUE) < 0)
-                {
-                }
-            }
-        }
-
-        void UpdateCursorClip() const
-        {
-            if (!mouseCaptured_ || window_ == nullptr)
-            {
-                return;
-            }
-
-            RECT rectangle{};
-            GetClientRect(window_, &rectangle);
-            POINT upperLeft{ rectangle.left, rectangle.top };
-            POINT lowerRight{ rectangle.right, rectangle.bottom };
-            ClientToScreen(window_, &upperLeft);
-            ClientToScreen(window_, &lowerRight);
-            rectangle = { upperLeft.x, upperLeft.y, lowerRight.x, lowerRight.y };
-            ClipCursor(&rectangle);
-        }
-
-        void PumpMessages()
-        {
-            MSG message{};
-            while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE) != FALSE)
-            {
-                if (message.message == WM_QUIT)
-                {
-                    shouldClose_ = true;
-                }
-                TranslateMessage(&message);
-                DispatchMessageW(&message);
-            }
-        }
-
-        void ResizeClientArea(std::uint32_t width, std::uint32_t height) const
-        {
-            constexpr DWORD windowStyle = WS_OVERLAPPEDWINDOW;
-            RECT rectangle{ 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
-            if (AdjustWindowRectEx(&rectangle, windowStyle, FALSE, 0) == FALSE)
-            {
-                return;
-            }
-            SetWindowPos(
-                window_,
-                nullptr,
-                0,
-                0,
-                rectangle.right - rectangle.left,
-                rectangle.bottom - rectangle.top,
-                SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
         }
 
         void MainLoop(const RunOptions& options)
@@ -1741,7 +1688,8 @@ namespace RenderingEngine
 
             while (!shouldClose_)
             {
-                PumpMessages();
+                const PlatformFrameEvents events = platform_->PumpEvents(EventPumpMode::Poll);
+                HandlePlatformEvents(events);
                 if (shouldClose_)
                 {
                     break;
@@ -1750,18 +1698,18 @@ namespace RenderingEngine
                 const float deltaSeconds = std::min(
                     std::chrono::duration<float>(now - previousTime).count(), 0.1f);
                 previousTime = now;
-                ProcessInput(deltaSeconds);
+                ProcessInput(events.input, deltaSeconds);
                 DrawFrame();
                 ++titleFrameCount;
 
                 const std::uint32_t completedFrames = totalFrames_ - firstFrame;
                 if (options.resizeTest && completedFrames == 30)
                 {
-                    ResizeClientArea(960, 540);
+                    platform_->RequestClientArea({ 960, 540 });
                 }
                 else if (options.resizeTest && completedFrames == 60)
                 {
-                    ResizeClientArea(kInitialWidth, kInitialHeight);
+                    platform_->RequestClientArea({ options.initialWidth, options.initialHeight });
                 }
 
                 const float titleInterval = std::chrono::duration<float>(now - titleUpdateTime).count();
@@ -1779,9 +1727,7 @@ namespace RenderingEngine
                     {
                         title << " | " << accumulationFrame_ << " spp";
                     }
-                    const std::string narrowTitle = title.str();
-                    const std::wstring wideTitle(narrowTitle.begin(), narrowTitle.end());
-                    SetWindowTextW(window_, wideTitle.c_str());
+                    platform_->SetTitle(title.str());
                     titleFrameCount = 0;
                     titleUpdateTime = now;
                 }
@@ -1790,10 +1736,16 @@ namespace RenderingEngine
                 {
                     break;
                 }
+                if (targetSamplesPerPixel_ > 0
+                    && debugView_ == DebugView::Final
+                    && accumulationFrame_ >= targetSamplesPerPixel_)
+                {
+                    break;
+                }
             }
 
             Check(vkDeviceWaitIdle(device_), "vkDeviceWaitIdle");
-            if (options.frameLimit > 0)
+            if (options.frameLimit > 0 || targetSamplesPerPixel_ > 0)
             {
                 const double elapsedMilliseconds = std::chrono::duration<double, std::milli>(
                     Clock::now() - benchmarkStart).count();
@@ -1803,23 +1755,18 @@ namespace RenderingEngine
                     << " ms/frame including presentation, " << accumulationFrame_ << " spp, "
                     << IntegratorName(integrator_) << ", "
                     << ShadowMethodName(shadowMethod_) << ", debug view "
-                    << DebugViewName(debugView_) << ").\n";
+                    << DebugViewName(debugView_) << ", seed " << baseSeed_ << ").\n";
             }
         }
 
         void RecreateSwapchain()
         {
-            RECT clientRectangle{};
-            GetClientRect(window_, &clientRectangle);
-            LONG width = clientRectangle.right - clientRectangle.left;
-            LONG height = clientRectangle.bottom - clientRectangle.top;
-            while ((width == 0 || height == 0) && !shouldClose_)
+            ClientExtent framebufferExtent = platform_->GetFramebufferExtent();
+            while (!framebufferExtent.IsDrawable() && !shouldClose_)
             {
-                WaitMessage();
-                PumpMessages();
-                GetClientRect(window_, &clientRectangle);
-                width = clientRectangle.right - clientRectangle.left;
-                height = clientRectangle.bottom - clientRectangle.top;
+                const PlatformFrameEvents events = platform_->PumpEvents(EventPumpMode::Wait);
+                HandlePlatformEvents(events);
+                framebufferExtent = events.framebufferExtent;
             }
             if (shouldClose_)
             {
@@ -1940,125 +1887,22 @@ namespace RenderingEngine
                 {
                     destroyFunction(instance_, debugMessenger_, nullptr);
                 }
+                debugMessenger_ = VK_NULL_HANDLE;
             }
             if (surface_ != VK_NULL_HANDLE)
             {
                 vkDestroySurfaceKHR(instance_, surface_, nullptr);
+                surface_ = VK_NULL_HANDLE;
             }
             if (instance_ != VK_NULL_HANDLE)
             {
                 vkDestroyInstance(instance_, nullptr);
+                instance_ = VK_NULL_HANDLE;
             }
-            if (window_ != nullptr)
-            {
-                if (mouseCaptured_)
-                {
-                    SetMouseCapture(false);
-                }
-                DestroyWindow(window_);
-                window_ = nullptr;
-            }
-            if (windowClassAtom_ != 0 && windowInstance_ != nullptr)
-            {
-                UnregisterClassW(windowClassName_, windowInstance_);
-                windowClassAtom_ = 0;
-            }
+            platform_.reset();
         }
 
-        static LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wordParameter, LPARAM longParameter)
-        {
-            Impl* self = reinterpret_cast<Impl*>(GetWindowLongPtrW(window, GWLP_USERDATA));
-            if (message == WM_NCCREATE)
-            {
-                const auto* create = reinterpret_cast<const CREATESTRUCTW*>(longParameter);
-                self = static_cast<Impl*>(create->lpCreateParams);
-                SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
-            }
-            if (self != nullptr)
-            {
-                return self->HandleWindowMessage(window, message, wordParameter, longParameter);
-            }
-            return DefWindowProcW(window, message, wordParameter, longParameter);
-        }
-
-        LRESULT HandleWindowMessage(HWND window, UINT message, WPARAM wordParameter, LPARAM longParameter)
-        {
-            switch (message)
-            {
-            case WM_CLOSE:
-                shouldClose_ = true;
-                return 0;
-            case WM_DESTROY:
-                shouldClose_ = true;
-                PostQuitMessage(0);
-                return 0;
-            case WM_SIZE:
-                if (initialized_ && wordParameter != SIZE_MINIMIZED)
-                {
-                    framebufferResized_ = true;
-                }
-                UpdateCursorClip();
-                return 0;
-            case WM_INPUT:
-                if (mouseCaptured_)
-                {
-                    RAWINPUT rawInput{};
-                    UINT byteCount = sizeof(rawInput);
-                    const UINT copiedBytes = GetRawInputData(
-                        reinterpret_cast<HRAWINPUT>(longParameter),
-                        RID_INPUT,
-                        &rawInput,
-                        &byteCount,
-                        sizeof(RAWINPUTHEADER));
-                    if (copiedBytes != UINT_MAX && rawInput.header.dwType == RIM_TYPEMOUSE)
-                    {
-                        const LONG deltaX = rawInput.data.mouse.lLastX;
-                        const LONG deltaY = rawInput.data.mouse.lLastY;
-                        if (deltaX != 0 || deltaY != 0)
-                        {
-                            camera_.Rotate(
-                                static_cast<float>(deltaX),
-                                static_cast<float>(-deltaY));
-                            ResetAccumulation();
-                        }
-                    }
-                }
-                return 0;
-            case WM_MOUSEWHEEL:
-                if (GET_WHEEL_DELTA_WPARAM(wordParameter) != 0)
-                {
-                    camera_.Zoom(static_cast<float>(GET_WHEEL_DELTA_WPARAM(wordParameter))
-                        / static_cast<float>(WHEEL_DELTA));
-                    ResetAccumulation();
-                }
-                return 0;
-            case WM_ACTIVATE:
-                if (LOWORD(wordParameter) == WA_INACTIVE)
-                {
-                    ClipCursor(nullptr);
-                }
-                else
-                {
-                    UpdateCursorClip();
-                }
-                return 0;
-            case WM_SETCURSOR:
-                if (mouseCaptured_ && LOWORD(longParameter) == HTCLIENT)
-                {
-                    SetCursor(nullptr);
-                    return TRUE;
-                }
-                break;
-            default:
-                break;
-            }
-            return DefWindowProcW(window, message, wordParameter, longParameter);
-        }
-
-        static constexpr const wchar_t* windowClassName_ = L"RenderingEngineVulkanWindow";
-        HWND window_ = nullptr;
-        HINSTANCE windowInstance_ = nullptr;
-        ATOM windowClassAtom_ = 0;
+        std::unique_ptr<IPlatformHost> platform_;
         bool initialized_ = false;
         bool validationEnabled_ = false;
         bool framebufferResized_ = false;
@@ -2071,6 +1915,10 @@ namespace RenderingEngine
         SceneData scene_;
         float exposure_ = 1.0f;
         std::uint32_t maximumTraceDepth_ = 8;
+        std::uint32_t targetSamplesPerPixel_ = 0;
+        std::uint64_t baseSeed_ = 0;
+        RuntimeToggle vsyncMode_ = RuntimeToggle::RendererDefault;
+        RuntimeToggle validationMode_ = RuntimeToggle::RendererDefault;
         Integrator integrator_ = Integrator::Whitted;
         ShadowMethod shadowMethod_ = ShadowMethod::Physical;
         DebugView debugView_ = DebugView::Final;
@@ -2114,8 +1962,8 @@ namespace RenderingEngine
         VkSampler sampler_ = VK_NULL_HANDLE;
     };
 
-    VulkanWhittedRenderer::VulkanWhittedRenderer()
-        : impl_(std::make_unique<Impl>())
+    VulkanWhittedRenderer::VulkanWhittedRenderer(std::unique_ptr<IPlatformHost> platform)
+        : impl_(std::make_unique<Impl>(std::move(platform)))
     {
     }
 

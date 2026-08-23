@@ -5,6 +5,8 @@ VisualStudioVersion = 17.14.36518.9 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RenderingEngine", "RenderingEngine\RenderingEngine.Vulkan.vcxproj", "{C04D9934-D10F-4599-A56D-D215D3C36D50}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RenderingEngine.Contracts.Tests", "RenderingEngine\tests\contracts\RenderingEngine.Contracts.Tests.vcxproj", "{846E6A32-8FCA-41C4-AF03-A9252D572FB4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -15,6 +17,10 @@ Global
 		{C04D9934-D10F-4599-A56D-D215D3C36D50}.Debug|x64.Build.0 = Debug|x64
 		{C04D9934-D10F-4599-A56D-D215D3C36D50}.Release|x64.ActiveCfg = Release|x64
 		{C04D9934-D10F-4599-A56D-D215D3C36D50}.Release|x64.Build.0 = Release|x64
+		{846E6A32-8FCA-41C4-AF03-A9252D572FB4}.Debug|x64.ActiveCfg = Debug|x64
+		{846E6A32-8FCA-41C4-AF03-A9252D572FB4}.Debug|x64.Build.0 = Debug|x64
+		{846E6A32-8FCA-41C4-AF03-A9252D572FB4}.Release|x64.ActiveCfg = Release|x64
+		{846E6A32-8FCA-41C4-AF03-A9252D572FB4}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

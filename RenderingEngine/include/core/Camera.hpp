@@ -87,6 +87,11 @@ namespace RenderingEngine
 
         [[nodiscard]] float VerticalFovDegrees() const noexcept { return verticalFovDegrees_; }
 
+        void SetVerticalFovDegrees(float degrees)
+        {
+            verticalFovDegrees_ = std::clamp(degrees, 25.0f, 80.0f);
+        }
+
         void Move(float forward, float right, float vertical, float deltaSeconds, bool sprint)
         {
             const float speed = movementSpeed_ * (sprint ? 3.0f : 1.0f) * deltaSeconds;

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "vulkan-modern-raytracing",
+  "version-string": "0.0.0-wave0",
+  "description": "Pinned infrastructure dependencies for the Vulkan ray-tracing renderer.",
+  "supports": "windows & x64",
+  "dependencies": [
+    "catch2",
+    "cgltf",
+    "glfw3",
+    {
+      "name": "imgui",
+      "features": [
+        "glfw-binding",
+        "vulkan-binding"
+      ]
+    },
+    "stb",
+    "tinyexr",
+    "vulkan-memory-allocator"
+  ],
+  "overrides": [
+    {
+      "name": "catch2",
+      "version": "3.15.3"
+    },
+    {
+      "name": "cgltf",
+      "version": "1.15"
+    },
+    {
+      "name": "glfw3",
+      "version": "3.5.1"
+    },
+    {
+      "name": "imgui",
+      "version": "1.92.8",
+      "port-version": 1
+    },
+    {
+      "name": "stb",
+      "version-date": "2024-07-29",
+      "port-version": 1
+    },
+    {
+      "name": "tinyexr",
+      "version": "3.2.0"
+    },
+    {
+      "name": "vulkan-memory-allocator",
+      "version": "3.4.0"
+    }
+  ]
+}

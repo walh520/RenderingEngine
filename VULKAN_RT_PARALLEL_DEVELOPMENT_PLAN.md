@@ -1,8 +1,8 @@
 # Vulkan 现代光追小型渲染引擎：并行开发总计划
 
-> 文档状态：实施基线 v1  
-> 日期：2026-08-23  
-> 上游目标文档：`C:\Users\nitong\Downloads\Vulkan_Modern_RayTracing_Agent_Roadmap.md`  
+> 文档状态：实施基线 v3（Wave 0 合同冻结）
+> 日期：2026-08-24
+> 上游目标文档：`C:\Users\nitong\Downloads\Vulkan_Modern_RayTracing_Agent_Roadmap.md`
 > 当前工程：`C:\Users\nitong\source\repos\RenderingEngine`
 
 ---
@@ -42,9 +42,15 @@
 - 第一阶段平台：Windows x64。
 - 图形 API：Vulkan 1.3。
 - 第一基准设备：NVIDIA GeForce RTX 4070 Laptop GPU。
-- 窗口与输入：GLFW。
+- 目标窗口与输入层：GLFW。Wave 0 兼容基线暂时保留隐藏在
+  `IPlatformHost` 后的 Win32 host；L1 再替换为 GLFW，算法层不得依赖两者。
 - Shader：HLSL，经 Vulkan SDK DXC 编译为 SPIR-V。
-- 默认交互分辨率：1920 x 1080。
+- 正式构建系统：Visual Studio solution/project + MSBuild；本项目不建立 CMake 配置。
+- Git 集成模型：`master` 是唯一集成线；功能开发可使用独立 `codex/` branch/worktree，但不建立专用 integration branch。
+- Feature branch/worktree 只用于开发隔离，不作为发布来源或第二条共享合入线；contract/release tag 只从评审后的 `master` commit 创建。
+- 上述 build/Git 规则只有用户明确改变决定并接受新 ADR 时才能修改；任何功能线路不得自行引入第二套 build graph 或共享合入分支。
+- Portfolio 默认交互/采集档位：1920 x 1080；Wave 0 兼容程序仍以
+  1280 x 720 启动，二者不得在报告中混为同一性能档位。
 - 实时阶段最低目标：30 FPS；优化目标：60 FPS。
 - 性能测试必须固定插电状态、性能模式、驱动版本、分辨率、场景版本和随机种子。
 
@@ -96,7 +102,7 @@
 - Dear ImGui：Debug UI；
 - Catch2：CPU 单元测试。
 
-L0 必须在发布 `abi-v0` 前把 GLFW、VMA、cgltf、stb、TinyEXR、Dear ImGui、Catch2 的精确版本和 imported target 名写入 manifest。Feature 线路不得自行换库或新增替代实现。
+L0 必须在发布 `abi-v0` 前把 GLFW、VMA、cgltf、stb、TinyEXR、Dear ImGui、Catch2 的精确版本、vcpkg registry baseline 和 Visual Studio/MSBuild 接入名称写入 manifest。Feature 线路不得自行换库或新增替代实现。
 
 必须自研并能够解释数学与数据流：
 
@@ -131,7 +137,7 @@ Scene Asset -> Canonical Scene -> GPU Scene
                       Traversal Backend
                                 |
                                 v
-Integrator -> Light Sampler -> Reconstruction -> Display / Debug / Capture
+Integrator -> Direct Estimator + Light Proposal -> Reconstruction -> Display / Debug / Capture
                                 |
                                 v
                          Metrics / Profiler
@@ -154,6 +160,7 @@ Vulkan RT Pipeline
 
 ```text
 Whitted
+Legacy PBR comparison
 CPU Reference Path Tracer
 GPU Megakernel Path Tracer
 GPU Wavefront Path Tracer
@@ -191,6 +198,27 @@ Vulkan Ray Query + Wavefront PT + ReSTIR DI + SVGF
 ```
 
 CPU Reference 允许只在低分辨率、离屏或固定 SPP 模式运行，不要求 1080p 交互。
+
+### 3.3 Wave 0 能力事实
+
+模式被写入 `RuntimeConfig` 或 CLI token 只表示合同已命名，不表示算法已实现。
+Wave 0 唯一已实现的算法切片是：
+
+```text
+Baseline Gallery
+  + Legacy Analytic GPU
+  + Whitted 或现有 PBR
+  + Legacy Analytic Direct estimator / Legacy Analytic proposal
+  + Raw reconstruction
+```
+
+现有 direct estimator 默认 physical sphere-light；PCF/PCSS 是由独立
+`ShadowMethod` 表达的确定性对照，不把 physical 错标成 preview，也不把阴影
+method 冒充 estimator/proposal。final/material debug view 继续可用。
+其他 scene/backend/estimator/proposal/reconstruction 以及 production
+headless、capture、benchmark、reference comparison 都只能被识别并在建窗、
+创建 Vulkan 对象或写文件前明确拒绝；不得静默降级。能力边界以
+`docs/contracts/runtime-config-v0.md` 为准。
 
 ---
 
@@ -323,13 +351,17 @@ set 6  Debug / Profiler
 不在开工时猜完所有高级结构，而是按依赖冻结：
 
 ```text
-ABI v0  坐标/颜色、Scene、Material、Light、Frame、Ray、Hit、BSDF/LightSample 数学语义、RuntimeConfig、descriptor registry
+ABI v0  坐标/颜色、Scene、Material、Light、Frame、Ray、Hit、BSDF/LightSample 数学语义、descriptor registry
 ABI v1  GPU records、GPU Scene、BSDFSample/LightSample layout、PathState、Ray/Hit/Shadow queues、IGpuTraversalBackend
 ABI v2  PrimarySurface、Motion、GBuffer、History metadata
 ABI v3  Reservoir、persistent LightSample、ReSTIR history
 ```
 
 版本 gate 固定为：Wave 0 发布 v0；Wave 2 启动前发布 v1；Wave 3 启动前发布 v2；Wave 4 的 GPU ReSTIR 接线前发布 v3。同一时间只允许一个 ABI change in flight，模块私有结构不应提前进入公共合同。
+
+`RuntimeConfig v0` 与 ABI v0 同期冻结，但它是应用控制合同，不是
+CPU/GPU binary layout；其版本、capability 与 CLI 规则单独记录，不能用
+GPU layout test 冒充运行模式已接通。
 
 ---
 
@@ -369,6 +401,7 @@ RenderingEngine/
 │   ├── manifests/
 │   └── licenses/
 ├── tests/
+│   ├── contracts/
 │   ├── unit/
 │   ├── gpu/
 │   ├── statistical/
@@ -381,20 +414,27 @@ RenderingEngine/
 │   ├── proposals/L0...L10/
 │   ├── handoffs/L0...L10/
 │   └── benchmarks/
-└── CMakeLists.txt
+├── msbuild/
+│   ├── RenderingEngine.Common.props
+│   ├── VulkanShaders.targets
+│   ├── AbiV0Validation.targets
+│   ├── Verify-AbiV0Offsets.ps1
+│   └── lanes/*.Items.props
+├── RenderingEngine.Vulkan.vcxproj
+└── RenderingEngine.Vulkan.vcxproj.filters
 ```
 
-根 `CMakeLists.txt`、依赖 manifest、`include/contracts/`、`resources/shaders/include/contracts/`、正式 `docs/adr/` 和本文档只由线路 0 合并。每条线路拥有本模块的 `CMakeLists.txt`、shader manifest、test registration、`docs/proposals/Lx/` 和 `docs/handoffs/Lx/`。共享合同提案先写入自己的 proposals 子目录，由 L0 审批并编号为正式 ADR。
+根 `RenderingEngine.sln`、共享 `.props/.targets`、依赖 manifest、`include/contracts/`、`resources/shaders/include/contracts/`、正式 `docs/adr/` 和本文档只由线路 0 合并。每条线路拥有本模块的 `.vcxproj/.filters`、shader item manifest、test project、`docs/proposals/Lx/` 和 `docs/handoffs/Lx/`。共享合同提案先写入自己的 proposals 子目录，由 L0 审批并编号为正式 ADR。
 
 ---
 
 ## 6. 并行线路总览
 
-下表是 11 条长期逻辑所有权线路，不代表同时运行 11 条对话。推荐任一时刻最多并发 3～4 条实现线路，其余等待 contract/integration gate。
+下表是 11 条长期逻辑所有权线路，不代表同时运行 11 条对话。推荐任一时刻最多并发 3～4 条实现线路，其余等待合同与合入门槛。
 
 | 线路 | 建议分支 | 主要职责 | 可开始条件 | 最终目标 |
 |---|---|---|---|---|
-| L0 | `codex/rt-integration-contracts` | 基线、构建、共享 ABI、集成 | 立即 | 所有线路可稳定编译和合并的唯一合同基线 |
+| L0 | `master`（唯一集成线） | 基线、构建、共享 ABI、集成 | 立即 | 所有线路可稳定编译和合并的唯一合同基线 |
 | L1 | `codex/rt-platform-glfw` | GLFW、Vulkan Core、资源与同步 | L0 `abi-v0` + platform seam | 可 resize、可验证、可 profile 的 GLFW Vulkan 壳 |
 | L2 | `codex/rt-scene-assets` | glTF、材质、纹理、实例、场景注册 | L0 `abi-v0` | 稳定 ID 的 canonical scene 与十个展示空间 |
 | L3 | `codex/rt-cpu-reference` | CPU brute force、SAH、独立 PT reference | L0 `abi-v0` | 可重复、可统计的独立正确性 oracle |
@@ -416,20 +456,20 @@ RenderingEngine/
 
 ### 独占范围
 
-- 根构建文件和依赖 manifest；
+- `RenderingEngine.sln`、共享 Visual Studio/MSBuild 文件和依赖 manifest；
 - `src/app/`、`include/app/`、`Main.cpp`、`RuntimeConfig`、capability/feature registry 和最终 renderer/pass composition；
 - 迁移期的 `src/core/`、`include/core/` 与旧单体接线；
 - `include/contracts/`；
 - shader contract headers；
 - 正式 `docs/contracts/`、`docs/adr/` 审批与版本；
-- 主集成分支和 release tag。
+- `master` 集成线和 release tag；本项目不建立专用 integration 分支。
 
 ### 步骤
 
 1. 将当前可运行 Vulkan 状态固化为 checkpoint，保留所有用户改动。
 2. 修正 Whitted/PBR 默认路径的文档漂移。
-3. 建立 CMake Presets + 固定版本依赖；迁移结束后 Visual Studio solution 由 CMake 生成，各线路不得直接编辑 `.sln/.vcxproj/.filters`。
-4. 预建所有模块 target、模块内 `CMakeLists.txt`、shader/test manifest 空壳；以后各线路只维护自己的模块清单。
+3. 固化 Visual Studio solution + 共享 `.props/.targets` + 固定版本依赖；`.sln` 和中央 MSBuild 文件只由 L0 修改，正式构建不得依赖 CMake。
+4. 冻结模块 `.vcxproj/.filters`、shader item 和 test project 模板；只为已有源或可执行测试建立真实项目，不创建伪装进度的空库。以后各线路只维护自己的项目文件与源清单，由 L0 维护 solution composition 和 project dependency。
 5. 从旧单体抽出 app composition、`IWindow/IPlatformHost`、legacy Win32 adapter 和 raw input seam，确保 L1 无需修改旧单体即可实现 GLFW adapter。
 6. 拆出 `RuntimeConfig`、capability table、scene/ray/hit/material/light/frame ABI，提供 headless/mock RuntimeConfig，并发布 `abi-v0`。
 7. 为 `abi-v1` 提供 legacy analytic traversal adapter、固定 Hit fixture 和 `IGpuTraversalBackend` mock，使 L6 不依赖未合并的 L4/L5 branch。
@@ -818,10 +858,27 @@ Wavefront 与 Megakernel 收敛到同一参考图像，并能用 profiler 证明
 ### Wave 0 — 只允许先完成一次
 
 ```text
-L0 baseline checkpoint + module/build skeleton + platform/composition seam + abi-v0
+L0 baseline checkpoint
+ + Visual Studio/MSBuild build/test skeleton
+ + platform/application composition seam
+ + abi-v0
+ + RuntimeConfig/CLI/capability/artifact-layout v0
 ```
 
-Wave 0 未完成前，其他对话只能只读研究并在对话回复中返回 proposal 草案，不写仓库。baseline checkpoint 完成、独立 feature worktree 建立后，才可把草案写入各自的 `docs/proposals/Lx/`。
+Wave 0 的历史起始门槛是：baseline checkpoint 完成前，其他对话只能只读研究，
+不得从含未归档修改的工作树分叉。当前 checkpoint 为 `f190437`，后续功能线路
+必须从 L0 明确公布的 `master` commit 建立独立 feature worktree。
+
+Wave 0 完成只表示共享地基可供并行开发，不表示 GLFW、canonical triangle、
+glTF、CPU/GPU/HW traversal、现代 PT、SVGF、ReSTIR、production headless、
+capture 或 benchmark 已实现。正式验收表见
+`RenderingEngine/docs/contracts/wave0-acceptance-v0.md`，事实交接见
+`RenderingEngine/docs/handoffs/L0/wave0.md`。
+
+Wave 0 已于 2026-08-24 在 Debug/Release solution build、CPU contract tests、
+shader/ABI validation、CLI 0/2/4、现有 GPU runtime 与 Vulkan validation 层级
+验收通过；受控缺失 shader 探针也验证了 runtime exit 10。人工视觉、数值/性能、
+image repeatability 与 Application factory 自动回归测试未执行，不得由本次验收外推。
 
 ### Wave 1 — 基础并行
 
@@ -840,7 +897,7 @@ L10 UI / Harness skeleton
 L4 Flattened Software GPU
 L5 Hardware Ray Query
 L6 GPU Megakernel PT + MIS
-L10 Debug / Profiler integration
+L10 Debug / Profiler 接线
 ```
 
 L6 只依赖 `abi-v1` 的 traversal mock/fixture 开发，不得直接 merge 或引用尚未集成的 L4/L5 feature branch。
@@ -885,9 +942,11 @@ L0 release audit
 
 ### 9.1 工作区隔离
 
-每条对话必须使用独立 Git worktree 和独立 `codex/` 分支。禁止多条对话同时编辑同一个物理 checkout。
+L0 始终在 `master` 上集成。每条功能对话使用独立 Git worktree 和独立 `codex/` feature 分支；本项目不建立额外 integration 分支。禁止多条对话同时编辑同一个物理 checkout。
 
-当前 active Vulkan 源码仍包含大量 modified/untracked 文件，因此 **L0 完成 baseline checkpoint 之前禁止创建 feature worktree**。必须先证明 checkpoint 能构建、运行和回退，再让所有线路从同一个明确 commit 分叉。
+baseline checkpoint `f190437` 已把迁移前可运行状态固定下来。后续每次建立
+feature worktree 前仍须确认起点是 L0 公布的 `master` commit，且不得从任意
+对话的未提交工作树复制目录作为分支起点。
 
 迁移期的三个单体文件暂时由 L0 独占，其他线路不得继续向其中堆功能：
 
@@ -903,7 +962,6 @@ L0 负责把其中代码逐步搬到已分配模块；功能线路只向自己�
 
 ```text
 RenderingEngine-worktrees/
-├── integration
 ├── platform-glfw
 ├── scene-assets
 ├── cpu-reference
@@ -918,12 +976,12 @@ RenderingEngine-worktrees/
 
 ### 9.2 单一集成所有者
 
-- 只有 L0 对话负责合并到 integration/main。
+- 只有 L0 对话负责把 feature branch 合并到 `master`；不存在中间 integration branch。
 - Feature 对话不自行合并其他 feature branch。
 - Feature 对话不得清理、重置或覆盖其他线路的改动。
 - 中央 build、contracts、公共 enum 使用 append-only ID；破坏性修改必须走 ADR。
 - GPU benchmark、截图验收和性能采样串行执行；禁止多个 renderer 同时抢占同一 GPU 后再比较数据。
-- 每个 worktree 使用自己的 out-of-source build 目录，禁止共享中间产物。
+- 每个 worktree 使用自己的 Visual Studio `build/`、`bin/` 中间与输出目录，禁止跨 worktree 共享中间产物。
 
 ### 9.3 每条线路的交付包
 
@@ -971,6 +1029,11 @@ RenderingEngine-worktrees/
 
 键位目标是快速算法对照，而不是游戏操作。所有切换必须映射到 `RuntimeConfig`；CLI 和 UI 使用同一套状态。
 
+本节是 L1/L10 的目标 ActionMap，不是 Wave 0 Win32 兼容程序的已实现键位声明。
+Wave 0 现有键位记录在 `RenderingEngine/README.md`。迁移到 GLFW 后，ActionMap
+必须先查询 capability table：键盘循环只经过当前可用值；未实现值仍可在帮助/
+ImGui 中显示为 disabled，并给出所属线路，不得假装切换成功。
+
 ### 10.1 相机与应用
 
 | 键位 | 功能 |
@@ -1002,7 +1065,7 @@ RenderingEngine-worktrees/
 窗口标题和 ImGui 顶部始终显示：
 
 ```text
-Scene | Backend | Integrator | LightSampler | Reconstruction | Debug
+Scene | Backend | Integrator | DirectEstimator | LightProposal | Reconstruction | Debug
 Resolution | Seed | Frame | SPP | Bounce | GPU ms
 ```
 
@@ -1086,6 +1149,9 @@ AS  Acceleration structures
 ---
 
 ## 11. 典型算法展示空间
+
+本节定义算法优先的最终展示路线。Wave 0 只拥有下述 `0 — Baseline Gallery`
+的现有解析球/平面内容；1～9 是各后续线路的验收空间，不是占位场景或已完成资产。
 
 ## 0 — Baseline Gallery
 
@@ -1337,38 +1403,60 @@ AS  Acceleration structures
 
 ## 12. CLI 与自动化合同
 
-交互键位不能成为唯一入口。所有关键模式都必须支持 CLI：
+交互键位不能成为唯一入口。CLI 解析为同一个 `RuntimeConfig`。完整 v0 语法、
+alias、退出码和 Wave 0 支持矩阵以
+`RenderingEngine/docs/contracts/cli-v0.md` 为准，核心形式如下：
 
 ```text
---scene cornell
---backend ray-query
---integrator megakernel
---light-sampler mis
---light-proposal power
---reconstruction raw
---debug-view final
---resolution 1920x1080
---render-scale 1.0
---spp 4096
---max-bounce 8
---seed 1
---frames 120
+--scene <token>
+--backend <token>
+--integrator <token>
+--direct-lighting <token>       # --light-sampler 是兼容 alias
+--light-proposal <token>
+--reconstruction <token>
+--debug-view <token>
+--shadow <token>
+--resolution <WIDTHxHEIGHT>
+--render-scale <float>
+--spp <integer>
+--spp-per-frame <integer>
+--max-bounce <integer>          # --max-depth 是兼容 alias
+--seed <integer>
+--exposure <float>
+--fov <degrees>
+--frames <integer>
+--resize-test
 --headless
 --capture <directory>
 --benchmark <preset>
 --reference <image.exr>
+--artifact-root <directory>
+--run-id <id>
+--validation renderer-default|on|off
+--vsync renderer-default|on|off
 ```
 
-自动化输出至少包括：
+Wave 0 支持现有 `baseline + legacy-analytic-gpu + Whitted/PBR + Raw`
+兼容切片。已命名但未实现的模式返回 exit 4；非法语法/值返回 2；运行期失败
+返回 10。`headless/capture/benchmark/reference` 当前都返回 4，且发生在建窗与
+文件 I/O 前。`render-scale` 当前只支持 1.0，`spp-per-frame` 当前只支持 1；
+其他语法合法值返回 4。单独指定 artifact root/run ID 只规划路径，不写文件。
+
+`--capture <directory>` 的 directory 是该次 capture 的 artifact root，最终
+图像仍位于 `<directory>/<run-id>/captures/`；若同时指定
+`--artifact-root`，两者 lexical normalization 后必须相同，否则 exit 2。
+`--reference` 是输入 EXR，`--benchmark` 是 preset token。Wave 0 对三者都在
+artifact path planning 之前返回 4。
+
+未来自动化输出按 `artifact-layout-v0` 组织：
 
 ```text
-image.exr
-preview.png
-config.json
-timings.csv
-counters.csv
-validation.log
-comparison.json
+<artifact-root>/<run-id>/
+├── captures/image.exr + preview.png
+├── benchmarks/timings.csv + counters.csv
+├── references/comparison.json
+├── logs/validation.log
+└── metadata.json
 ```
 
 每份 metadata 记录：commit、contract version、GPU、driver、Vulkan SDK、resolution、scene hash、asset hash、seed、SPP、bounce、backend、integrator、sampler、reconstruction 和全部可调参数。
@@ -1378,6 +1466,8 @@ comparison.json
 ## 13. 分阶段发布目标
 
 ## Release 0 — Stable GLFW Baseline
+
+Release 0 是 Wave 1/L1/L10 完成后的发布目标，不等同于 Wave 0 地基合同。
 
 - 当前 Whitted/PBR 行为迁移到 GLFW；
 - Vulkan Core 拆分；

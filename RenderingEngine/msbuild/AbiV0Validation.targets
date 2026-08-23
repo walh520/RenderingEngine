@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <AbiV0ProbeSource>$(RenderingEngineSourceRoot)tests\contracts\AbiV0LayoutProbe.hlsl</AbiV0ProbeSource>
+    <AbiV0ProbeSpirv>$(IntDir)AbiV0LayoutProbe.comp.spv</AbiV0ProbeSpirv>
+    <AbiV0GoldenOffsets>$(RenderingEngineSourceRoot)tests\contracts\AbiV0Offsets.golden.json</AbiV0GoldenOffsets>
+    <AbiV0OffsetVerifier>$(RenderingEngineSourceRoot)msbuild\Verify-AbiV0Offsets.ps1</AbiV0OffsetVerifier>
+    <AbiV0ContractIncludeRoot>$(RenderingEngineSourceRoot)resources\shaders\include\contracts</AbiV0ContractIncludeRoot>
+    <AbiV0ValidationTargetsFile>$(MSBuildThisFileFullPath)</AbiV0ValidationTargetsFile>
+    <AbiV0ValidationStamp>$(IntDir)AbiV0LayoutProbe.validated.stamp</AbiV0ValidationStamp>
+    <VulkanDxcExecutable>$(VULKAN_SDK)\Bin\dxc.exe</VulkanDxcExecutable>
+    <SpirvValExecutable>$(VULKAN_SDK)\Bin\spirv-val.exe</SpirvValExecutable>
+    <SpirvDisExecutable>$(VULKAN_SDK)\Bin\spirv-dis.exe</SpirvDisExecutable>
+    <WindowsPowerShellExecutable>$(SystemRoot)\System32\WindowsPowerShell\v1.0\powershell.exe</WindowsPowerShellExecutable>
+  </PropertyGroup>
+  <ItemGroup>
+    <AbiV0ShaderDependency Include="$(RenderingEngineSourceRoot)resources\shaders\include\contracts\**\*.hlsli" />
+  </ItemGroup>
+
+  <Target Name="ValidateAbiV0ShaderToolchain"
+          BeforeTargets="CompileAbiV0LayoutProbe"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="'$(VULKAN_SDK)' == ''" Text="VULKAN_SDK is not set; the ABI v0 shader probe cannot run." />
+    <Error Condition="!Exists('$(VulkanDxcExecutable)')" Text="DXC was not found at $(VulkanDxcExecutable)." />
+    <Error Condition="!Exists('$(SpirvValExecutable)')" Text="spirv-val was not found at $(SpirvValExecutable)." />
+    <Error Condition="!Exists('$(SpirvDisExecutable)')" Text="spirv-dis was not found at $(SpirvDisExecutable)." />
+    <Error Condition="!Exists('$(WindowsPowerShellExecutable)')" Text="Windows PowerShell was not found at $(WindowsPowerShellExecutable)." />
+    <Error Condition="!Exists('$(AbiV0GoldenOffsets)')" Text="ABI v0 golden offsets were not found at $(AbiV0GoldenOffsets)." />
+    <Error Condition="!Exists('$(AbiV0OffsetVerifier)')" Text="ABI v0 offset verifier was not found at $(AbiV0OffsetVerifier)." />
+  </Target>
+
+  <Target Name="CompileAbiV0LayoutProbe"
+          BeforeTargets="ClCompile"
+          DependsOnTargets="ValidateAbiV0ShaderToolchain"
+          Inputs="$(AbiV0ProbeSource);@(AbiV0ShaderDependency);$(AbiV0GoldenOffsets);$(AbiV0OffsetVerifier);$(AbiV0ValidationTargetsFile);$(VulkanDxcExecutable);$(SpirvValExecutable);$(SpirvDisExecutable)"
+          Outputs="$(AbiV0ProbeSpirv);$(AbiV0ValidationStamp)"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <MakeDir Directories="$(IntDir)" />
+    <Delete Files="$(AbiV0ValidationStamp)" />
+    <Exec Command="&quot;$(VulkanDxcExecutable)&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -T cs_6_6 -E CSMain -Fo &quot;$(AbiV0ProbeSpirv)&quot; &quot;$(AbiV0ProbeSource)&quot;" />
+    <Exec Command="&quot;$(SpirvValExecutable)&quot; --target-env vulkan1.3 &quot;$(AbiV0ProbeSpirv)&quot;" />
+    <Exec Command="&quot;$(WindowsPowerShellExecutable)&quot; -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(AbiV0OffsetVerifier)&quot; -SpirvPath &quot;$(AbiV0ProbeSpirv)&quot; -GoldenPath &quot;$(AbiV0GoldenOffsets)&quot; -SpirvDisPath &quot;$(SpirvDisExecutable)&quot; -ContractIncludeRoot &quot;$(AbiV0ContractIncludeRoot)&quot;" />
+    <Touch Files="$(AbiV0ValidationStamp)" AlwaysCreate="true" />
+    <OnError ExecuteTargets="DeleteAbiV0ValidationOutputs" />
+  </Target>
+
+  <Target Name="DeleteAbiV0ValidationOutputs">
+    <Delete Files="$(AbiV0ProbeSpirv);$(AbiV0ValidationStamp)" />
+  </Target>
+
+
+  <Target Name="CleanAbiV0ValidationOutputs"
+          AfterTargets="Clean"
+          DependsOnTargets="DeleteAbiV0ValidationOutputs" />
+
+  <Target Name="RunAbiV0LayoutTests"
+          AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(RunAbiV0LayoutTests)' != 'false'">
+    <Exec Command="&quot;$(TargetPath)&quot;" />
+  </Target>
+</Project>

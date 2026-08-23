@@ -49,12 +49,14 @@
             Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')"
             Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <Import Project="msbuild\RenderingEngine.Common.props" />
 
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)build\$(Platform)\$(Configuration)\</IntDir>
     <TargetName>RenderingEngine</TargetName>
+    <VcpkgEnableManifest>false</VcpkgEnableManifest>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
     <ShaderCompileFlags>-Od -Zi -Qembed_debug</ShaderCompileFlags>
@@ -65,15 +67,7 @@
 
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <WarningLevel>Level4</WarningLevel>
-      <TreatWarningAsError>true</TreatWarningAsError>
-      <SDLCheck>true</SDLCheck>
-      <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp20</LanguageStandard>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(VULKAN_SDK)\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -86,17 +80,9 @@
 
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <WarningLevel>Level4</WarningLevel>
-      <TreatWarningAsError>true</TreatWarningAsError>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
-      <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp20</LanguageStandard>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(VULKAN_SDK)\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -107,40 +93,14 @@
     </Link>
   </ItemDefinitionGroup>
 
-  <ItemGroup>
-    <ClCompile Include="src\core\Main.cpp" />
-    <ClCompile Include="src\renderers\VulkanWhittedRenderer.cpp" />
-    <ClCompile Include="src\scene\GpuScene.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="include\core\Camera.hpp" />
-    <ClInclude Include="include\renderers\VulkanWhittedRenderer.hpp" />
-    <ClInclude Include="include\scene\GpuScene.hpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="resources\shaders\pbr\PbrPathTrace.hlsl">
-      <FileType>Document</FileType>
-      <Command>&quot;$(VULKAN_SDK)\Bin\dxc.exe&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -WX -T cs_6_6 -E CSMain $(ShaderCompileFlags) -Fo &quot;$(OutDir)PbrPathTrace.comp.spv&quot; &quot;%(FullPath)&quot;</Command>
-      <Outputs>$(OutDir)PbrPathTrace.comp.spv</Outputs>
-    </CustomBuild>
-    <CustomBuild Include="resources\shaders\whitted\WhittedTrace.hlsl">
-      <FileType>Document</FileType>
-      <Command>&quot;$(VULKAN_SDK)\Bin\dxc.exe&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -WX -T cs_6_6 -E CSMain $(ShaderCompileFlags) -Fo &quot;$(OutDir)WhittedTrace.comp.spv&quot; &quot;%(FullPath)&quot;</Command>
-      <Outputs>$(OutDir)WhittedTrace.comp.spv</Outputs>
-    </CustomBuild>
-    <CustomBuild Include="resources\shaders\whitted\Present.hlsl">
-      <FileType>Document</FileType>
-      <Command>&quot;$(VULKAN_SDK)\Bin\dxc.exe&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -WX -T vs_6_6 -E VSMain $(ShaderCompileFlags) -Fo &quot;$(OutDir)Present.vert.spv&quot; &quot;%(FullPath)&quot;&#xD;&#xA;&quot;$(VULKAN_SDK)\Bin\dxc.exe&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -WX -T ps_6_6 -E PSMain $(ShaderCompileFlags) -Fo &quot;$(OutDir)Present.frag.spv&quot; &quot;%(FullPath)&quot;</Command>
-      <Outputs>$(OutDir)Present.vert.spv;$(OutDir)Present.frag.spv</Outputs>
-    </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="README.md" />
-    <None Include="PBR_IMPLEMENTATION.md" />
-    <None Include="THIRD_PARTY_NOTICES.md" />
-    <None Include="tools\Validate-Pbr.ps1" />
-  </ItemGroup>
+  <!-- Lane-owned manifests keep parallel source registration out of this file. -->
+  <Import Project="msbuild\lanes\Baseline.Items.props" />
+  <Import Project="msbuild\lanes\Wave0.Platform.Items.props" />
+  <Import Project="msbuild\lanes\Wave0.App.Items.props" />
+  <Import Project="msbuild\lanes\Wave0.Contracts.Items.props" />
+  <Import Project="msbuild\lanes\Renderer.Shaders.Items.props" />
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="msbuild\VulkanShaders.targets" />
   <ImportGroup Label="ExtensionTargets" />
 </Project>

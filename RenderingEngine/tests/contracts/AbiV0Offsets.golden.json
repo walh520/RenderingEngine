@@ -1,0 +1,175 @@
+{
+  "schema": "vrt.abi-layout/0",
+  "abiVersion": 1,
+  "scalarByteOrder": "little-endian",
+  "matrixConvention": "four-explicit-rows; column-vector; M-times-v",
+  "records": {
+    "AbiFloat4": {
+      "size": 16,
+      "alignment": 16,
+      "fields": {
+        "x": { "offset": 0, "size": 4 },
+        "y": { "offset": 4, "size": 4 },
+        "z": { "offset": 8, "size": 4 },
+        "w": { "offset": 12, "size": 4 }
+      }
+    },
+    "AbiUInt4": {
+      "size": 16,
+      "alignment": 16,
+      "fields": {
+        "x": { "offset": 0, "size": 4 },
+        "y": { "offset": 4, "size": 4 },
+        "z": { "offset": 8, "size": 4 },
+        "w": { "offset": 12, "size": 4 }
+      }
+    },
+    "AbiMat4Rows": {
+      "size": 64,
+      "alignment": 16,
+      "fields": {
+        "row0": { "offset": 0, "size": 16 },
+        "row1": { "offset": 16, "size": 16 },
+        "row2": { "offset": 32, "size": 16 },
+        "row3": { "offset": 48, "size": 16 }
+      }
+    },
+    "GpuFrameConstantsV0": {
+      "size": 256,
+      "alignment": 16,
+      "fields": {
+        "clipFromWorld": { "offset": 0, "size": 64 },
+        "worldFromClip": { "offset": 64, "size": 64 },
+        "cameraPositionExposure": { "offset": 128, "size": 16 },
+        "renderExtentInvExtent": { "offset": 144, "size": 16 },
+        "timeAndEpsilon": { "offset": 160, "size": 16 },
+        "frameInfo": { "offset": 176, "size": 16 },
+        "renderInfo": { "offset": 192, "size": 16 },
+        "modeInfo": { "offset": 208, "size": 16 },
+        "sceneInfo": { "offset": 224, "size": 16 },
+        "reserved0": { "offset": 240, "size": 16 }
+      }
+    },
+    "GpuSceneConstantsV0": {
+      "size": 96,
+      "alignment": 16,
+      "fields": {
+        "counts0": { "offset": 0, "size": 16 },
+        "counts1": { "offset": 16, "size": 16 },
+        "sceneBoundsMin": { "offset": 32, "size": 16 },
+        "sceneBoundsMax": { "offset": 48, "size": 16 },
+        "versionFlags": { "offset": 64, "size": 16 },
+        "environment": { "offset": 80, "size": 16 }
+      }
+    },
+    "GpuVertexV0": {
+      "size": 64,
+      "alignment": 16,
+      "fields": {
+        "position": { "offset": 0, "size": 16 },
+        "normal": { "offset": 16, "size": 16 },
+        "tangent": { "offset": 32, "size": 16 },
+        "texcoord0": { "offset": 48, "size": 16 }
+      }
+    },
+    "GpuGeometryV0": {
+      "size": 64,
+      "alignment": 16,
+      "fields": {
+        "indexRange": { "offset": 0, "size": 16 },
+        "identity": { "offset": 16, "size": 16 },
+        "localBoundsMin": { "offset": 32, "size": 16 },
+        "localBoundsMax": { "offset": 48, "size": 16 }
+      }
+    },
+    "GpuInstanceV0": {
+      "size": 224,
+      "alignment": 16,
+      "fields": {
+        "objectToWorld": { "offset": 0, "size": 64 },
+        "worldToObject": { "offset": 64, "size": 64 },
+        "previousObjectToWorld": { "offset": 128, "size": 64 },
+        "metadata": { "offset": 192, "size": 16 },
+        "reserved0": { "offset": 208, "size": 16 }
+      }
+    },
+    "GpuMaterialV0": {
+      "size": 128,
+      "alignment": 16,
+      "fields": {
+        "baseColorFactor": { "offset": 0, "size": 16 },
+        "emissiveFactorStrength": { "offset": 16, "size": 16 },
+        "surfaceParams": { "offset": 32, "size": 16 },
+        "transmissionParams": { "offset": 48, "size": 16 },
+        "attenuationColorDistance": { "offset": 64, "size": 16 },
+        "textureImageIndices": { "offset": 80, "size": 16 },
+        "textureSamplerIndices": { "offset": 96, "size": 16 },
+        "metadata": { "offset": 112, "size": 16 }
+      }
+    },
+    "GpuLightV0": {
+      "size": 96,
+      "alignment": 16,
+      "fields": {
+        "positionRange": { "offset": 0, "size": 16 },
+        "directionCosOuter": { "offset": 16, "size": 16 },
+        "radianceScale": { "offset": 32, "size": 16 },
+        "shapeParams": { "offset": 48, "size": 16 },
+        "identity": { "offset": 64, "size": 16 },
+        "extra": { "offset": 80, "size": 16 }
+      }
+    },
+    "GpuRayV0": {
+      "size": 64,
+      "alignment": 16,
+      "fields": {
+        "originTMin": { "offset": 0, "size": 16 },
+        "directionTMax": { "offset": 16, "size": 16 },
+        "query": { "offset": 32, "size": 16 },
+        "reserved0": { "offset": 48, "size": 16 }
+      }
+    },
+    "GpuHitV0": {
+      "size": 96,
+      "alignment": 16,
+      "fields": {
+        "positionT": { "offset": 0, "size": 16 },
+        "geometricNormalBaryU": { "offset": 16, "size": 16 },
+        "shadingNormalBaryV": { "offset": 32, "size": 16 },
+        "ids": { "offset": 48, "size": 16 },
+        "metadata": { "offset": 64, "size": 16 },
+        "reserved0": { "offset": 80, "size": 16 }
+      }
+    }
+  },
+  "descriptorRegistry": {
+    "sets": {
+      "frame": 0,
+      "scene": 1,
+      "traversalBackend": 2,
+      "wavefrontReserved": 3,
+      "reconstructionReserved": 4,
+      "restirReserved": 5,
+      "debugProfiler": 6
+    },
+    "bindings": {
+      "frame.constants": 0,
+      "scene.constants": 0,
+      "scene.vertices": 1,
+      "scene.indices": 2,
+      "scene.geometries": 3,
+      "scene.instances": 4,
+      "scene.materials": 5,
+      "scene.lights": 6,
+      "scene.textures": 16,
+      "scene.samplers": 17,
+      "debugProfiler.constants": 0
+    }
+  },
+  "layoutProbeBindings": {
+    "testOnly": true,
+    "rayInput": { "set": 2, "binding": 0 },
+    "hitInput": { "set": 2, "binding": 1 },
+    "rawOutput": { "set": 6, "binding": 0 }
+  }
+}

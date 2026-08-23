@@ -1,48 +1,18 @@
 #pragma once
 
+#include "app/RuntimeConfig.hpp"
+
 #include <cstdint>
 #include <memory>
 
 namespace RenderingEngine
 {
-    enum class Integrator : std::uint32_t
-    {
-        Pbr = 0,
-        Whitted = 1
-    };
-
-    enum class ShadowMethod : std::uint32_t
-    {
-        Pcf = 0,
-        Pcss = 1,
-        Physical = 2
-    };
-
-    enum class DebugView : std::uint32_t
-    {
-        Final = 0,
-        BaseColor = 1,
-        Normal = 2,
-        Roughness = 3,
-        Metallic = 4,
-        Emissive = 5
-    };
-
-    struct RunOptions
-    {
-        std::uint32_t frameLimit = 0; // Zero keeps the window open until the user exits.
-        bool resizeTest = false;
-        float exposure = 1.0f;
-        std::uint32_t maximumTraceDepth = 8;
-        Integrator integrator = Integrator::Whitted;
-        ShadowMethod shadowMethod = ShadowMethod::Physical;
-        DebugView debugView = DebugView::Final;
-    };
+    class IPlatformHost;
 
     class VulkanWhittedRenderer final
     {
     public:
-        VulkanWhittedRenderer();
+        explicit VulkanWhittedRenderer(std::unique_ptr<IPlatformHost> platform);
         ~VulkanWhittedRenderer();
 
         VulkanWhittedRenderer(const VulkanWhittedRenderer&) = delete;

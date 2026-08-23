@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files\Platform"><UniqueIdentifier>{75609240-acd3-403b-9951-516e44682f15}</UniqueIdentifier></Filter>
+    <Filter Include="Header Files\Platform"><UniqueIdentifier>{ef9de14e-14a7-4cbc-8f70-3ae427102e9f}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\core\ExecutablePathWin32.cpp"><Filter>Source Files\Platform</Filter></ClCompile>
+    <ClCompile Include="src\platform\**\*.cpp"><Filter>Source Files\Platform</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\core\ExecutablePath.hpp"><Filter>Header Files\Platform</Filter></ClInclude>
+    <ClInclude Include="include\platform\**\*.hpp"><Filter>Header Files\Platform</Filter></ClInclude>
+  </ItemGroup>
+</Project>

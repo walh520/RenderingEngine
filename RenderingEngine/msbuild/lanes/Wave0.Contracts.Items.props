@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Header Files\Contracts"><UniqueIdentifier>{7a23d516-ad5d-4836-88fe-385fd5aba760}</UniqueIdentifier></Filter>
+    <Filter Include="Shaders\Contracts"><UniqueIdentifier>{8d4aca14-e8e1-4498-a463-857882fb944a}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\contracts\**\*.hpp"><Filter>Header Files\Contracts</Filter></ClInclude>
+    <None Include="resources\shaders\include\contracts\**\*.hlsli"><Filter>Shaders\Contracts</Filter></None>
+  </ItemGroup>
+</Project>

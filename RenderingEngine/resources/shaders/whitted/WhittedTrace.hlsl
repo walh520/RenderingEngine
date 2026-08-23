@@ -44,7 +44,7 @@ struct FrameConstants
     float4 cameraUpExposure;
     uint4 imageAndScene; // width, height, sphere count, plane count
     uint4 lightAndTrace; // light count, max depth, shadow method, reserved
-    uint4 samplingAndDebug; // accumulation sample, debug view, reserved, reserved
+    uint4 samplingAndDebug; // accumulation sample, debug view, base-seed low/high
 };
 
 struct Material
@@ -253,6 +253,11 @@ float3 PhysicalLightSamplePosition(Hit receiver, Light light)
     BuildShadowBasis(directionToLight, tangent, bitangent);
 
     uint randomState = HashUint(gFrame.samplingAndDebug.x + 1u);
+    if ((gFrame.samplingAndDebug.z | gFrame.samplingAndDebug.w) != 0u)
+    {
+        randomState ^= HashUint(gFrame.samplingAndDebug.z);
+        randomState ^= HashUint(gFrame.samplingAndDebug.w + 0x9e3779b9u);
+    }
     randomState ^= HashUint(asuint(receiver.position.x));
     randomState ^= HashUint(asuint(receiver.position.y) + 0x9e3779b9u);
     randomState ^= HashUint(asuint(receiver.position.z) + 0x85ebca6bu);
@@ -668,14 +673,28 @@ float RadicalInverse(uint index, uint base)
 
 float2 SubpixelSample(uint sampleIndex)
 {
+    float2 sample;
     if (sampleIndex == 0u)
     {
-        return 0.5f;
+        sample = 0.5f;
     }
-    const uint sequenceIndex = sampleIndex + 1u;
-    return float2(
-        RadicalInverse(sequenceIndex, 2u),
-        RadicalInverse(sequenceIndex, 3u));
+    else
+    {
+        const uint sequenceIndex = sampleIndex + 1u;
+        sample = float2(
+            RadicalInverse(sequenceIndex, 2u),
+            RadicalInverse(sequenceIndex, 3u));
+    }
+
+    if ((gFrame.samplingAndDebug.z | gFrame.samplingAndDebug.w) != 0u)
+    {
+        const float2 seedRotation = float2(
+            float(HashUint(gFrame.samplingAndDebug.z) & 0x00ffffffu),
+            float(HashUint(gFrame.samplingAndDebug.w + 0x9e3779b9u) & 0x00ffffffu))
+            * (1.0f / 16777216.0f);
+        sample = frac(sample + seedRotation);
+    }
+    return sample;
 }
 
 float3 EvaluateDebugView(Ray primaryRay, uint debugView)

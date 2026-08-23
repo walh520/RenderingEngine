@@ -50,7 +50,7 @@ struct FrameConstants
     float4 cameraUpExposure;
     uint4 imageAndScene; // width, height, sphere count, plane count
     uint4 lightAndTrace; // light count, max depth, shadow method, reserved
-    uint4 samplingAndDebug; // accumulation sample, debug view, reserved, reserved
+    uint4 samplingAndDebug; // accumulation sample, debug view, base-seed low/high
 };
 
 struct Material
@@ -986,6 +986,11 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     uint randomState = Hash(pixel.x + pixel.y * imageSize.x)
         ^ Hash(sampleIndex + 0x9e3779b9u);
+    if ((gFrame.samplingAndDebug.z | gFrame.samplingAndDebug.w) != 0u)
+    {
+        randomState ^= Hash(gFrame.samplingAndDebug.z);
+        randomState ^= Hash(gFrame.samplingAndDebug.w + 0x85ebca6bu);
+    }
     const float2 pixelOffset = debugView == 0u
         ? float2(RandomFloat(randomState), RandomFloat(randomState))
         : float2(0.5f, 0.5f);

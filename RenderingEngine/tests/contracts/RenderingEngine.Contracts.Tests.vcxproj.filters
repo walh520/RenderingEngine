@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files"><UniqueIdentifier>{b6d3ac18-5b07-437d-af31-60ac138749bb}</UniqueIdentifier></Filter>
+    <Filter Include="Runtime Contract Sources"><UniqueIdentifier>{492638d2-76c2-47b5-bca2-6440427b15cc}</UniqueIdentifier></Filter>
+    <Filter Include="Shader Probe"><UniqueIdentifier>{bb1bcaa8-1ec6-423c-88cb-486406bc69ad}</UniqueIdentifier></Filter>
+    <Filter Include="Golden Data"><UniqueIdentifier>{1efb2d42-654e-48ca-a7a3-939199680574}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="AbiLayoutStaticTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="AbiLayoutTestsMain.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="RuntimeControlTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\src\app\ArtifactLayout.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\src\app\CapabilityTable.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\src\app\CommandLine.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\src\app\RuntimeConfig.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="AbiV0LayoutProbe.hlsl"><Filter>Shader Probe</Filter></None>
+    <None Include="AbiV0Offsets.golden.json"><Filter>Golden Data</Filter></None>
+  </ItemGroup>
+</Project>

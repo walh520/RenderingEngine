@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <VulkanDxcExecutable>$(VULKAN_SDK)\Bin\dxc.exe</VulkanDxcExecutable>
+    <SpirvValExecutable>$(VULKAN_SDK)\Bin\spirv-val.exe</SpirvValExecutable>
+    <VulkanShadersTargetsFile>$(MSBuildThisFileFullPath)</VulkanShadersTargetsFile>
+    <VulkanShaderItemsFile>$(RenderingEngineSourceRoot)msbuild\lanes\Renderer.Shaders.Items.props</VulkanShaderItemsFile>
+    <VulkanShaderValidationStamp>$(IntDir)VulkanShaders.validated.stamp</VulkanShaderValidationStamp>
+  </PropertyGroup>
+  <ItemGroup>
+    <VulkanShaderDependency Include="$(RenderingEngineSourceRoot)resources\shaders\include\**\*.hlsli" />
+  </ItemGroup>
+
+  <Target Name="ValidateVulkanShaderToolchain"
+          BeforeTargets="CompileVulkanShaders"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="'$(VULKAN_SDK)' == ''" Text="VULKAN_SDK is not set; Vulkan shader compilation cannot run." />
+    <Error Condition="!Exists('$(VulkanDxcExecutable)')" Text="DXC was not found at $(VulkanDxcExecutable)." />
+    <Error Condition="!Exists('$(SpirvValExecutable)')" Text="spirv-val was not found at $(SpirvValExecutable)." />
+  </Target>
+
+  <Target Name="CompileVulkanShaders"
+          BeforeTargets="ClCompile"
+          DependsOnTargets="ValidateVulkanShaderToolchain"
+          Inputs="@(VulkanShaderCompile);@(VulkanShaderDependency);$(VulkanShadersTargetsFile);$(VulkanShaderItemsFile);$(MSBuildProjectFullPath);$(VulkanDxcExecutable);$(SpirvValExecutable)"
+          Outputs="@(VulkanShaderCompile->'$(OutDir)%(OutputFile)');$(VulkanShaderValidationStamp)"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <MakeDir Directories="$(OutDir)" />
+    <MakeDir Directories="$(IntDir)" />
+    <Delete Files="$(VulkanShaderValidationStamp)" />
+    <Exec Command="&quot;$(VulkanDxcExecutable)&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -T %(VulkanShaderCompile.Profile) -E %(VulkanShaderCompile.EntryPoint) $(ShaderCompileFlags) -Fo &quot;$(OutDir)%(VulkanShaderCompile.OutputFile)&quot; &quot;%(VulkanShaderCompile.FullPath)&quot;" />
+    <Exec Command="&quot;$(SpirvValExecutable)&quot; --target-env vulkan1.3 &quot;$(OutDir)%(VulkanShaderCompile.OutputFile)&quot;" />
+    <Touch Files="$(VulkanShaderValidationStamp)" AlwaysCreate="true" />
+    <OnError ExecuteTargets="DeleteVulkanShaderValidationOutputs" />
+  </Target>
+
+  <Target Name="DeleteVulkanShaderValidationOutputs">
+    <Delete Files="@(VulkanShaderCompile->'$(OutDir)%(OutputFile)');$(VulkanShaderValidationStamp)" />
+  </Target>
+
+  <Target Name="CleanVulkanShaderOutputs"
+          AfterTargets="Clean"
+          DependsOnTargets="DeleteVulkanShaderValidationOutputs" />
+</Project>
