@@ -2,8 +2,8 @@
 
 > 文档状态：实施基线 v3（Wave 0 合同冻结）
 > 日期：2026-08-24
-> 上游目标文档：`C:\Users\nitong\Downloads\Vulkan_Modern_RayTracing_Agent_Roadmap.md`
-> 当前工程：`C:\Users\nitong\source\repos\RenderingEngine`
+> 上游目标文档：`Vulkan_Modern_RayTracing_Agent_Roadmap.md`（仓库根目录）
+> 当前工程：`D:\MyProjects\RenderingEngine`
 
 ---
 

@@ -106,9 +106,9 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ExternalIncludePath>C:\Users\nitong\source\repos\RenderingEngine\RenderingEngine\include;C:\Users\nitong\source\repos\RenderingEngine\RenderingEngine\resources;C:\Users\nitong\source\repos\RenderingEngine\RenderingEngine\src;D:\VS2022\OpenGL;$(ExternalIncludePath)</ExternalIncludePath>
+    <ExternalIncludePath>$(ProjectDir)include;$(ProjectDir)resources;$(ProjectDir)src;D:\VS2022\OpenGL;$(ExternalIncludePath)</ExternalIncludePath>
     <LibraryPath>D:\VS2022\OpenGL\libs;$(LibraryPath)</LibraryPath>
-    <IncludePath>C:\Users\nitong\source\repos\RenderingEngine\RenderingEngine;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir);$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
