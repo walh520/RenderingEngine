@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{7c72e61d-2e6a-43fc-94d8-4821b58b970d}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{38a04aa0-8fa5-4ce9-ac46-c8f550c15da8}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx</Extensions>
+    </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{bd89aa22-ec22-44b6-85f2-8ca71b47bcd8}</UniqueIdentifier>
+      <Extensions>hlsl</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\core\Main.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="src\renderers\VulkanWhittedRenderer.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="src\scene\GpuScene.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\core\Camera.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="include\renderers\VulkanWhittedRenderer.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="include\scene\GpuScene.hpp"><Filter>Header Files</Filter></ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="resources\shaders\pbr\PbrPathTrace.hlsl"><Filter>Shaders</Filter></CustomBuild>
+    <CustomBuild Include="resources\shaders\whitted\WhittedTrace.hlsl"><Filter>Shaders</Filter></CustomBuild>
+    <CustomBuild Include="resources\shaders\whitted\Present.hlsl"><Filter>Shaders</Filter></CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" />
+    <None Include="PBR_IMPLEMENTATION.md" />
+    <None Include="THIRD_PARTY_NOTICES.md" />
+    <None Include="tools\Validate-Pbr.ps1" />
+  </ItemGroup>
+</Project>

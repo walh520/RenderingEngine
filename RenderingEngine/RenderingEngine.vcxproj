@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -19,6 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <None Include="quad.frag" />
+    <None Include="quad.vert" />
     <None Include="resources\shaders\blinn_phon\cube.frag" />
     <None Include="resources\shaders\blinn_phon\cube.vert" />
     <None Include="resources\shaders\blinn_phon\lighting.frag" />
@@ -26,12 +28,30 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="D:\VS2022\OpenGL\require\glad.c" />
+    <ClCompile Include="SceneObject.cpp" />
     <ClCompile Include="src\core\Renderer.cpp" />
     <ClCompile Include="src\materials\BlinnPhongMaterial.cpp" />
+    <ClCompile Include="WittedMaterial.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Cube.hpp" />
+    <ClInclude Include="include\renderers\WittedTrace.hpp" />
+    <ClInclude Include="include\scene\sphere.hpp" />
+    <ClInclude Include="MonteCalor.hpp" />
+    <ClInclude Include="GeometryBase.hpp" />
+    <ClInclude Include="include\core\camera.h" />
+    <ClInclude Include="include\core\shader.h" />
     <ClInclude Include="include\materials\BlinnPhongMaterial.hpp" />
     <ClInclude Include="include\materials\MaterialBase.hpp" />
+    <ClInclude Include="Scene.hpp" />
+    <ClInclude Include="SceneDataTransporter.hpp" />
+    <ClInclude Include="SceneObject.hpp" />
+    <ClInclude Include="SpecificScene_01.hpp" />
+    <ClInclude Include="Tool.hpp" />
+    <ClInclude Include="WittedMaterial.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="readme.txt" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
@@ -44,26 +64,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -86,8 +106,9 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ExternalIncludePath>C:\Users\nitong\source\repos\RenderingEngine\RenderingEngine\include;C:\Users\nitong\source\repos\RenderingEngine\RenderingEngine\resources;C:\Users\nitong\source\repos\RenderingEngine\RenderingEngine\src;D:\VS2022\OpenGL\require;D:\VS2022\OpenGL;$(ExternalIncludePath)</ExternalIncludePath>
+    <ExternalIncludePath>C:\Users\nitong\source\repos\RenderingEngine\RenderingEngine\include;C:\Users\nitong\source\repos\RenderingEngine\RenderingEngine\resources;C:\Users\nitong\source\repos\RenderingEngine\RenderingEngine\src;D:\VS2022\OpenGL;$(ExternalIncludePath)</ExternalIncludePath>
     <LibraryPath>D:\VS2022\OpenGL\libs;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\nitong\source\repos\RenderingEngine\RenderingEngine;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

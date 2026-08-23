@@ -43,6 +43,12 @@
     <Filter Include="源文件\materials">
       <UniqueIdentifier>{99e896e2-ec40-47b2-822d-cd1f78b583a5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="资源文件\shaders\witted">
+      <UniqueIdentifier>{56d7122c-0ba8-476e-8860-fa3940041046}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\include\scene">
+      <UniqueIdentifier>{293015e2-a20e-4a68-8e3c-b62372107844}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="resources\shaders\blinn_phon\cube.frag">
@@ -57,6 +63,8 @@
     <None Include="resources\shaders\blinn_phon\lighting.vert">
       <Filter>资源文件\shaders\bulinn_phon</Filter>
     </None>
+    <None Include="quad.vert" />
+    <None Include="quad.frag" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\materials\BlinnPhongMaterial.cpp">
@@ -68,6 +76,12 @@
     <ClCompile Include="D:\VS2022\OpenGL\require\glad.c">
       <Filter>资源文件</Filter>
     </ClCompile>
+    <ClCompile Include="WittedMaterial.cpp">
+      <Filter>源文件\materials</Filter>
+    </ClCompile>
+    <ClCompile Include="SceneObject.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\materials\BlinnPhongMaterial.hpp">
@@ -76,5 +90,47 @@
     <ClInclude Include="include\materials\MaterialBase.hpp">
       <Filter>头文件\include\materials</Filter>
     </ClInclude>
+    <ClInclude Include="include\core\camera.h">
+      <Filter>头文件\include\core</Filter>
+    </ClInclude>
+    <ClInclude Include="include\core\shader.h">
+      <Filter>头文件\include\core</Filter>
+    </ClInclude>
+    <ClInclude Include="Tool.hpp">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="WittedMaterial.hpp">
+      <Filter>头文件\include\materials</Filter>
+    </ClInclude>
+    <ClInclude Include="MonteCalor.hpp">
+      <Filter>头文件\include\intergration</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryBase.hpp">
+      <Filter>头文件\include\scene</Filter>
+    </ClInclude>
+    <ClInclude Include="include\renderers\WittedTrace.hpp">
+      <Filter>头文件\include\renderers</Filter>
+    </ClInclude>
+    <ClInclude Include="include\scene\sphere.hpp">
+      <Filter>头文件\include\scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene.hpp">
+      <Filter>头文件\include\scene</Filter>
+    </ClInclude>
+    <ClInclude Include="SceneObject.hpp">
+      <Filter>头文件\include\scene</Filter>
+    </ClInclude>
+    <ClInclude Include="SpecificScene_01.hpp">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Cube.hpp">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SceneDataTransporter.hpp">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="readme.txt" />
   </ItemGroup>
 </Project>

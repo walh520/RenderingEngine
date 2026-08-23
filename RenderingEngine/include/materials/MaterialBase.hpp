@@ -7,7 +7,7 @@ namespace RenderingEngine
     // 在命名空间内前向声明 Shader
     class Shader;
 
-    enum class MaterialType { BlinnPhong, PBR, Emissive };
+    enum class MaterialType { BlinnPhong, Witted };
 
     class MaterialBase
     {
@@ -18,9 +18,10 @@ namespace RenderingEngine
         virtual void         BindToShader(Shader& shader) = 0;
         virtual std::string  GetShaderName() const = 0;
 
-    protected:
-        glm::vec3   albedo_{ 1.0f };
-        std::string name_;
+        virtual std::string  GetName() const = 0;
+        virtual glm::vec3    GetAlbedo() const = 0;
+        virtual glm::vec3    GetEmission() const = 0;
+        virtual float        GetReflectivity() const = 0;
     };
 
 } // namespace RenderingEngine
