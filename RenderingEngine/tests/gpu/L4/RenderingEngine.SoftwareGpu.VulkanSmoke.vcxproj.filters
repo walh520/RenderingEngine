@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files"><UniqueIdentifier>{D8D25FD3-36F3-4503-AF28-F1AA2C76C940}</UniqueIdentifier></Filter>
+    <Filter Include="Header Files"><UniqueIdentifier>{770D7217-8A3B-4BCB-89F9-08F8C8D70EED}</UniqueIdentifier></Filter>
+    <Filter Include="Shaders"><UniqueIdentifier>{43CB3B24-DFA7-471E-9089-7751C0030D10}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="VulkanSmoke.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="VulkanSmokeMain.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="VulkanSmoke.hpp"><Filter>Header Files</Filter></ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\..\resources\shaders\traversal\software_trace.hlsl"><Filter>Shaders</Filter></CustomBuild>
+    <None Include="ValidateShaders.ps1"><Filter>Shaders</Filter></None>
+  </ItemGroup>
+</Project>
