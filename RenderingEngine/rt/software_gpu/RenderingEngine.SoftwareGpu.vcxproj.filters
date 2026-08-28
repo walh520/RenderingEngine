@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Header Files"><UniqueIdentifier>{45B85FE1-C614-4DC3-BDA4-8F4A36E84C20}</UniqueIdentifier></Filter>
+    <Filter Include="Source Files"><UniqueIdentifier>{346FAAE0-8C75-4440-897D-D63FCE263695}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\rt\software_gpu\SoftwareGpu.hpp"><Filter>Header Files</Filter></ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\rt\software_gpu\SoftwareGpu.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
+</Project>

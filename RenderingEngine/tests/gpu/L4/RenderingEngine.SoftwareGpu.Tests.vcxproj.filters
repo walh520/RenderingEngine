@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files"><UniqueIdentifier>{8616EF0A-4840-483E-B5B7-5F416613387C}</UniqueIdentifier></Filter>
+    <Filter Include="Shaders"><UniqueIdentifier>{123E82E6-A3A7-4838-BD31-F9E4F9C30C97}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="TestMain.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\..\resources\shaders\traversal\software_trace.hlsl"><Filter>Shaders</Filter></CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ValidateShaders.ps1"><Filter>Shaders</Filter></None>
+  </ItemGroup>
+</Project>

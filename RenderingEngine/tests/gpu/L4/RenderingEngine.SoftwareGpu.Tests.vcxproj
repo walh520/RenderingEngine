@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{DA20C31C-A62D-4441-92A4-AE97445A26B3}</ProjectGuid>
+    <RootNamespace>RenderingEngineSoftwareGpuTests</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <Import Project="..\..\..\msbuild\RenderingEngine.Common.props" />
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <OutDir>$(RenderingEngineRepositoryRoot)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(RenderingEngineRepositoryRoot)build\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</IntDir>
+    <TargetName>RenderingEngine.SoftwareGpu.Tests</TargetName>
+    <VcpkgEnableManifest>false</VcpkgEnableManifest>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile><DebugInformationFormat>OldStyle</DebugInformationFormat><PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <Link><SubSystem>Console</SubSystem><GenerateDebugInformation>true</GenerateDebugInformation><TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors></Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile><FunctionLevelLinking>true</FunctionLevelLinking><IntrinsicFunctions>true</IntrinsicFunctions><PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <Link><SubSystem>Console</SubSystem><GenerateDebugInformation>true</GenerateDebugInformation><TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors></Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="TestMain.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\rt\software_gpu\RenderingEngine.SoftwareGpu.vcxproj">
+      <Project>{2A92B65D-5BE1-4C91-A710-F9D7D5F503B4}</Project>
+      <LinkLibraryDependencies>true</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\..\resources\shaders\traversal\software_trace.hlsl">
+      <FileType>Document</FileType>
+      <Message>Validating L4 provisional Compute HLSL</Message>
+      <Command>if not exist "$(IntDir)shaders" mkdir "$(IntDir)shaders"
+"$(VULKAN_SDK)\Bin\dxc.exe" -T cs_6_6 -E CSMain -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -I "$(RenderingEngineSourceRoot)resources\shaders\traversal" -Fo "$(IntDir)shaders\software_trace.spv" "$(RenderingEngineSourceRoot)resources\shaders\traversal\software_trace.hlsl"
+"$(VULKAN_SDK)\Bin\dxc.exe" -T cs_6_6 -E CSMain -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -I "$(RenderingEngineSourceRoot)resources\shaders\traversal" -Fo "$(IntDir)shaders\software_lbvh_morton.spv" "$(RenderingEngineSourceRoot)resources\shaders\traversal\software_lbvh_morton.hlsl"
+"$(VULKAN_SDK)\Bin\dxc.exe" -T cs_6_6 -E HistogramCS -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -I "$(RenderingEngineSourceRoot)resources\shaders\traversal" -Fo "$(IntDir)shaders\software_lbvh_radix_histogram.spv" "$(RenderingEngineSourceRoot)resources\shaders\traversal\software_lbvh_radix.hlsl"
+"$(VULKAN_SDK)\Bin\dxc.exe" -T cs_6_6 -E PrefixCS -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -I "$(RenderingEngineSourceRoot)resources\shaders\traversal" -Fo "$(IntDir)shaders\software_lbvh_radix_prefix.spv" "$(RenderingEngineSourceRoot)resources\shaders\traversal\software_lbvh_radix.hlsl"
+"$(VULKAN_SDK)\Bin\dxc.exe" -T cs_6_6 -E ScatterCS -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -I "$(RenderingEngineSourceRoot)resources\shaders\traversal" -Fo "$(IntDir)shaders\software_lbvh_radix_scatter.spv" "$(RenderingEngineSourceRoot)resources\shaders\traversal\software_lbvh_radix.hlsl"
+"$(VULKAN_SDK)\Bin\dxc.exe" -T cs_6_6 -E ResetCS -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -I "$(RenderingEngineSourceRoot)resources\shaders\traversal" -Fo "$(IntDir)shaders\software_lbvh_reset.spv" "$(RenderingEngineSourceRoot)resources\shaders\traversal\software_lbvh_hierarchy.hlsl"
+"$(VULKAN_SDK)\Bin\dxc.exe" -T cs_6_6 -E HierarchyCS -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -I "$(RenderingEngineSourceRoot)resources\shaders\traversal" -Fo "$(IntDir)shaders\software_lbvh_hierarchy.spv" "$(RenderingEngineSourceRoot)resources\shaders\traversal\software_lbvh_hierarchy.hlsl"
+"$(VULKAN_SDK)\Bin\dxc.exe" -T cs_6_6 -E EmitLeavesCS -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -I "$(RenderingEngineSourceRoot)resources\shaders\traversal" -Fo "$(IntDir)shaders\software_lbvh_emit_leaves.spv" "$(RenderingEngineSourceRoot)resources\shaders\traversal\software_lbvh_bounds.hlsl"
+"$(VULKAN_SDK)\Bin\dxc.exe" -T cs_6_6 -E ComputeDepthsCS -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -I "$(RenderingEngineSourceRoot)resources\shaders\traversal" -Fo "$(IntDir)shaders\software_lbvh_depths.spv" "$(RenderingEngineSourceRoot)resources\shaders\traversal\software_lbvh_bounds.hlsl"
+"$(VULKAN_SDK)\Bin\dxc.exe" -T cs_6_6 -E InternalBoundsCS -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -I "$(RenderingEngineSourceRoot)resources\shaders\traversal" -Fo "$(IntDir)shaders\software_lbvh_internal_bounds.spv" "$(RenderingEngineSourceRoot)resources\shaders\traversal\software_lbvh_bounds.hlsl"
+"$(VULKAN_SDK)\Bin\spirv-val.exe" --target-env vulkan1.3 "$(IntDir)shaders\software_trace.spv"
+"$(VULKAN_SDK)\Bin\spirv-val.exe" --target-env vulkan1.3 "$(IntDir)shaders\software_lbvh_morton.spv"
+"$(VULKAN_SDK)\Bin\spirv-val.exe" --target-env vulkan1.3 "$(IntDir)shaders\software_lbvh_radix_histogram.spv"
+"$(VULKAN_SDK)\Bin\spirv-val.exe" --target-env vulkan1.3 "$(IntDir)shaders\software_lbvh_radix_prefix.spv"
+"$(VULKAN_SDK)\Bin\spirv-val.exe" --target-env vulkan1.3 "$(IntDir)shaders\software_lbvh_radix_scatter.spv"
+"$(VULKAN_SDK)\Bin\spirv-val.exe" --target-env vulkan1.3 "$(IntDir)shaders\software_lbvh_reset.spv"
+"$(VULKAN_SDK)\Bin\spirv-val.exe" --target-env vulkan1.3 "$(IntDir)shaders\software_lbvh_hierarchy.spv"
+"$(VULKAN_SDK)\Bin\spirv-val.exe" --target-env vulkan1.3 "$(IntDir)shaders\software_lbvh_emit_leaves.spv"
+"$(VULKAN_SDK)\Bin\spirv-val.exe" --target-env vulkan1.3 "$(IntDir)shaders\software_lbvh_depths.spv"
+"$(VULKAN_SDK)\Bin\spirv-val.exe" --target-env vulkan1.3 "$(IntDir)shaders\software_lbvh_internal_bounds.spv"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(ProjectDir)ValidateShaders.ps1" -VulkanSdk "$(VULKAN_SDK)" -ShaderRoot "$(RenderingEngineSourceRoot)resources\shaders\traversal" -OutputRoot "$(IntDir)shaders"</Command>
+      <Outputs>$(IntDir)shaders\software_trace_reset.spv;$(IntDir)shaders\software_trace.spv;$(IntDir)shaders\software_lbvh_morton_reset.spv;$(IntDir)shaders\software_lbvh_morton.spv;$(IntDir)shaders\software_lbvh_radix_histogram.spv;$(IntDir)shaders\software_lbvh_radix_prefix.spv;$(IntDir)shaders\software_lbvh_radix_scatter.spv;$(IntDir)shaders\software_lbvh_radix_validate_reset.spv;$(IntDir)shaders\software_lbvh_radix_validate.spv;$(IntDir)shaders\software_lbvh_reset.spv;$(IntDir)shaders\software_lbvh_hierarchy.spv;$(IntDir)shaders\software_lbvh_bounds_reset.spv;$(IntDir)shaders\software_lbvh_emit_leaves.spv;$(IntDir)shaders\software_lbvh_depths.spv;$(IntDir)shaders\software_lbvh_internal_bounds.spv</Outputs>
+      <AdditionalInputs>ValidateShaders.ps1;..\..\..\resources\shaders\traversal\software_common.hlsli;..\..\..\resources\shaders\traversal\software_lbvh_morton.hlsl;..\..\..\resources\shaders\traversal\software_lbvh_radix.hlsl;..\..\..\resources\shaders\traversal\software_lbvh_hierarchy.hlsl;..\..\..\resources\shaders\traversal\software_lbvh_bounds.hlsl</AdditionalInputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ValidateShaders.ps1" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="L4RunTests" AfterTargets="Build">
+    <Exec Command="&quot;$(TargetPath)&quot;" />
+  </Target>
+  <ImportGroup Label="ExtensionTargets" />
+</Project>
