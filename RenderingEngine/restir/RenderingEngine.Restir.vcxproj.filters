@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files"><UniqueIdentifier>{90B7DA53-EBDC-4FB2-8A93-D264F1BF91DB}</UniqueIdentifier><Extensions>cpp;c</Extensions></Filter>
+    <Filter Include="Header Files"><UniqueIdentifier>{5D876B99-216A-4DE6-A236-FE87F2321941}</UniqueIdentifier><Extensions>h;hpp</Extensions></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\restir\Benchmark.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\src\restir\CandidateGenerators.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\src\restir\Reservoir.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\src\restir\RestirDi.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\include\restir\Benchmark.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\include\restir\CandidateGenerators.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\include\restir\Reservoir.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\include\restir\RestirDi.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\include\restir\RestirTypes.hpp"><Filter>Header Files</Filter></ClInclude>
+  </ItemGroup>
+</Project>
