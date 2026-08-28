@@ -1,0 +1,19 @@
+{
+  "scope": "l3-private-cornell-fixture-v0",
+  "contract": "abi-v0",
+  "contract_numeric": 1,
+  "width": 256,
+  "height": 256,
+  "spp": 64,
+  "max_bounces": 8,
+  "seed": 1,
+  "threads_requested": 0,
+  "scene_hash_fnv1a64": "0x80597851ae8052c2",
+  "linear_rgb_hash_fnv1a64": "0x6b666a36f93df86d",
+  "ray_count": 14714873,
+  "shadow_ray_count": 8572432,
+  "non_finite_count": 0,
+  "elapsed_ms": 2289.329,
+  "exr": "RenderingEngine/rt/cpu/references/wave1/cornell-256x256-64spp-seed1.exr",
+  "preview_bmp": "RenderingEngine/rt/cpu/references/wave1/cornell-256x256-64spp-seed1.bmp"
+}

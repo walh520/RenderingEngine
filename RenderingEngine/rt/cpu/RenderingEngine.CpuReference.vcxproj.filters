@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files"><UniqueIdentifier>{9E8084C1-A427-4435-9EA6-A1E3DE805647}</UniqueIdentifier></Filter>
+    <Filter Include="Header Files"><UniqueIdentifier>{99B65C16-C3D0-4B99-8F40-D926253C9A17}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\rt\cpu\ReferenceMain.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\src\rt\cpu\ImageOutput.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\src\integrators\reference_cpu\CornellReference.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\rt\cpu\Math.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\include\rt\cpu\Geometry.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\include\rt\cpu\Bvh.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\include\rt\cpu\Random.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\include\rt\cpu\ImageOutput.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\include\bsdf\reference_cpu\Lambert.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\include\integrators\reference_cpu\CornellReference.hpp"><Filter>Header Files</Filter></ClInclude>
+  </ItemGroup>
+</Project>
