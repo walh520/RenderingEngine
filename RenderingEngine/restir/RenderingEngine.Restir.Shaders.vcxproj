@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{29256167-5ED4-4BD4-A8C4-A18A50D1D4E7}</ProjectGuid>
+    <RootNamespace>RenderingEngineRestirShaders</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v145</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <Import Project="..\msbuild\RenderingEngine.Common.props" />
+  <PropertyGroup>
+    <OutDir>$(RenderingEngineRepositoryRoot)build\$(Platform)\$(Configuration)\RenderingEngine.Restir.Shaders.Project\</OutDir>
+    <IntDir>$(RenderingEngineRepositoryRoot)build\$(Platform)\$(Configuration)\RenderingEngine.Restir.Shaders.Project\</IntDir>
+    <RestirShaderSourceRoot>$(RenderingEngineSourceRoot)resources\shaders\restir</RestirShaderSourceRoot>
+    <RestirShaderOutputRoot>$(RenderingEngineRepositoryRoot)build\$(Platform)\$(Configuration)\RenderingEngine.Restir.Shaders\</RestirShaderOutputRoot>
+    <DxcPath>$(VULKAN_SDK)\Bin\dxc.exe</DxcPath>
+    <SpirvValPath>$(VULKAN_SDK)\Bin\spirv-val.exe</SpirvValPath>
+    <VcpkgEnableManifest>false</VcpkgEnableManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirInitial.comp.hlsl"><SpirvOutput>$(RestirShaderOutputRoot)RestirInitial.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirTemporal.comp.hlsl"><SpirvOutput>$(RestirShaderOutputRoot)RestirTemporal.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirSpatial.comp.hlsl"><SpirvOutput>$(RestirShaderOutputRoot)RestirSpatial.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirVisibility.comp.hlsl"><SpirvOutput>$(RestirShaderOutputRoot)RestirVisibility.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirDebug.comp.hlsl"><SpirvOutput>$(RestirShaderOutputRoot)RestirDebug.comp.spv</SpirvOutput></RestirShader>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\resources\shaders\restir\RestirCandidateGeneration.hlsli" />
+    <None Include="..\resources\shaders\restir\RestirPrivateTypes.hlsli" />
+    <None Include="..\resources\shaders\restir\RestirInitial.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirTemporal.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirSpatial.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirVisibility.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirDebug.comp.hlsl" />
+  </ItemGroup>
+  <Target Name="CompileRestirShaders" BeforeTargets="Build">
+    <Error Condition="!Exists('$(DxcPath)')" Text="DXC was not found at $(DxcPath)." />
+    <Error Condition="!Exists('$(SpirvValPath)')" Text="spirv-val was not found at $(SpirvValPath)." />
+    <MakeDir Directories="$(RestirShaderOutputRoot)" />
+    <Exec Command="&quot;$(DxcPath)&quot; -T cs_6_6 -E main -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -I &quot;$(RestirShaderSourceRoot)&quot; -Fo &quot;%(RestirShader.SpirvOutput)&quot; &quot;%(RestirShader.Identity)&quot;" />
+    <Exec Command="&quot;$(SpirvValPath)&quot; --target-env vulkan1.3 &quot;%(RestirShader.SpirvOutput)&quot;" />
+  </Target>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

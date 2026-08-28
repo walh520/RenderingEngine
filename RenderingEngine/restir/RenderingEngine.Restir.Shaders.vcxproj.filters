@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Shaders"><UniqueIdentifier>{81C07FB4-D93F-49C8-B3D7-C89E48912F54}</UniqueIdentifier><Extensions>hlsl;hlsli</Extensions></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\resources\shaders\restir\RestirCandidateGeneration.hlsli"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirPrivateTypes.hlsli"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirInitial.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirTemporal.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirSpatial.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirVisibility.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirDebug.comp.hlsl"><Filter>Shaders</Filter></None>
+  </ItemGroup>
+</Project>
