@@ -1919,7 +1919,7 @@ namespace RenderingEngine
         std::uint64_t baseSeed_ = 0;
         RuntimeToggle vsyncMode_ = RuntimeToggle::RendererDefault;
         RuntimeToggle validationMode_ = RuntimeToggle::RendererDefault;
-        Integrator integrator_ = Integrator::Whitted;
+        Integrator integrator_ = Integrator::Pbr;
         ShadowMethod shadowMethod_ = ShadowMethod::Physical;
         DebugView debugView_ = DebugView::Final;
         std::uint32_t accumulationFrame_ = 0;

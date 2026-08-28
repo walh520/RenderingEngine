@@ -1,8 +1,8 @@
-# Optional PBR implementation record
+# PBR implementation record
 
-This document describes the optional `--integrator pbr` comparison mode. The
-application's startup default and primary delivery path are the HLSL Whitted
-integrator.
+This document describes the application's startup-default and primary-delivery
+PBR path. `--integrator whitted` remains an explicit compatibility and A/B
+comparison mode.
 
 ## Selected reference stack
 
@@ -40,8 +40,8 @@ Lambert diffuse so the scene record and rendered semantics remain portable.
 | Progressive accumulation | CSMain plus accumulationFrame_ | shader and src/renderers/VulkanWhittedRenderer.cpp |
 | HDR/display transform | RGBA32F plus PbrNeutralToneMap and LinearToSrgb | renderer and resources/shaders/whitted/Present.hlsl |
 
-Both compute shaders are built. The runtime loads WhittedTrace.comp.spv by
-default and loads PbrPathTrace.comp.spv only when `--integrator pbr` is
+Both compute shaders are built. The runtime loads PbrPathTrace.comp.spv by
+default and loads WhittedTrace.comp.spv only when `--integrator whitted` is
 requested.
 
 ## Opaque BRDF
@@ -130,11 +130,11 @@ The automated suite in tools/Validate-Pbr.ps1 proves:
 1. DXC compiles the active compute and presentation shaders with warnings as
    errors.
 2. The C++ target compiles and links with warnings as errors.
-3. Startup without an integrator argument reports the Whitted ray tracer,
+3. Startup without an integrator argument reports the PBR path tracer,
    guarding the default-path contract.
-4. A real Vulkan device creates all resources and renders Whitted physical,
-   PCF, PCSS, every material debug view, and swapchain resize cases; an explicit
-   PBR invocation remains as a comparison smoke test.
+4. A real Vulkan device creates all resources and renders PBR physical, PCF,
+   PCSS, every material debug view, seed/target-SPP, VSync, and swapchain resize
+   cases; an explicit Whitted invocation remains as a compatibility smoke test.
 5. Swapchain/output recreation survives two programmed resizes.
 
 Visual acceptance remains a separate gate. The expected observations are:

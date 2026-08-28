@@ -23,8 +23,11 @@ VertexOutput VSMain(uint vertexId : SV_VertexID)
     return output;
 }
 
-// Khronos PBR Neutral keeps authored base colors stable under neutral lighting
-// while compressing HDR highlights without the strong hue shifts of filmic fits.
+// HLSL adaptation of KhronosGroup/ToneMapping
+// PBR_Neutral/pbrNeutral.glsl (Apache-2.0). Names, syntax, and control flow were
+// adapted for this renderer; the published constants and transform are retained.
+// PBR Neutral keeps authored base colors stable under neutral lighting while
+// compressing HDR highlights without the strong hue shifts of filmic fits.
 float3 PbrNeutralToneMap(float3 color)
 {
     const float compressionStart = 0.76f;

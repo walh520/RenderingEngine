@@ -21,6 +21,9 @@ before creating a platform host, Vulkan object, or artifact directory.
 - `--max-depth` is the compatibility spelling of `--max-bounce`.
 - `--light-sampler` is the compatibility spelling of
   `--direct-lighting`; both choose the estimator, never the proposal.
+- Omitting `--integrator` selects `pbr` according to RuntimeConfig v0 as
+  amended by ADR 0005. `--integrator whitted` remains an explicit supported
+  comparison and never becomes an implicit fallback.
 
 ## Options
 
@@ -101,7 +104,8 @@ Supported compatibility requests:
 
 ```powershell
 RenderingEngine.exe --frames 120
-RenderingEngine.exe --integrator whitted --shadow physical --max-bounce 8
+RenderingEngine.exe --integrator pbr --shadow physical --max-bounce 8
+RenderingEngine.exe --integrator whitted --frames 8
 RenderingEngine.exe --integrator pbr --debug-view normal --frames 8
 RenderingEngine.exe --resolution 1280x720 --resize-test --frames 90
 RenderingEngine.exe --artifact-root artifacts --run-id smoke --frames 1

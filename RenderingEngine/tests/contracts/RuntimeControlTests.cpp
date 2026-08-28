@@ -80,6 +80,17 @@ bool RunRuntimeControlTests()
     tests.Expect(zeroLimits.config.run.frameLimit == 0, "--frames 0 must preserve interactive execution");
     tests.Expect(zeroLimits.config.render.targetSamplesPerPixel == 0, "--spp 0 must preserve no-target accumulation");
     tests.Expect(CapabilityTable::Evaluate(zeroLimits.config).IsSupported(), "default zero frame/SPP limits must remain supported");
+    tests.Expect(zeroLimits.config.integrator == Integrator::Pbr,
+        "omitting --integrator must select the PBR delivery path");
+
+    const RuntimeConfig defaultConfig;
+    tests.Expect(defaultConfig.integrator == Integrator::Pbr,
+        "RuntimeConfig must default to the PBR integrator");
+    const RunOptions defaultLegacyOptions;
+    tests.Expect(defaultLegacyOptions.integrator == Integrator::Pbr,
+        "legacy renderer projection storage must default to PBR");
+    tests.Expect(CommandLineHelpText().find("pbr (default)") != std::string_view::npos,
+        "help text must advertise the same PBR default as RuntimeConfig");
 
     const CommandLineParseResult aliases = Parse({
         "--max-depth", "5",

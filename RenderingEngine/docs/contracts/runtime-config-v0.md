@@ -1,6 +1,6 @@
 # RuntimeConfig v0
 
-Status: **frozen Wave 0 control-plane contract**
+Status: **frozen Wave 0 control-plane contract, amended by ADR 0005**
 Contract token: `runtime-config-v0`
 
 `RuntimeConfig` is the single canonical description of a requested run. The
@@ -70,7 +70,7 @@ per frame.
 |---|---|
 | Scene | `baseline` (`baseline-gallery` alias) |
 | Backend | `legacy-analytic-gpu` |
-| Integrator | `whitted` |
+| Integrator | `pbr` |
 | Direct-lighting estimator | `legacy-analytic-direct` |
 | Light proposal | `legacy-analytic` |
 | Reconstruction | `raw` |
@@ -165,3 +165,8 @@ repurposing a token, merging independent dimensions, changing default meaning,
 or turning an unsupported request into a silent fallback requires a new ADR.
 Adding a genuinely implemented capability is compatible when the capability
 table, tests, help text, and handoff evidence are updated together.
+
+ADR 0005 changes the startup integrator from the already-implemented Whitted
+mode to the already-implemented PBR mode. This changes only the default
+selection: both tokens, their numeric values, capability status, explicit CLI
+meaning, and no-fallback behavior remain unchanged.

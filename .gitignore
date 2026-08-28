@@ -24,6 +24,11 @@ mono_crash.*
 x64/
 x86/
 [Ww][Ii][Nn]32/
+# The renderer's Win32 platform boundary is source code, not a build output.
+!RenderingEngine/include/platform/win32/
+!RenderingEngine/include/platform/win32/**
+!RenderingEngine/src/platform/win32/
+!RenderingEngine/src/platform/win32/**
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/

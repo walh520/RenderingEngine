@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{A653D0B6-C1CE-4963-B574-0FE3D6B79B2A}</ProjectGuid>
+    <RootNamespace>RenderingEngineHardwareRTTests</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v145</PlatformToolset><CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v145</PlatformToolset><WholeProgramOptimization>true</WholeProgramOptimization><CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <Import Project="..\..\msbuild\RenderingEngine.Common.props" />
+  <PropertyGroup>
+    <OutDir>$(MSBuildProjectDirectory)\artifacts\bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\artifacts\obj\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>RenderingEngine.HardwareRT.Tests</TargetName>
+    <VcpkgEnableManifest>false</VcpkgEnableManifest>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory)\include;$(RenderingEngineSourceRoot)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>VK_ENABLE_BETA_EXTENSIONS;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(VULKAN_SDK)\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
+      <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\AccelerationStructures.cpp" />
+    <ClCompile Include="src\DeviceBuffer.cpp" />
+    <ClCompile Include="src\DeviceDispatch.cpp" />
+    <ClCompile Include="src\HardwareRtCapabilities.cpp" />
+    <ClCompile Include="src\ParityHarness.cpp" />
+    <ClCompile Include="src\RayQueryBackend.cpp" />
+    <ClCompile Include="src\RtPipelineBackend.cpp" />
+    <ClCompile Include="src\SbtBuilder.cpp" />
+    <ClCompile Include="tests\HardwareRtTests.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\AccelerationStructures.hpp" />
+    <ClInclude Include="include\DeviceBuffer.hpp" />
+    <ClInclude Include="include\DeviceDispatch.hpp" />
+    <ClInclude Include="include\HardwareRt.hpp" />
+    <ClInclude Include="include\HardwareRtCapabilities.hpp" />
+    <ClInclude Include="include\HardwareRtStatus.hpp" />
+    <ClInclude Include="include\ParityHarness.hpp" />
+    <ClInclude Include="include\RayQueryBackend.hpp" />
+    <ClInclude Include="include\RtPipelineBackend.hpp" />
+    <ClInclude Include="include\SbtBuilder.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\HardwareRayQuery.hlsl" />
+    <None Include="shaders\HardwareRtPipeline.hlsl" />
+  </ItemGroup>
+  <Target Name="CompileHardwareRtShaders" BeforeTargets="ClCompile"
+          Inputs="shaders\HardwareRayQuery.hlsl;shaders\HardwareRtPipeline.hlsl;$(RenderingEngineSourceRoot)resources\shaders\include\contracts\AbiTypesV0.hlsli;$(RenderingEngineSourceRoot)resources\shaders\include\contracts\AbiVersionV0.hlsli;$(RenderingEngineSourceRoot)resources\shaders\include\contracts\SceneAbiV0.hlsli;$(RenderingEngineSourceRoot)resources\shaders\include\contracts\RayHitAbiV0.hlsli"
+          Outputs="artifacts\shaders\HardwareRayQuery.spv;artifacts\shaders\HardwareRtPipeline.spv">
+    <MakeDir Directories="artifacts\shaders" />
+    <Exec Command="&quot;$(VULKAN_SDK)\Bin\dxc.exe&quot; -spirv -fspv-target-env=vulkan1.3 -fspv-extension=SPV_KHR_ray_query -fvk-use-dx-layout -Ges -WX -T cs_6_6 -E RayQueryMain -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot; &quot;shaders\HardwareRayQuery.hlsl&quot; -Fo &quot;artifacts\shaders\HardwareRayQuery.spv&quot;" />
+    <Exec Command="&quot;$(VULKAN_SDK)\Bin\spirv-val.exe&quot; --target-env vulkan1.3 &quot;artifacts\shaders\HardwareRayQuery.spv&quot;" />
+    <Exec Command="&quot;$(VULKAN_SDK)\Bin\dxc.exe&quot; -spirv -fspv-target-env=vulkan1.3 -fspv-extension=SPV_KHR_ray_tracing -fvk-use-dx-layout -Ges -WX -T lib_6_6 -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot; &quot;shaders\HardwareRtPipeline.hlsl&quot; -Fo &quot;artifacts\shaders\HardwareRtPipeline.spv&quot;" />
+    <Exec Command="&quot;$(VULKAN_SDK)\Bin\spirv-val.exe&quot; --target-env vulkan1.3 &quot;artifacts\shaders\HardwareRtPipeline.spv&quot;" />
+  </Target>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

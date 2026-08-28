@@ -48,6 +48,9 @@ if (-not $SkipBuild)
         '/m:1',
         '/p:BuildInParallel=false',
         '/p:UseMultiToolTask=false',
+        # Keep CL at one translation unit for deterministic PDB writes. /FS
+        # alone is insufficient on some MSVC installations during Rebuild.
+        '/p:CL_MPCount=1',
         ('/p:Configuration=' + $Configuration),
         '/p:Platform=x64'
     )
@@ -110,20 +113,20 @@ if (Test-Path -LiteralPath $unsupportedCaptureRoot)
 }
 
 $runtimeCases = @(
-    @{ Name = 'default integrator contract (must report Whitted)'; Arguments = @('--frames', '2', '--shadow', 'physical'); ExpectedText = 'Whitted ray tracer' },
-    @{ Name = 'Whitted physical area light'; Arguments = @('--integrator', 'whitted', '--frames', [string]$Frames, '--shadow', 'physical') },
-    @{ Name = 'Whitted PCF comparison'; Arguments = @('--integrator', 'whitted', '--frames', '2', '--shadow', 'pcf') },
-    @{ Name = 'Whitted PCSS comparison'; Arguments = @('--integrator', 'whitted', '--frames', '2', '--shadow', 'pcss') },
-    @{ Name = 'Whitted base-color view'; Arguments = @('--integrator', 'whitted', '--frames', '1', '--debug-view', 'base-color') },
-    @{ Name = 'Whitted normal view'; Arguments = @('--integrator', 'whitted', '--frames', '1', '--debug-view', 'normal') },
-    @{ Name = 'Whitted roughness view'; Arguments = @('--integrator', 'whitted', '--frames', '1', '--debug-view', 'roughness') },
-    @{ Name = 'Whitted metallic view'; Arguments = @('--integrator', 'whitted', '--frames', '1', '--debug-view', 'metallic') },
-    @{ Name = 'Whitted emissive view'; Arguments = @('--integrator', 'whitted', '--frames', '1', '--debug-view', 'emissive') },
-    @{ Name = 'Whitted fixed seed and target SPP'; Arguments = @('--integrator', 'whitted', '--spp', '2', '--seed', '123', '--shadow', 'physical'); ExpectedText = 'seed 123' },
-    @{ Name = 'Whitted configured FOV and FIFO VSync'; Arguments = @('--integrator', 'whitted', '--frames', '1', '--fov', '60', '--vsync', 'on') },
-    @{ Name = 'Whitted configured non-VSync present mode'; Arguments = @('--integrator', 'whitted', '--frames', '1', '--vsync', 'off') },
-    @{ Name = 'Whitted swapchain resize'; Arguments = @('--integrator', 'whitted', '--resolution', '800x600', '--frames', '90', '--resize-test', '--shadow', 'physical') },
-    @{ Name = 'Optional PBR comparison smoke test'; Arguments = @('--integrator', 'pbr', '--frames', '2', '--shadow', 'physical'); ExpectedText = 'PBR path tracer' }
+    @{ Name = 'default integrator contract (must report PBR)'; Arguments = @('--frames', '2', '--shadow', 'physical'); ExpectedPattern = 'Rendered 2 frames.*2 spp.*PBR path tracer' },
+    @{ Name = 'PBR physical area light'; Arguments = @('--integrator', 'pbr', '--frames', [string]$Frames, '--shadow', 'physical') },
+    @{ Name = 'PBR PCF comparison'; Arguments = @('--integrator', 'pbr', '--frames', '2', '--shadow', 'pcf') },
+    @{ Name = 'PBR PCSS comparison'; Arguments = @('--integrator', 'pbr', '--frames', '2', '--shadow', 'pcss') },
+    @{ Name = 'PBR base-color view'; Arguments = @('--integrator', 'pbr', '--frames', '1', '--debug-view', 'base-color') },
+    @{ Name = 'PBR normal view'; Arguments = @('--integrator', 'pbr', '--frames', '1', '--debug-view', 'normal') },
+    @{ Name = 'PBR roughness view'; Arguments = @('--integrator', 'pbr', '--frames', '1', '--debug-view', 'roughness') },
+    @{ Name = 'PBR metallic view'; Arguments = @('--integrator', 'pbr', '--frames', '1', '--debug-view', 'metallic') },
+    @{ Name = 'PBR emissive view'; Arguments = @('--integrator', 'pbr', '--frames', '1', '--debug-view', 'emissive') },
+    @{ Name = 'PBR fixed seed and target SPP'; Arguments = @('--integrator', 'pbr', '--spp', '2', '--seed', '123', '--shadow', 'physical'); ExpectedPattern = 'Rendered 2 frames.*2 spp.*seed 123' },
+    @{ Name = 'PBR configured FOV and FIFO VSync'; Arguments = @('--integrator', 'pbr', '--frames', '1', '--fov', '60', '--vsync', 'on') },
+    @{ Name = 'PBR configured non-VSync present mode'; Arguments = @('--integrator', 'pbr', '--frames', '1', '--vsync', 'off') },
+    @{ Name = 'PBR swapchain resize'; Arguments = @('--integrator', 'pbr', '--resolution', '800x600', '--frames', '90', '--resize-test', '--shadow', 'physical') },
+    @{ Name = 'Whitted compatibility smoke test'; Arguments = @('--integrator', 'whitted', '--frames', '2', '--shadow', 'physical'); ExpectedText = 'Whitted ray tracer' }
 )
 
 foreach ($runtimeCase in $runtimeCases)
@@ -146,6 +149,11 @@ foreach ($runtimeCase in $runtimeCases)
     {
         throw ($runtimeCase.Name + ' did not report expected text: ' + $runtimeCase.ExpectedText)
     }
+    if ($runtimeCase.ContainsKey('ExpectedPattern') -and ($runtimeText -notmatch $runtimeCase.ExpectedPattern))
+    {
+        throw ($runtimeCase.Name + ' did not match expected output pattern: ' +
+            $runtimeCase.ExpectedPattern)
+    }
 }
 
-Write-Host 'Whitted-default renderer validation suite passed.'
+Write-Host 'PBR-default renderer validation suite passed.'

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Headers"><UniqueIdentifier>{5084708F-3A6B-41F5-9859-A7962D491DA5}</UniqueIdentifier></Filter>
+    <Filter Include="Sources"><UniqueIdentifier>{8E165352-569D-438B-A2C1-5B32C450713C}</UniqueIdentifier></Filter>
+    <Filter Include="Tests"><UniqueIdentifier>{4653E465-BCA0-40F1-B289-7523A3C25C59}</UniqueIdentifier></Filter>
+    <Filter Include="Shaders"><UniqueIdentifier>{04D24211-9B7A-4510-ACFB-19E480A14953}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\reconstruction\Math.hpp"><Filter>Headers</Filter></ClInclude>
+    <ClInclude Include="include\reconstruction\Types.hpp"><Filter>Headers</Filter></ClInclude>
+    <ClInclude Include="include\reconstruction\MotionVectors.hpp"><Filter>Headers</Filter></ClInclude>
+    <ClInclude Include="include\reconstruction\History.hpp"><Filter>Headers</Filter></ClInclude>
+    <ClInclude Include="include\reconstruction\Svgf.hpp"><Filter>Headers</Filter></ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\MotionVectors.cpp"><Filter>Sources</Filter></ClCompile>
+    <ClCompile Include="src\History.cpp"><Filter>Sources</Filter></ClCompile>
+    <ClCompile Include="src\Svgf.cpp"><Filter>Sources</Filter></ClCompile>
+    <ClCompile Include="tests\ReconstructionTests.cpp"><Filter>Tests</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\ReconstructionCommon.hlsli"><Filter>Shaders</Filter></None>
+    <None Include="shaders\MotionVectorsCS.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="shaders\PrepareSignalCS.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="shaders\TemporalAccumulationCS.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="shaders\VarianceBootstrapCS.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="shaders\ATrousCS.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="shaders\ComposeCS.hlsl"><Filter>Shaders</Filter></None>
+  </ItemGroup>
+</Project>

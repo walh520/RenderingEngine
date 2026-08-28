@@ -424,7 +424,7 @@ namespace RenderingEngine
             "Vulkan HLSL Rendering Engine\n"
             "Legacy-compatible options:\n"
             "  --frames N                 Render N frames and exit; 0 runs until exit.\n"
-            "  --integrator MODE          whitted (default), pbr, cpu-reference, megakernel, wavefront.\n"
+            "  --integrator MODE          pbr (default), whitted, cpu-reference, megakernel, wavefront.\n"
             "  --max-depth N              Trace depth from 1 to 12 (default 8).\n"
             "  --exposure X               Linear exposure from 0.01 to 64.\n"
             "  --shadow MODE              physical, pcf, or pcss.\n"

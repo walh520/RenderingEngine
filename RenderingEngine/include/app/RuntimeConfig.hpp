@@ -126,7 +126,7 @@ namespace RenderingEngine
         std::uint32_t version = kRuntimeConfigVersion;
         ScenePreset scene = ScenePreset::BaselineGallery;
         TraversalBackend backend = TraversalBackend::LegacyAnalyticGpu;
-        Integrator integrator = Integrator::Whitted;
+        Integrator integrator = Integrator::Pbr;
         DirectLightingEstimator directLightingEstimator = DirectLightingEstimator::LegacyAnalyticDirect;
         LightProposalDistribution lightProposalDistribution = LightProposalDistribution::LegacyAnalyticLights;
         ReconstructionMode reconstruction = ReconstructionMode::Raw;
@@ -151,7 +151,7 @@ namespace RenderingEngine
         float verticalFovDegrees = 52.0f;
         RuntimeToggle vsync = RuntimeToggle::RendererDefault;
         RuntimeToggle validation = RuntimeToggle::RendererDefault;
-        Integrator integrator = Integrator::Whitted;
+        Integrator integrator = Integrator::Pbr;
         ShadowMethod shadowMethod = ShadowMethod::Physical;
         DebugView debugView = DebugView::Final;
     };

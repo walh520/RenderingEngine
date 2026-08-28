@@ -1,21 +1,23 @@
-# Vulkan HLSL Whitted Ray Tracer
+# Vulkan HLSL PBR Path Tracer
 
 The active Visual Studio target is a modern Vulkan 1.3 renderer whose startup
-default is classic Whitted ray tracing. A separate PBR path integrator is kept
-as an optional runtime comparison, and the repository's older OpenGL/CPU
-experiments are not compiled into the active executable.
+default is the progressive PBR path tracer. The classic Whitted integrator is
+kept as an explicit runtime comparison, and the repository's older OpenGL/CPU
+experiments are not compiled into the active executable. ADR 0005 records this
+default promotion without changing either integrator's token or numeric value.
 
 ## Active rendering path
 
 - HLSL compute shader compiled to SPIR-V by DXC (`-fvk-use-dx-layout`).
 - Analytic sphere and plane intersections with robust near/far sphere roots.
-- Default depth-first Whitted reflection/refraction with finite recursion,
-  Schlick Fresnel, total internal reflection, ray-origin offsets, throughput
-  cut-off, and Beer-Lambert attenuation.
-- Direct-light GGX metallic/roughness shading and correct finite-distance
-  shadow rays.
-- Optional PBR path through `--integrator pbr`, retained for A/B
-  comparison without changing the Whitted default requested by this project.
+- Default PBR path integration with glTF metallic-roughness materials,
+  Cook-Torrance GGX, height-correlated Smith visibility, Schlick Fresnel,
+  Heitz visible-normal sampling, cosine diffuse sampling, multi-bounce indirect
+  light, finite sphere-light next-event estimation, and Russian roulette.
+- Smooth dielectric reflection/refraction with exact Fresnel, total internal
+  reflection, ray-origin offsets, and Beer-Lambert attenuation.
+- Explicit Whitted comparison through `--integrator whitted`, retaining its
+  deterministic depth-first reflection/refraction behavior for regression.
 - The physical sphere-light method is the default shadow method. PCF and PCSS
   remain deterministic legacy comparison modes.
 - One sub-pixel Monte Carlo sample per pixel and frame, progressively averaged
@@ -54,8 +56,8 @@ Useful non-interactive selections:
 
 ~~~powershell
 .\bin\x64\Debug\RenderingEngine.exe --frames 120
-.\bin\x64\Debug\RenderingEngine.exe --integrator whitted --shadow physical --max-depth 8 --exposure 1.0
-.\bin\x64\Debug\RenderingEngine.exe --integrator pbr --frames 120
+.\bin\x64\Debug\RenderingEngine.exe --integrator pbr --shadow physical --max-depth 8 --exposure 1.0
+.\bin\x64\Debug\RenderingEngine.exe --integrator whitted --frames 120
 .\bin\x64\Debug\RenderingEngine.exe --shadow pcf
 .\bin\x64\Debug\RenderingEngine.exe --shadow pcss
 .\bin\x64\Debug\RenderingEngine.exe --debug-view normal --frames 8
@@ -124,7 +126,7 @@ material contract:
 Camera + metallic/roughness GPU scene records
         | per-frame UBO + packed device-local structured buffers
         v
-WhittedTrace.hlsl (default) or PbrPathTrace.hlsl (optional comparison)
+PbrPathTrace.hlsl (default) or WhittedTrace.hlsl (explicit comparison)
         | RGBA32F progressive HDR image
         v
 Present.hlsl (exposure + PBR Neutral + sRGB, fullscreen triangle)
@@ -140,7 +142,7 @@ errors.
 ## Scope
 
 The selected integrator is wired end-to-end from scene records through Vulkan
-presentation, with Whitted as the startup default. Geometry remains the
+presentation, with PBR as the startup default. Geometry remains the
 analytic sphere/plane scene. Mesh loading, texture and normal-map sampling, BVH
 acceleration, rough dielectric transport, spectral rendering, denoising, and
 HDRI importance sampling remain outside this focused implementation.
@@ -148,7 +150,7 @@ HDRI importance sampling remain outside this focused implementation.
 ## Wave 0 contracts
 
 - `docs/contracts/runtime-config-v0.md`: canonical orthogonal configuration and
-  current capability boundary.
+  current capability boundary, amended by ADR 0005 for the PBR default.
 - `docs/contracts/cli-v0.md`: CLI grammar, aliases, and exit codes.
 - `docs/contracts/artifact-layout-v0.md`: deterministic future output layout;
   Wave 0 performs path planning only.
