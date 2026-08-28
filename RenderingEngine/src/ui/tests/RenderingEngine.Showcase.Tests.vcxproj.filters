@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files"><UniqueIdentifier>{9B55EA30-096B-4BFF-AF59-4574992C36BF}</UniqueIdentifier></Filter>
+    <Filter Include="Runtime Contract Sources"><UniqueIdentifier>{E07F58AA-C182-4438-B078-068EA5B6A843}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="DebugProfilerModelTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="ImGuiShowcasePanelsTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="ShowcaseControllerTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="ShowcaseEvidenceTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="ShowcaseProgramTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="ShowcaseReportTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="ShowcaseWorkflowTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="ShowcaseWave1Tests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\app\ArtifactLayout.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\app\CapabilityTable.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\app\RuntimeConfig.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+  </ItemGroup>
+</Project>

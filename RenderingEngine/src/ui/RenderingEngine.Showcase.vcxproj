@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{B87BDD72-28BE-476F-85C1-EC0CED6BB8C8}</ProjectGuid>
+    <RootNamespace>RenderingEngineShowcase</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v145</PlatformToolset><CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v145</PlatformToolset><WholeProgramOptimization>true</WholeProgramOptimization><CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <VcpkgRoot Condition="'$(VcpkgRoot)'=='' and '$(VCToolsInstallDir)'!=''">$([System.IO.Path]::GetFullPath('$(VCToolsInstallDir)..\..\..\vcpkg'))</VcpkgRoot>
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+    <VcpkgManifestRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..\'))</VcpkgManifestRoot>
+    <VcpkgInstalledDir>$(VcpkgManifestRoot)vcpkg_installed\</VcpkgInstalledDir>
+    <VcpkgTriplet>x64-windows</VcpkgTriplet>
+  </PropertyGroup>
+  <Import Project="$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props" Condition="Exists('$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props')" />
+
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <Import Project="..\..\msbuild\RenderingEngine.Common.props" />
+
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <OutDir>$(RenderingEngineRepositoryRoot)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(RenderingEngineRepositoryRoot)build\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</IntDir>
+    <TargetName>RenderingEngine.Showcase</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile><PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile><FunctionLevelLinking>true</FunctionLevelLinking><IntrinsicFunctions>true</IntrinsicFunctions><PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClCompile Include="ActionMap.cpp" />
+    <ClCompile Include="DebugProfilerModel.cpp" />
+    <ClCompile Include="ImGuiShowcasePanels.cpp" />
+    <ClCompile Include="RuntimeConfigHarness.cpp" />
+    <ClCompile Include="ShowcaseController.cpp" />
+    <ClCompile Include="ShowcaseViewModel.cpp" />
+    <ClCompile Include="..\demos\CaptureBundleWriter.cpp" />
+    <ClCompile Include="..\demos\ShowcaseEvidence.cpp" />
+    <ClCompile Include="..\demos\ShowcaseProgram.cpp" />
+    <ClCompile Include="..\demos\ShowcaseReport.cpp" />
+    <ClCompile Include="..\demos\ShowcaseWorkflow.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\ui\ActionMap.hpp" />
+    <ClInclude Include="..\..\include\ui\DebugProfilerModel.hpp" />
+    <ClInclude Include="..\..\include\ui\ImGuiShowcasePanels.hpp" />
+    <ClInclude Include="..\..\include\ui\RuntimeConfigHarness.hpp" />
+    <ClInclude Include="..\..\include\ui\ShowcaseController.hpp" />
+    <ClInclude Include="..\..\include\ui\ShowcaseViewModel.hpp" />
+    <ClInclude Include="..\..\include\demos\CaptureBundleWriter.hpp" />
+    <ClInclude Include="..\..\include\demos\ShowcaseEvidence.hpp" />
+    <ClInclude Include="..\..\include\demos\ShowcaseProgram.hpp" />
+    <ClInclude Include="..\..\include\demos\ShowcaseReport.hpp" />
+    <ClInclude Include="..\..\include\demos\ShowcaseWorkflow.hpp" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.targets" Condition="Exists('$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.targets')" />
+  <Target Name="L10RequireVcpkg" BeforeTargets="PrepareForBuild" Condition="!Exists('$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props')">
+    <Error Text="L10 showcase requires vcpkg. Pass /p:VcpkgRoot=&lt;path&gt; or install the Visual Studio vcpkg component." />
+  </Target>
+  <ImportGroup Label="ExtensionTargets" />
+</Project>
