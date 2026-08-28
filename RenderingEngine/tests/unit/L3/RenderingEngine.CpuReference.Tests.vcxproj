@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{0D4C68BF-6A73-4D0B-85CE-57C3C772A306}</ProjectGuid>
+    <RootNamespace>RenderingEngineCpuReferenceTests</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+    <VcpkgManifestInstall>true</VcpkgManifestInstall>
+    <VcpkgRoot Condition="'$(VcpkgRoot)' == ''">$([System.IO.Path]::GetFullPath('$(VCTargetsPath)..\..\..\..\VC\vcpkg\'))</VcpkgRoot>
+    <L3ImportVcpkgIntegration Condition="'$(VcpkgPropsImported)' != 'true' and Exists('$(VcpkgRoot)scripts\buildsystems\msbuild\vcpkg.props')">true</L3ImportVcpkgIntegration>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(VcpkgRoot)scripts\buildsystems\msbuild\vcpkg.props" Condition="'$(L3ImportVcpkgIntegration)' == 'true'" />
+
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <Import Project="..\..\..\msbuild\RenderingEngine.Common.props" />
+
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <OutDir>$(RenderingEngineRepositoryRoot)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(RenderingEngineRepositoryRoot)build\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</IntDir>
+    <TargetName>RenderingEngine.CpuReference.Tests</TargetName>
+    <VcpkgManifestRoot>$(RenderingEngineRepositoryRoot)</VcpkgManifestRoot>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile><MultiProcessorCompilation>false</MultiProcessorCompilation></ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile><PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="TestMain.cpp" />
+    <ClCompile Include="GeometryTests.cpp" />
+    <ClCompile Include="BvhTests.cpp" />
+    <ClCompile Include="DeterminismTests.cpp" />
+    <ClCompile Include="ImageOutputTests.cpp" />
+    <ClCompile Include="..\..\statistical\L3\TraversalParityTests.cpp" />
+    <ClCompile Include="..\..\..\src\rt\cpu\ImageOutput.cpp" />
+    <ClCompile Include="..\..\..\src\integrators\reference_cpu\CornellReference.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\include\rt\cpu\Math.hpp" />
+    <ClInclude Include="..\..\..\include\rt\cpu\Geometry.hpp" />
+    <ClInclude Include="..\..\..\include\rt\cpu\Bvh.hpp" />
+    <ClInclude Include="..\..\..\include\rt\cpu\Random.hpp" />
+    <ClInclude Include="..\..\..\include\rt\cpu\ImageOutput.hpp" />
+    <ClInclude Include="..\..\..\include\bsdf\reference_cpu\Lambert.hpp" />
+    <ClInclude Include="..\..\..\include\integrators\reference_cpu\CornellReference.hpp" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(VcpkgRoot)scripts\buildsystems\msbuild\vcpkg.targets" Condition="'$(L3ImportVcpkgIntegration)' == 'true'" />
+  <Target Name="L3ValidateVcpkgIntegration" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(VcpkgRoot)scripts\buildsystems\msbuild\vcpkg.targets')" Text="L3 CPU Reference tests require the Visual Studio bundled vcpkg integration or an explicit VcpkgRoot." />
+  </Target>
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

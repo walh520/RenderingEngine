@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files"><UniqueIdentifier>{8BC56C39-88B2-4894-B893-B487271B7EDC}</UniqueIdentifier></Filter>
+    <Filter Include="Header Files"><UniqueIdentifier>{7B8E226B-4473-452B-A5B8-68FDC2707F7D}</UniqueIdentifier></Filter>
+    <Filter Include="Statistical Tests"><UniqueIdentifier>{515B4B09-3546-49DB-9055-29CAAA627A03}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="TestMain.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="GeometryTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="BvhTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="DeterminismTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="ImageOutputTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\statistical\L3\TraversalParityTests.cpp"><Filter>Statistical Tests</Filter></ClCompile>
+    <ClCompile Include="..\..\..\src\rt\cpu\ImageOutput.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\src\integrators\reference_cpu\CornellReference.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\include\rt\cpu\Math.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\..\include\rt\cpu\Geometry.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\..\include\rt\cpu\Bvh.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\..\include\rt\cpu\Random.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\..\include\rt\cpu\ImageOutput.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\..\include\bsdf\reference_cpu\Lambert.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\..\include\integrators\reference_cpu\CornellReference.hpp"><Filter>Header Files</Filter></ClInclude>
+  </ItemGroup>
+</Project>
