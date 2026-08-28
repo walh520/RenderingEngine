@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{456C3FAE-1D5F-43B1-80BF-816EBDFAB2AA}</ProjectGuid>
+    <RootNamespace>RenderingEngineWavefrontTests</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v145</PlatformToolset><CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v145</PlatformToolset><WholeProgramOptimization>true</WholeProgramOptimization><CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <Import Project="..\..\msbuild\RenderingEngine.Common.props" />
+  <PropertyGroup>
+    <OutDir>$(MSBuildProjectDirectory)\build\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\build\obj\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>Wavefront.Tests</TargetName>
+    <VcpkgEnableManifest>false</VcpkgEnableManifest>
+    <L7DxcExecutable>$(VULKAN_SDK)\Bin\dxc.exe</L7DxcExecutable>
+    <L7SpirvValExecutable>$(VULKAN_SDK)\Bin\spirv-val.exe</L7SpirvValExecutable>
+    <L7ShaderOutputDir>$(OutDir)shaders\</L7ShaderOutputDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile><PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(MSBuildProjectDirectory)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile>
+    <Link><SubSystem>Console</SubSystem><GenerateDebugInformation>true</GenerateDebugInformation><TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors><AdditionalDependencies>$(VULKAN_SDK)\Lib\vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile><FunctionLevelLinking>true</FunctionLevelLinking><IntrinsicFunctions>true</IntrinsicFunctions><PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(MSBuildProjectDirectory)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile>
+    <Link><SubSystem>Console</SubSystem><GenerateDebugInformation>true</GenerateDebugInformation><TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors><AdditionalDependencies>$(VULKAN_SDK)\Lib\vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\WavefrontCompactionOracle.cpp" />
+    <ClCompile Include="src\WavefrontProfiler.cpp" />
+    <ClCompile Include="src\WavefrontSchedule.cpp" />
+    <ClCompile Include="tests\WavefrontCpuOracleTests.cpp" />
+    <ClCompile Include="tests\WavefrontTestsMain.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <L7Shader Include="shaders\Reset.hlsl"><EntryPoint>ResetCS</EntryPoint><OutputFile>reset.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\RayGen.hlsl"><EntryPoint>RayGenCS</EntryPoint><OutputFile>raygen.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\PrepareDispatch.hlsl"><EntryPoint>PrepareDispatchCS</EntryPoint><OutputFile>prepare_dispatch.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\Intersect.hlsl"><EntryPoint>IntersectCS</EntryPoint><OutputFile>intersect.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\Shade.hlsl"><EntryPoint>ShadeCS</EntryPoint><OutputFile>shade.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\Scan.hlsl"><EntryPoint>ScanBlocksCS</EntryPoint><OutputFile>scan.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\AddOffsets.hlsl"><EntryPoint>AddOffsetsCS</EntryPoint><OutputFile>add_offsets.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\Scatter.hlsl"><EntryPoint>ScatterCS</EntryPoint><OutputFile>scatter.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\TraceShadow.hlsl"><EntryPoint>TraceShadowCS</EntryPoint><OutputFile>trace_shadow.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\NextBounce.hlsl"><EntryPoint>NextBounceCS</EntryPoint><OutputFile>next_bounce.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\Resolve.hlsl"><EntryPoint>ResolveCS</EntryPoint><OutputFile>resolve.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\VisualizeCounters.hlsl"><EntryPoint>VisualizeCountersCS</EntryPoint><OutputFile>visualize_counters.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\tests\SoftwareTraversalAdapterProbe.hlsl"><EntryPoint>TraversalAdapterProbeCS</EntryPoint><OutputFile>software_adapter_probe.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\tests\RayQueryTraversalAdapterProbe.hlsl"><EntryPoint>TraversalAdapterProbeCS</EntryPoint><OutputFile>ray_query_adapter_probe.spv</OutputFile></L7Shader>
+    <L7ShaderDependency Include="shaders\include\*.hlsli" />
+    <L7ShaderDependency Include="shaders\tests\*.hlsli" />
+    <L7ShaderDependency Include="..\..\resources\shaders\integrators\*.hlsli" />
+    <L7ShaderDependency Include="..\..\resources\shaders\include\bsdf\*.hlsli" />
+  </ItemGroup>
+  <Target Name="ValidateL7ShaderToolchain" BeforeTargets="CompileL7Shaders" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="'$(VULKAN_SDK)' == ''" Text="VULKAN_SDK is not set; L7 shader compilation cannot run." />
+    <Error Condition="!Exists('$(L7DxcExecutable)')" Text="DXC was not found at $(L7DxcExecutable)." />
+    <Error Condition="!Exists('$(L7SpirvValExecutable)')" Text="spirv-val was not found at $(L7SpirvValExecutable)." />
+  </Target>
+  <Target Name="CompileL7Shaders" BeforeTargets="ClCompile" DependsOnTargets="ValidateL7ShaderToolchain" Inputs="@(L7Shader);@(L7ShaderDependency);$(MSBuildProjectFullPath)" Outputs="@(L7Shader->'$(L7ShaderOutputDir)%(OutputFile)')" Condition="'$(DesignTimeBuild)' != 'true'">
+    <MakeDir Directories="$(L7ShaderOutputDir)" />
+    <Exec Command="&quot;$(L7DxcExecutable)&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -HV 2021 -T cs_6_6 -E %(L7Shader.EntryPoint) -I &quot;$(MSBuildProjectDirectory)\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -Fo &quot;$(L7ShaderOutputDir)%(L7Shader.OutputFile)&quot; &quot;%(L7Shader.FullPath)&quot;" />
+    <Exec Command="&quot;$(L7SpirvValExecutable)&quot; --target-env vulkan1.3 &quot;$(L7ShaderOutputDir)%(L7Shader.OutputFile)&quot;" />
+  </Target>
+  <Target Name="CleanL7ShaderOutputs" AfterTargets="Clean">
+    <Delete Files="@(L7Shader->'$(L7ShaderOutputDir)%(OutputFile)')" />
+  </Target>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>
