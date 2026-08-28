@@ -17,7 +17,8 @@ namespace RenderingEngine
     {
         Run,
         ShowHelp,
-        ShowVersion
+        ShowVersion,
+        ShowIntegrationStatus
     };
 
     struct CommandLineParseResult

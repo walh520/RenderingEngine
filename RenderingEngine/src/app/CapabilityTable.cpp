@@ -1,4 +1,5 @@
 #include "app/CapabilityTable.hpp"
+#include "app/IntegratedModuleRegistry.hpp"
 
 #include <cmath>
 #include <type_traits>
@@ -132,29 +133,67 @@ namespace RenderingEngine
             return Invalid("debug view is invalid");
         }
 
+        if (config.integrator == Integrator::CpuReferencePathTracer)
+        {
+            if (config.scene != ScenePreset::CornellBox
+                || config.backend != TraversalBackend::CpuSahBvh
+                || config.directLightingEstimator != DirectLightingEstimator::MultipleImportanceSampling
+                || config.lightProposalDistribution != LightProposalDistribution::UniformLights
+                || config.reconstruction != ReconstructionMode::Raw)
+            {
+                return Unsupported(
+                    "L3 runtime requires cornell + cpu-sah + cpu-reference + mis + uniform + raw");
+            }
+            if (!config.run.headless)
+            {
+                return Unsupported("L3 CPU reference runtime requires --headless");
+            }
+            if (config.render.targetSamplesPerPixel == 0u)
+            {
+                return Invalid("L3 CPU reference runtime requires a non-zero --spp target");
+            }
+            if (config.run.captureDirectory.has_value()
+                || config.run.benchmarkPreset.has_value()
+                || config.run.referenceImage.has_value())
+            {
+                return Unsupported(
+                    "L3 CPU reference writes its fixed artifact bundle and does not consume capture/benchmark/reference requests");
+            }
+            if (config.debugView != DebugView::Final
+                || config.render.renderScale != 1.0f
+                || config.render.samplesPerFrame != 1u)
+            {
+                return Unsupported(
+                    "L3 CPU reference supports final output, render-scale 1, and one scheduling sample per frame");
+            }
+            return Supported();
+        }
+
         if (!IsBuilt(config.scene))
         {
-            return Unsupported("only the baseline-gallery scene is built in Wave 0");
+            return Unsupported(ProductionAttachmentReason(ProviderOwner(config.scene)));
         }
         if (!IsBuilt(config.backend))
         {
-            return Unsupported("only the legacy-analytic-gpu backend is built in Wave 0");
+            return Unsupported(ProductionAttachmentReason(ProviderOwner(config.backend)));
         }
         if (!IsBuilt(config.integrator))
         {
-            return Unsupported("the selected integrator is declared but not built in Wave 0");
+            return Unsupported(ProductionAttachmentReason(ProviderOwner(config.integrator)));
         }
         if (!IsBuilt(config.directLightingEstimator))
         {
-            return Unsupported("only the legacy-analytic-direct estimator is built in Wave 0");
+            return Unsupported(ProductionAttachmentReason(
+                ProviderOwner(config.directLightingEstimator)));
         }
         if (!IsBuilt(config.lightProposalDistribution))
         {
-            return Unsupported("only the legacy-analytic light proposal is built in Wave 0");
+            return Unsupported(ProductionAttachmentReason(
+                ProviderOwner(config.lightProposalDistribution)));
         }
         if (!IsBuilt(config.reconstruction))
         {
-            return Unsupported("only raw reconstruction is built in Wave 0");
+            return Unsupported(ProductionAttachmentReason(ProviderOwner(config.reconstruction)));
         }
 
         if (!IsBuilt(config.shadowMethod))

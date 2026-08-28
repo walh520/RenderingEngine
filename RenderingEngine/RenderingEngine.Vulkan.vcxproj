@@ -99,6 +99,7 @@
   <Import Project="msbuild\lanes\Wave0.App.Items.props" />
   <Import Project="msbuild\lanes\Wave0.Contracts.Items.props" />
   <Import Project="msbuild\lanes\Renderer.Shaders.Items.props" />
+  <Import Project="msbuild\lanes\Integration.Items.props" />
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Import Project="msbuild\VulkanShaders.targets" />

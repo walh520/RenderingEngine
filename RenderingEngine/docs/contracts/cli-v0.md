@@ -17,7 +17,7 @@ before creating a platform host, Vulkan object, or artifact directory.
   are invalid CLI requests.
 - A known roadmap token whose implementation is absent is unsupported, not
   invalid and never a reason to select a different mode.
-- `--help` and `--version` succeed without creating a window.
+- `--help`, `--version`, and `--integration-status` succeed without creating a window.
 - `--max-depth` is the compatibility spelling of `--max-bounce`.
 - `--light-sampler` is the compatibility spelling of
   `--direct-lighting`; both choose the estimator, never the proposal.
@@ -31,6 +31,7 @@ before creating a platform host, Vulkan object, or artifact directory.
 |---|---|---|
 | `--help` | none | print contract help and exit |
 | `--version` | none | print executable/contract version and exit |
+| `--integration-status` | none | print L0-L10 central-build/production attachment boundaries and exit |
 | `--scene` | token | `scene` |
 | `--backend` | token | `backend` |
 | `--integrator` | token | `integrator` |
@@ -125,7 +126,7 @@ The latter group must return 4 before a window appears and before files are
 created. `--frames 0` means an interactive run, and `--spp 0` means that no
 target-SPP stop condition was requested.
 
-`--help` and `--version` are immediate process actions. Once encountered they
+`--help`, `--version`, and `--integration-status` are immediate process actions. Once encountered they
 print and exit successfully without evaluating later renderer options.
 
 Wave 0 target SPP is limited to 4096. A non-zero target SPP with a non-final

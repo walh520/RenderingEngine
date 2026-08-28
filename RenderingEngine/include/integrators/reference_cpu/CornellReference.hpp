@@ -29,7 +29,8 @@ namespace RenderingEngine::Integrators::ReferenceCpu
     };
 
     // Renders an L3-private deterministic Cornell fixture. It is deliberately
-    // not the L2 canonical scene and does not claim production CLI/capture support.
+    // not the L2 canonical scene; the production app exposes it only through
+    // the fail-closed headless CPU-reference configuration.
     [[nodiscard]] bool RenderCornellReference(
         const CornellReferenceOptions& options,
         CornellReferenceResult& result,

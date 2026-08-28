@@ -53,6 +53,7 @@
     <ClCompile Include="..\..\src\app\ArtifactLayout.cpp" />
     <ClCompile Include="..\..\src\app\CapabilityTable.cpp" />
     <ClCompile Include="..\..\src\app\CommandLine.cpp" />
+    <ClCompile Include="..\..\src\app\IntegratedModuleRegistry.cpp" />
     <ClCompile Include="..\..\src\app\RuntimeConfig.cpp" />
   </ItemGroup>
   <ItemGroup>

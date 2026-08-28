@@ -3,7 +3,9 @@
 #include "app/ArtifactLayout.hpp"
 #include "app/CapabilityTable.hpp"
 #include "app/CommandLine.hpp"
+#include "app/CpuReferenceRuntime.hpp"
 #include "app/ExitCode.hpp"
+#include "app/IntegratedModuleRegistry.hpp"
 #include "app/RuntimeConfig.hpp"
 #include "renderers/VulkanWhittedRenderer.hpp"
 
@@ -33,6 +35,11 @@ namespace RenderingEngine
                 std::cout << RuntimeVersionText() << '\n';
                 return ToProcessExitCode(ExitCode::Success);
             }
+            if (commandLine.action == CommandLineAction::ShowIntegrationStatus)
+            {
+                std::cout << IntegrationStatusText();
+                return ToProcessExitCode(ExitCode::Success);
+            }
 
             const CapabilityDecision capability = CapabilityTable::Evaluate(commandLine.config);
             if (capability.status == CapabilityStatus::InvalidConfiguration)
@@ -46,16 +53,21 @@ namespace RenderingEngine
                 return ToProcessExitCode(ExitCode::UnsupportedConfiguration);
             }
 
-            if (platformHostFactory == nullptr)
-            {
-                throw std::invalid_argument("RunApplication requires a platform-host factory.");
-            }
-
             // Resolve the Wave 0 artifact contract without creating anything on disk.
             const ArtifactLayout artifactLayout = ResolveArtifactLayout(
                 commandLine.config.run.artifactRoot,
                 commandLine.config.run.runIdentifier);
-            (void)artifactLayout;
+
+            if (commandLine.config.integrator == Integrator::CpuReferencePathTracer)
+            {
+                RunCpuReferenceRuntime(commandLine.config, artifactLayout);
+                return ToProcessExitCode(ExitCode::Success);
+            }
+
+            if (platformHostFactory == nullptr)
+            {
+                throw std::invalid_argument("RunApplication requires a platform-host factory.");
+            }
 
             PlatformCreateInfo platformCreateInfo;
             platformCreateInfo.clientExtent = {

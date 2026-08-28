@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files\Integration"><UniqueIdentifier>{FC7BD5E3-D276-4A15-83B3-F98371BFF207}</UniqueIdentifier></Filter>
+    <Filter Include="Header Files\Integration"><UniqueIdentifier>{4BDDF985-E389-478F-A2C4-E04C7E22AB1B}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\integrators\reference_cpu\CornellReference.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\integrators\reference_cpu\CornellReference.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\bsdf\reference_cpu\Lambert.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\rt\cpu\Bvh.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\rt\cpu\Geometry.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\rt\cpu\Math.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\rt\cpu\Random.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+  </ItemGroup>
+</Project>

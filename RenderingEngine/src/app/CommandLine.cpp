@@ -206,6 +206,11 @@ namespace RenderingEngine
                 result.action = CommandLineAction::ShowVersion;
                 return result;
             }
+            if (argument == "--integration-status")
+            {
+                result.action = CommandLineAction::ShowIntegrationStatus;
+                return result;
+            }
             if (argument == "--scene")
             {
                 result.config.scene = ParseScene(RequireValue(index, argumentCount, arguments, argument));
@@ -454,6 +459,7 @@ namespace RenderingEngine
             "  --reference IMAGE.exr       Request comparison with a reference image.\n"
             "                              These four requests are rejected until implemented.\n"
             "  --help | --version         Print information without creating a window.\n"
+            "  --integration-status       List central-build and production-runtime boundaries.\n"
             "Known roadmap modes that are not built return exit code 4 without fallback.\n"
             "Controls: WASD move, Space/Ctrl vertical, Shift sprint, mouse look, "
             "wheel zoom, 1 PCF, 2 PCSS, 3 physical, Tab release mouse, Esc exit.\n";

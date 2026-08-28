@@ -1,6 +1,7 @@
 #include "app/ArtifactLayout.hpp"
 #include "app/CapabilityTable.hpp"
 #include "app/CommandLine.hpp"
+#include "app/IntegratedModuleRegistry.hpp"
 #include "app/RuntimeConfig.hpp"
 
 #include <cstdint>
@@ -196,6 +197,21 @@ bool RunRuntimeControlTests()
 
     tests.Expect(Parse({ "--help" }).action == CommandLineAction::ShowHelp, "--help must short-circuit to an information action");
     tests.Expect(Parse({ "--version" }).action == CommandLineAction::ShowVersion, "--version must short-circuit to an information action");
+    tests.Expect(Parse({ "--integration-status" }).action == CommandLineAction::ShowIntegrationStatus,
+        "--integration-status must short-circuit to an information action");
+
+    const auto modules = IntegratedModules();
+    tests.Expect(modules.size() == 11u, "the central integration registry must cover L0 through L10");
+    tests.Expect(GetIntegratedModuleStatus(IntegratedModule::L0Foundation).IsProductionAttached(),
+        "the legacy analytic Vulkan runtime must remain the attached production provider");
+    tests.Expect(GetIntegratedModuleStatus(IntegratedModule::L2SceneAssets).stage == ModuleCompositionStage::Missing,
+        "the absent canonical scene provider must remain fail-closed");
+    tests.Expect(GetIntegratedModuleStatus(IntegratedModule::L6Megakernel).stage == ModuleCompositionStage::CentralBuild,
+        "L6 must be composed without being promoted to production runtime");
+    tests.Expect(ProviderOwner(Integrator::GpuWavefrontPathTracer) == IntegratedModule::L7Wavefront,
+        "wavefront ownership must resolve to L7");
+    tests.Expect(IntegrationStatusText().find("central-build means solution composition only") != std::string::npos,
+        "integration status must print its evidence boundary");
     tests.ExpectCommandLineError(
         [] { (void)Parse({ "--spp-per-frame", "0" }); },
         "--spp-per-frame 0 must fail parsing");
