@@ -174,6 +174,13 @@ namespace RenderingEngine::Demos
                 && left.configGeneration == right.configGeneration
                 && left.sceneGeneration == right.sceneGeneration
                 && left.resourceGeneration == right.resourceGeneration
+                && left.sceneStableId == right.sceneStableId
+                && left.variantStableId == right.variantStableId
+                && left.anchor.cameraPresetToken == right.anchor.cameraPresetToken
+                && left.anchor.baseSeed == right.anchor.baseSeed
+                && left.anchor.animationOriginTick == right.anchor.animationOriginTick
+                && left.frameIndex == right.frameIndex
+                && left.sampleIndex == right.sampleIndex
                 && left.runId == right.runId
                 && left.exrPath == right.exrPath
                 && left.pngPath == right.pngPath
@@ -372,8 +379,8 @@ namespace RenderingEngine::Demos
         requestA.resourceGeneration = start.resourceGeneration;
         requestA.variantStableId = start.variantAStableId;
         requestA.anchor = snapshotA.anchor;
-        requestA.frameIndex = snapshotA.frameIndex;
-        requestA.sampleIndex = snapshotA.sampleIndex;
+        requestA.frameIndex = start.captureFrameIndex;
+        requestA.sampleIndex = start.captureSampleIndex;
         requestA.configGeneration = start.configGeneration;
         requestA.providerToken = m_providerToken;
 
@@ -388,8 +395,8 @@ namespace RenderingEngine::Demos
         requestB.resourceGeneration = start.resourceGeneration;
         requestB.variantStableId = start.variantBStableId;
         requestB.anchor = snapshotB.anchor;
-        requestB.frameIndex = snapshotB.frameIndex;
-        requestB.sampleIndex = snapshotB.sampleIndex;
+        requestB.frameIndex = start.captureFrameIndex;
+        requestB.sampleIndex = start.captureSampleIndex;
         requestB.configGeneration = start.configGeneration;
         requestB.providerToken = m_providerToken;
 
@@ -410,14 +417,17 @@ namespace RenderingEngine::Demos
                 "Internal workflow record counts are inconsistent.");
         }
 
-        if (!IsValidUtf8(artifact.runId)
+        if (!IsValidUtf8(artifact.sceneStableId)
+            || !IsValidUtf8(artifact.variantStableId)
+            || !IsValidUtf8(artifact.anchor.cameraPresetToken)
+            || !IsValidUtf8(artifact.runId)
             || !IsValidUtf8(artifact.exrPath)
             || !IsValidUtf8(artifact.pngPath)
             || !IsValidUtf8(artifact.metadataPath))
         {
             return Reject(
                 ShowcaseWorkflowError::InvalidArtifactToken,
-                "Run ID and artifact paths must be valid UTF-8.");
+                "Artifact identity, run ID, and artifact paths must be valid UTF-8.");
         }
         if (!IsValidUtf8(artifact.provenance.provider)
             || !IsValidUtf8(artifact.provenance.detail))
@@ -497,6 +507,18 @@ namespace RenderingEngine::Demos
             return Reject(
                 ShowcaseWorkflowError::GenerationMismatch,
                 "Artifact scene/resource generation does not match the work request.");
+        }
+        if (artifact.sceneStableId != expected.sceneStableId
+            || artifact.variantStableId != expected.variantStableId
+            || artifact.anchor.cameraPresetToken != expected.anchor.cameraPresetToken
+            || artifact.anchor.baseSeed != expected.anchor.baseSeed
+            || artifact.anchor.animationOriginTick != expected.anchor.animationOriginTick
+            || artifact.frameIndex != expected.frameIndex
+            || artifact.sampleIndex != expected.sampleIndex)
+        {
+            return Reject(
+                ShowcaseWorkflowError::RequestIdentityMismatch,
+                "Artifact scene, variant, camera/seed/animation anchor, or frame/sample identity does not match the work request.");
         }
         if (artifact.provenance.source == EvidenceSource::SyntheticTest)
         {

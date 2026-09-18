@@ -56,6 +56,8 @@ namespace RenderingEngine::Demos
         std::string variantAStableId;
         std::string variantBStableId;
         std::uint64_t configGeneration = 0;
+        std::uint64_t captureFrameIndex = 0;
+        std::uint64_t captureSampleIndex = 0;
 
         // The renderer/readback owner supplies this fact. L10 copies the token
         // and never infers availability from a scene or algorithm selection.
@@ -86,6 +88,11 @@ namespace RenderingEngine::Demos
         std::uint64_t configGeneration = 0;
         std::uint64_t sceneGeneration = 0;
         std::uint64_t resourceGeneration = 0;
+        std::string sceneStableId;
+        std::string variantStableId;
+        FixedComparisonAnchor anchor;
+        std::uint64_t frameIndex = 0;
+        std::uint64_t sampleIndex = 0;
         std::string runId;
 
         // Paths are provider-supplied, normalized UTF-8 tokens relative to the

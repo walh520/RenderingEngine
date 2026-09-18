@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files"><UniqueIdentifier>{399798C9-F559-4572-B261-969380F1A8CF}</UniqueIdentifier><Extensions>cpp;c</Extensions></Filter>
+    <Filter Include="Shaders"><UniqueIdentifier>{9F9A734C-66C7-42FD-8FF0-5836EEA29E12}</UniqueIdentifier><Extensions>hlsl;hlsli</Extensions></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Wave2TraversalGate.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\rt\hardware\src\AccelerationStructures.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\rt\hardware\src\DeviceBuffer.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\rt\hardware\src\DeviceDispatch.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\rt\hardware\src\RayQueryBackend.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\rt\hardware\src\RtPipelineBackend.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\rt\hardware\src\SbtBuilder.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\src\rt\gpu\CanonicalTraversalScene.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\src\rt\gpu\GpuTraversalContracts.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\src\rt\software_gpu\SoftwareGpu.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\src\rt\software_gpu\SoftwareGpuBackend.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\src\scene\CanonicalScene.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\integrators\megakernel\MegakernelBridge.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Wave2Shader Include="$(RenderingEngineSourceRoot)resources\shaders\traversal\software_trace_v1.hlsl"><Filter>Shaders</Filter></Wave2Shader>
+    <Wave2Shader Include="$(RenderingEngineSourceRoot)rt\hardware\shaders\HardwareRayQuery.hlsl"><Filter>Shaders</Filter></Wave2Shader>
+    <Wave2Shader Include="$(RenderingEngineSourceRoot)rt\hardware\shaders\HardwareRtPipeline.hlsl"><Filter>Shaders</Filter></Wave2Shader>
+    <Wave2Shader Include="$(RenderingEngineSourceRoot)resources\shaders\integrators\pbr_canonical_megakernel.hlsl"><Filter>Shaders</Filter></Wave2Shader>
+    <Wave2Shader Include="$(RenderingEngineSourceRoot)resources\shaders\integrators\pbr_sampling_probe.hlsl"><Filter>Shaders</Filter></Wave2Shader>
+  </ItemGroup>
+</Project>

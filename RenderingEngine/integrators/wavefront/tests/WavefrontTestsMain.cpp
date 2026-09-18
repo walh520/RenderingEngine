@@ -4,6 +4,8 @@
 namespace RenderingEngine::Wavefront::Tests
 {
     void RunWavefrontCpuOracleSelfTests();
+    void RunWavefrontShadowPolicySelfTests();
+    void RunVulkanWavefrontRecorderSelfTests();
 }
 
 int main()
@@ -11,7 +13,9 @@ int main()
     try
     {
         RenderingEngine::Wavefront::Tests::RunWavefrontCpuOracleSelfTests();
-        std::cout << "L7 wavefront CPU self-tests passed.\n";
+        RenderingEngine::Wavefront::Tests::RunWavefrontShadowPolicySelfTests();
+        RenderingEngine::Wavefront::Tests::RunVulkanWavefrontRecorderSelfTests();
+        std::cout << "L7 wavefront CPU, shadow-policy, shader, and Vulkan command-recorder self-tests passed.\n";
         return 0;
     }
     catch (const std::exception& exception)

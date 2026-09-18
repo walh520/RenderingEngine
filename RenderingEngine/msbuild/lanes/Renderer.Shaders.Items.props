@@ -4,14 +4,239 @@
     <Filter Include="Shaders"><UniqueIdentifier>{bd89aa22-ec22-44b6-85f2-8ca71b47bcd8}</UniqueIdentifier></Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="resources\shaders\pbr\PbrPathTrace.hlsl"><Filter>Shaders</Filter></None>
-    <None Include="resources\shaders\whitted\WhittedTrace.hlsl"><Filter>Shaders</Filter></None>
     <None Include="resources\shaders\whitted\Present.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\traversal\software_trace_v1.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="rt\hardware\shaders\HardwareRayQuery.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\integrators\pbr_canonical_megakernel.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\integrators\pbr_restir_candidate_export_v3.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\restir\RestirClearV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\restir\RestirDebugV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\restir\RestirInitialV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\restir\RestirPublishDirectV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\restir\RestirPublishHistoryV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\restir\RestirReferenceResolveV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\restir\RestirReferenceVisibilityPrepareV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\restir\RestirSpatialV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\restir\RestirTemporalV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\restir\RestirWinnerResolveV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="resources\shaders\restir\RestirWinnerVisibilityPrepareV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="integrators\wavefront\shaders\Reset.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="integrators\wavefront\shaders\RayGen.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="integrators\wavefront\shaders\PrepareDispatch.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="integrators\wavefront\shaders\Intersect.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="integrators\wavefront\shaders\Shade.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="integrators\wavefront\shaders\Scan.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="integrators\wavefront\shaders\AddOffsets.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="integrators\wavefront\shaders\Scatter.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="integrators\wavefront\shaders\TraceShadow.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="integrators\wavefront\shaders\NextBounce.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="integrators\wavefront\shaders\Resolve.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="integrators\wavefront\shaders\VisualizeCounters.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="reconstruction\shaders\MotionVectorsCS.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="reconstruction\shaders\PrepareSignalCS.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="reconstruction\shaders\TemporalAccumulationCS.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="reconstruction\shaders\VarianceBootstrapCS.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="reconstruction\shaders\ATrousCS.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="reconstruction\shaders\ComposeCS.hlsl"><Filter>Shaders</Filter></None>
   </ItemGroup>
   <ItemGroup>
-    <VulkanShaderCompile Include="resources\shaders\pbr\PbrPathTrace.hlsl"><EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>PbrPathTrace.comp.spv</OutputFile></VulkanShaderCompile>
-    <VulkanShaderCompile Include="resources\shaders\whitted\WhittedTrace.hlsl"><EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>WhittedTrace.comp.spv</OutputFile></VulkanShaderCompile>
     <VulkanShaderCompile Include="resources\shaders\whitted\Present.hlsl"><EntryPoint>VSMain</EntryPoint><Profile>vs_6_6</Profile><OutputFile>Present.vert.spv</OutputFile></VulkanShaderCompile>
     <VulkanShaderCompile Include="resources\shaders\whitted\Present.hlsl"><EntryPoint>PSMain</EntryPoint><Profile>ps_6_6</Profile><OutputFile>Present.frag.spv</OutputFile></VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\traversal\software_trace_v1.hlsl">
+      <EntryPoint>SoftwareTraceV1</EntryPoint><Profile>cs_6_6</Profile><OutputFile>software_trace_v1.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\traversal&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs></ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="rt\hardware\shaders\HardwareRayQuery.hlsl">
+      <EntryPoint>RayQueryMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>hardware_ray_query_v1.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_canonical_megakernel.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_software.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_SOFTWARE -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_ENABLE_RESTIR_OWNERSHIP -DPBR_L6_ENABLE_RECONSTRUCTION_EXPORT -DPBR_L6_MONOLITHIC_GROUP_SIZE=1</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_canonical_megakernel.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_rayquery.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_RAY_QUERY -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_ENABLE_RESTIR_OWNERSHIP -DPBR_L6_ENABLE_RECONSTRUCTION_EXPORT -DPBR_L6_MONOLITHIC_GROUP_SIZE=1 -fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_canonical_megakernel.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_software_noprofile.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_SOFTWARE -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_ENABLE_RESTIR_OWNERSHIP -DPBR_L6_ENABLE_RECONSTRUCTION_EXPORT -DPBR_L6_MONOLITHIC_GROUP_SIZE=1 -DPBR_L6_DISABLE_PROFILER_COUNTERS</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_canonical_megakernel.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_rayquery_noprofile.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_RAY_QUERY -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_ENABLE_RESTIR_OWNERSHIP -DPBR_L6_ENABLE_RECONSTRUCTION_EXPORT -DPBR_L6_MONOLITHIC_GROUP_SIZE=1 -DPBR_L6_DISABLE_PROFILER_COUNTERS -fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_signal_megakernel.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_software_camera_emission.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_SOFTWARE -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=1</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_signal_megakernel.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_software_direct_diffuse.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_SOFTWARE -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=2</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_signal_megakernel.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_software_direct_specular.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_SOFTWARE -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=3</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_step.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_software_indirect_diffuse.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_SOFTWARE -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=4</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_step.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_software_indirect_specular.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_SOFTWARE -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=5</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_signal_megakernel.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_rayquery_camera_emission.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_RAY_QUERY -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=1 -fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_signal_megakernel.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_rayquery_direct_diffuse.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_RAY_QUERY -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=2 -fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_signal_megakernel.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_rayquery_direct_specular.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_RAY_QUERY -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=3 -fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_step.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_rayquery_indirect_diffuse.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_RAY_QUERY -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=4 -fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_step.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_rayquery_indirect_specular.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_RAY_QUERY -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=5 -fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_resolve.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_indirect_diffuse_resolve.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_SIGNAL_MODE=4</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_resolve.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_indirect_specular_resolve.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_SIGNAL_MODE=5</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_seed.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_software_indirect_diffuse_seed.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_SOFTWARE -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=4</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_seed.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_software_indirect_specular_seed.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_SOFTWARE -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=5</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_seed.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_rayquery_indirect_diffuse_seed.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_RAY_QUERY -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=4 -fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_seed.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_rayquery_indirect_specular_seed.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_RAY_QUERY -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=5 -fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_shade.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_software_indirect_diffuse_shade.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_SOFTWARE -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=4</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_shade.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_software_indirect_specular_shade.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_SOFTWARE -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=5</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_shade.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_rayquery_indirect_diffuse_shade.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_RAY_QUERY -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=4 -fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_shade.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_rayquery_indirect_specular_shade.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_RAY_QUERY -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=5 -fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_raw_seed.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_raw_seed.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs></ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_step.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_software_raw_trace.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_SOFTWARE -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_MATERIAL_SHOWCASE_ONLY -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=6</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_step.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_rayquery_raw_trace.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_RAY_QUERY -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_MATERIAL_SHOWCASE_ONLY -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=6 -fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_shade.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_software_raw_shade.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_SOFTWARE -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_MATERIAL_SHOWCASE_ONLY -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=6</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_shade.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_rayquery_raw_shade.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_TRAVERSAL_RAY_QUERY -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_MATERIAL_SHOWCASE_ONLY -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_SIGNAL_MODE=6 -fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_wave2_indirect_resolve.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_megakernel_raw_resolve.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs>-DPBR_L6_SIGNAL_MODE=6</ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\integrators\pbr_restir_candidate_export_v3.hlsl">
+      <EntryPoint>CSMain</EntryPoint><Profile>cs_6_6</Profile><OutputFile>pbr_restir_candidate_export_v3.spv</OutputFile>
+      <IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs>
+      <ExtraArgs></ExtraArgs>
+    </VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\restir\RestirClearV3.comp.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>RestirClearV3.comp.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\restir&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\restir\RestirDebugV3.comp.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>RestirDebugV3.comp.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\restir&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\restir\RestirInitialV3.comp.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>RestirInitialV3.comp.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\restir&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\restir\RestirPublishDirectV3.comp.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>RestirPublishDirectV3.comp.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\restir&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\restir\RestirPublishHistoryV3.comp.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>RestirPublishHistoryV3.comp.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\restir&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\restir\RestirReferenceResolveV3.comp.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>RestirReferenceResolveV3.comp.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\restir&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\restir\RestirReferenceVisibilityPrepareV3.comp.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>RestirReferenceVisibilityPrepareV3.comp.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\restir&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\restir\RestirSpatialV3.comp.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>RestirSpatialV3.comp.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\restir&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\restir\RestirTemporalV3.comp.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>RestirTemporalV3.comp.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\restir&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\restir\RestirWinnerResolveV3.comp.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>RestirWinnerResolveV3.comp.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\restir&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="resources\shaders\restir\RestirWinnerVisibilityPrepareV3.comp.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>RestirWinnerVisibilityPrepareV3.comp.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)resources\shaders\restir&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="integrators\wavefront\shaders\Reset.hlsl"><EntryPoint>ResetCS</EntryPoint><Profile>cs_6_6</Profile><OutputFile>wavefront_reset.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)integrators\wavefront\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="integrators\wavefront\shaders\RayGen.hlsl"><EntryPoint>RayGenCS</EntryPoint><Profile>cs_6_6</Profile><OutputFile>wavefront_raygen.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)integrators\wavefront\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot;</IncludeDirs><ExtraArgs>-DPBR_L6_TRAVERSAL_WAVEFRONT</ExtraArgs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="integrators\wavefront\shaders\PrepareDispatch.hlsl"><EntryPoint>PrepareDispatchCS</EntryPoint><Profile>cs_6_6</Profile><OutputFile>wavefront_prepare_dispatch.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)integrators\wavefront\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="integrators\wavefront\shaders\Intersect.hlsl"><EntryPoint>IntersectCS</EntryPoint><Profile>cs_6_6</Profile><OutputFile>wavefront_intersect_software.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)integrators\wavefront\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot;</IncludeDirs><ExtraArgs>-DWF_TRAVERSAL_SOFTWARE</ExtraArgs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="integrators\wavefront\shaders\Intersect.hlsl"><EntryPoint>IntersectCS</EntryPoint><Profile>cs_6_6</Profile><OutputFile>wavefront_intersect_rayquery.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)integrators\wavefront\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot;</IncludeDirs><ExtraArgs>-DWF_TRAVERSAL_RAY_QUERY -fspv-extension=SPV_KHR_ray_query</ExtraArgs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="integrators\wavefront\shaders\Shade.hlsl"><EntryPoint>ShadeCS</EntryPoint><Profile>cs_6_6</Profile><OutputFile>wavefront_shade.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)integrators\wavefront\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="integrators\wavefront\shaders\Scan.hlsl"><EntryPoint>ScanBlocksCS</EntryPoint><Profile>cs_6_6</Profile><OutputFile>wavefront_scan.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)integrators\wavefront\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="integrators\wavefront\shaders\AddOffsets.hlsl"><EntryPoint>AddOffsetsCS</EntryPoint><Profile>cs_6_6</Profile><OutputFile>wavefront_add_offsets.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)integrators\wavefront\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="integrators\wavefront\shaders\Scatter.hlsl"><EntryPoint>ScatterCS</EntryPoint><Profile>cs_6_6</Profile><OutputFile>wavefront_scatter.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)integrators\wavefront\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="integrators\wavefront\shaders\TraceShadow.hlsl"><EntryPoint>TraceShadowCS</EntryPoint><Profile>cs_6_6</Profile><OutputFile>wavefront_trace_shadow_software.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)integrators\wavefront\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot;</IncludeDirs><ExtraArgs>-DWF_TRAVERSAL_SOFTWARE</ExtraArgs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="integrators\wavefront\shaders\TraceShadow.hlsl"><EntryPoint>TraceShadowCS</EntryPoint><Profile>cs_6_6</Profile><OutputFile>wavefront_trace_shadow_rayquery.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)integrators\wavefront\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot;</IncludeDirs><ExtraArgs>-DWF_TRAVERSAL_RAY_QUERY -fspv-extension=SPV_KHR_ray_query</ExtraArgs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="integrators\wavefront\shaders\NextBounce.hlsl"><EntryPoint>NextBounceCS</EntryPoint><Profile>cs_6_6</Profile><OutputFile>wavefront_next_bounce.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)integrators\wavefront\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="integrators\wavefront\shaders\Resolve.hlsl"><EntryPoint>ResolveCS</EntryPoint><Profile>cs_6_6</Profile><OutputFile>wavefront_resolve.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)integrators\wavefront\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="integrators\wavefront\shaders\VisualizeCounters.hlsl"><EntryPoint>VisualizeCountersCS</EntryPoint><Profile>cs_6_6</Profile><OutputFile>wavefront_visualize_counters.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)integrators\wavefront\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="reconstruction\shaders\MotionVectorsCS.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>reconstruction_motion_vectors.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)reconstruction\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="reconstruction\shaders\PrepareSignalCS.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>reconstruction_prepare_signal.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)reconstruction\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="reconstruction\shaders\TemporalAccumulationCS.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>reconstruction_temporal_accumulation.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)reconstruction\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="reconstruction\shaders\VarianceBootstrapCS.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>reconstruction_variance_bootstrap.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)reconstruction\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="reconstruction\shaders\ATrousCS.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>reconstruction_atrous.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)reconstruction\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
+    <VulkanShaderCompile Include="reconstruction\shaders\ComposeCS.hlsl"><EntryPoint>main</EntryPoint><Profile>cs_6_6</Profile><OutputFile>reconstruction_compose.spv</OutputFile><IncludeDirs>-I &quot;$(RenderingEngineSourceRoot)reconstruction\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot;</IncludeDirs></VulkanShaderCompile>
   </ItemGroup>
 </Project>

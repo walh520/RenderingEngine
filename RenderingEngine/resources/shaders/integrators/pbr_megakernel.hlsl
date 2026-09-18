@@ -29,10 +29,44 @@ struct PbrDirectEstimateL6
     uint valid;
 };
 
+[noinline]
 void PbrIncrementCounterL6(uint counterIndex)
 {
+#if defined(PBR_L6_DISABLE_PROFILER_COUNTERS)
+    return;
+#else
     uint ignoredOriginalValue;
     InterlockedAdd(gPbrCountersL6[counterIndex], 1u, ignoredOriginalValue);
+#endif
+}
+
+bool PbrTryPowerHeuristicL6(float pdfA, float pdfB, out float weight)
+{
+    weight = 0.0f;
+    if (!PbrIsFiniteFloatL6(pdfA) || !PbrIsFiniteFloatL6(pdfB))
+    {
+        PbrIncrementCounterL6(PBR_L6_COUNTER_NONFINITE_PDF);
+        return false;
+    }
+    if (pdfA < 0.0f || pdfB < 0.0f)
+    {
+        PbrIncrementCounterL6(PBR_L6_COUNTER_NEGATIVE_PDF);
+        return false;
+    }
+    if (!(pdfA > 0.0f || pdfB > 0.0f))
+    {
+        // Neither strategy has support for this event. This is a valid zero
+        // contribution, not a malformed PDF.
+        return true;
+    }
+    weight = PbrPowerHeuristicL6(pdfA, pdfB);
+    if (!PbrIsFiniteFloatL6(weight) || weight < 0.0f || weight > 1.0f)
+    {
+        PbrIncrementCounterL6(PBR_L6_COUNTER_NONFINITE_PDF);
+        weight = 0.0f;
+        return false;
+    }
+    return true;
 }
 
 PbrPathSignalsL6 PbrZeroSignalsL6()
@@ -94,15 +128,170 @@ float3 PbrMakeBsdfRandomL6(
             pixelIndex, sampleIndex, PbrBounceDimensionL6(depth, PBR_L6_DIM_BSDF_V), streamTag, seed));
 }
 
+float3 PbrShadowTapDirectionL6(
+    float3 centerDirection,
+    float3 tangent,
+    float3 bitangent,
+    uint tap,
+    uint tapCount,
+    float angularRadius,
+    float rotation)
+{
+    const float radial = sqrt((float(tap) + 0.5f) / float(tapCount));
+    const float angle = rotation
+        + PBR_L6_TWO_PI * (float(tap) * 0.61803398875f);
+    const float2 disk = radial * float2(cos(angle), sin(angle));
+    return normalize(centerDirection
+        + angularRadius * (disk.x * tangent + disk.y * bitangent));
+}
+
+float PbrShadowKernelRadiusL6(
+    PbrLightSampleL6 lightSample,
+    float shadowMaximum)
+{
+    float worldRadius = 0.0f;
+    if (lightSample.lightIndex < gPbrFrameL6.trace.w)
+    {
+        const PbrLightGpuL6 light = gPbrLightsL6[lightSample.lightIndex];
+        if (light.identity.x == PBR_L6_LIGHT_SPHERE_AREA)
+        {
+            worldRadius = max(light.shapeParams.x, 0.0f);
+        }
+        else if (light.identity.x == PBR_L6_LIGHT_EMISSIVE_TRIANGLE)
+        {
+            worldRadius = sqrt(max(light.shapeParams.z, 0.0f) / PBR_L6_PI);
+        }
+    }
+    const float finiteAngularRadius = shadowMaximum < 1.0e20f
+        ? worldRadius / max(shadowMaximum, 1.0e-4f)
+        : 0.0f;
+    // Delta lights have no physical radius. PCF/PCSS remain useful teaching
+    // modes by applying a small, explicit angular reconstruction kernel.
+    return clamp(max(finiteAngularRadius, 0.0025f), 0.0005f, 0.08f);
+}
+
+float PbrEvaluateShadowVisibilityL6(
+    PbrRayL6 shadowRay,
+    float tMinimum,
+    float tMaximum,
+    PbrLightSampleL6 lightSample,
+    PbrLightRandomL6 randomSample)
+{
+    const uint shadowMethod = gPbrFrameL6.output.w;
+    if (shadowMethod == PBR_L6_SHADOW_PHYSICAL)
+    {
+        PbrIncrementCounterL6(PBR_L6_COUNTER_SHADOW_RAYS);
+        return PBR_L6_TRACE_ANY(
+            shadowRay,
+            tMinimum,
+            tMaximum,
+            lightSample.instanceId,
+            lightSample.primitiveId) ? 0.0f : 1.0f;
+    }
+
+    float3 tangent;
+    float3 bitangent;
+    PbrBuildBasisL6(shadowRay.direction, tangent, bitangent);
+    const float rotation = PBR_L6_TWO_PI * randomSample.shape3;
+    float angularRadius = PbrShadowKernelRadiusL6(lightSample, tMaximum);
+
+    if (shadowMethod == PBR_L6_SHADOW_PCSS)
+    {
+        // Exact closest-hit blocker search supplies the blocker distance used
+        // by the classic PCSS penumbra equation. Four deterministic disk taps
+        // avoid treating a single thin blocker as the whole search region.
+        float blockerDistanceSum = 0.0f;
+        uint blockerCount = 0u;
+        [unroll]
+        for (uint tap = 0u; tap < 4u; ++tap)
+        {
+            PbrRayL6 blockerRay = shadowRay;
+            blockerRay.direction = PbrShadowTapDirectionL6(
+                shadowRay.direction,
+                tangent,
+                bitangent,
+                tap,
+                4u,
+                angularRadius * 0.5f,
+                rotation);
+            PbrHitL6 blocker;
+            PbrIncrementCounterL6(PBR_L6_COUNTER_SHADOW_RAYS);
+            if (PBR_L6_TRACE_CLOSEST(
+                blockerRay, tMinimum, tMaximum, blocker)
+                && blocker.materialIndex != PBR_L6_INVALID_INDEX)
+            {
+                blockerDistanceSum += blocker.t;
+                ++blockerCount;
+            }
+        }
+        if (blockerCount == 0u)
+        {
+            return 1.0f;
+        }
+        const float blockerDistance = blockerDistanceSum / float(blockerCount);
+        const float receiverDistance = tMaximum < 1.0e20f
+            ? tMaximum : blockerDistance * 2.0f;
+        const float penumbra = max(
+            (receiverDistance - blockerDistance)
+                / max(blockerDistance, tMinimum),
+            0.0f);
+        angularRadius *= clamp(penumbra, 0.25f, 4.0f);
+    }
+
+    const uint filterTapCount = shadowMethod == PBR_L6_SHADOW_PCSS
+        ? 12u : 8u;
+    float visible = 0.0f;
+    [loop]
+    for (uint tap = 0u; tap < filterTapCount; ++tap)
+    {
+        PbrRayL6 filterRay = shadowRay;
+        filterRay.direction = PbrShadowTapDirectionL6(
+            shadowRay.direction,
+            tangent,
+            bitangent,
+            tap,
+            filterTapCount,
+            angularRadius,
+            rotation);
+        PbrIncrementCounterL6(PBR_L6_COUNTER_SHADOW_RAYS);
+        const bool occluded = PBR_L6_TRACE_ANY(
+            filterRay,
+            tMinimum,
+            tMaximum,
+            lightSample.instanceId,
+            lightSample.primitiveId);
+        visible += occluded ? 0.0f : 1.0f;
+    }
+    return visible / float(filterTapCount);
+}
+
+[noinline]
 PbrDirectEstimateL6 PbrEstimateDirectL6(
     PbrHitL6 hit,
     BsdfContextL6 bsdfContext,
     BsdfParamsL6 bsdfParameters,
     float3 wo,
-    PbrLightRandomL6 randomSample)
+    PbrLightRandomL6 randomSample
+#if !defined(PBR_L6_WAVE2_PRODUCTION) || defined(PBR_L6_ENABLE_RESTIR_OWNERSHIP)
+    ,
+    uint depth,
+    bool restirOwnsPrimary)
+#else
+    )
+#endif
 {
     PbrDirectEstimateL6 estimate = PbrZeroDirectEstimateL6();
-    if (gPbrFrameL6.sampling.w == 0u || gPbrFrameL6.distribution.x == 0u)
+    uint estimator = gPbrFrameL6.sampling.w;
+#if !defined(PBR_L6_WAVE2_PRODUCTION) || defined(PBR_L6_ENABLE_RESTIR_OWNERSHIP)
+    if (estimator == PBR_L6_ESTIMATOR_RESTIR_PRIMARY)
+    {
+        // L9 owns the first non-delta direct-light vertex. Secondary path
+        // vertices retain conventional MIS so ReSTIR is never double-counted.
+        if (depth == 0u && restirOwnsPrimary) return estimate;
+        estimator = PBR_L6_ESTIMATOR_MIS;
+    }
+#endif
+    if (estimator == PBR_L6_ESTIMATOR_BSDF_ONLY || gPbrFrameL6.distribution.x == 0u)
     {
         return estimate;
     }
@@ -183,21 +372,36 @@ PbrDirectEstimateL6 PbrEstimateDirectL6(
     {
         return estimate;
     }
-    PbrIncrementCounterL6(PBR_L6_COUNTER_SHADOW_RAYS);
-    if (PBR_L6_TRACE_ANY(
+    const float visibility = PbrEvaluateShadowVisibilityL6(
         shadowRay,
         gPbrFrameL6.russianRoulette.w,
         shadowMaximum,
-        lightSample.primitiveId))
+        lightSample,
+        randomSample);
+    if (!(visibility > 0.0f))
     {
         PbrIncrementCounterL6(PBR_L6_COUNTER_OCCLUDED_LIGHT_SAMPLES);
         return estimate;
     }
+    if (visibility < 1.0f)
+    {
+        PbrIncrementCounterL6(PBR_L6_COUNTER_OCCLUDED_LIGHT_SAMPLES);
+    }
 
-    const float misWeight = deltaLight
-        ? 1.0f
-        : PbrPowerHeuristicL6(lightSample.combinedPdfW, evaluation.pdf);
-    const float3 common = lightSample.Li * (cosine * misWeight / estimatorPdf);
+    float misWeight = 1.0f;
+    if (estimator == PBR_L6_ESTIMATOR_MIS && !PbrTryPowerHeuristicL6(
+        lightSample.combinedPdfW,
+        evaluation.pdf,
+        misWeight))
+    {
+        return estimate;
+    }
+    if (deltaLight)
+    {
+        misWeight = 1.0f;
+    }
+    const float3 common = lightSample.Li
+        * (cosine * misWeight * visibility / estimatorPdf);
     estimate.diffuse = evaluation.diffuseValue * common;
     estimate.specular = evaluation.specularValue * common;
     estimate.total = evaluation.value * common;
@@ -250,6 +454,7 @@ PbrPathSignalsL6 PbrTraceMegakernelPathL6(
     float etaScale = 1.0f;
     float previousBsdfPdf = 0.0f;
     uint previousWasDelta = 1u;
+    bool previousRestirOwned = false;
     PbrLightContextL6 previousLightContext;
     previousLightContext.position = 0.0f;
     previousLightContext.geometricNormal = 0.0f;
@@ -272,7 +477,17 @@ PbrPathSignalsL6 PbrTraceMegakernelPathL6(
             PbrIncrementCounterL6(PBR_L6_COUNTER_MISSES);
             const float3 environment = PbrEnvironmentRadianceL6(ray.direction);
             float misWeight = 1.0f;
-            if (depth > 0u && previousWasDelta == 0u && gPbrFrameL6.sampling.w != 0u)
+            const uint estimator = gPbrFrameL6.sampling.w;
+#if defined(PBR_L6_WAVE2_PRODUCTION) && !defined(PBR_L6_ENABLE_RESTIR_OWNERSHIP)
+            const bool useMis = estimator == PBR_L6_ESTIMATOR_MIS;
+#else
+            const bool restirOwnsThisEmitter =
+                estimator == PBR_L6_ESTIMATOR_RESTIR_PRIMARY
+                && depth == 1u && previousRestirOwned;
+            const bool useMis = estimator == PBR_L6_ESTIMATOR_MIS
+                || (estimator == PBR_L6_ESTIMATOR_RESTIR_PRIMARY && depth > 1u);
+#endif
+            if (depth > 0u && previousWasDelta == 0u && useMis)
             {
                 const float lightPdf = PbrSelectedLightPdfL6(
                     gPbrFrameL6.environment.x,
@@ -280,8 +495,22 @@ PbrPathSignalsL6 PbrTraceMegakernelPathL6(
                     ray.direction,
                     1.0e30f,
                     0.0f);
-                misWeight = PbrPowerHeuristicL6(previousBsdfPdf, lightPdf);
+                if (!PbrTryPowerHeuristicL6(previousBsdfPdf, lightPdf, misWeight))
+                {
+                    misWeight = 0.0f;
+                }
                 PbrIncrementCounterL6(PBR_L6_COUNTER_MIS_EMITTER_HITS);
+            }
+            else if (depth > 0u && previousWasDelta == 0u
+                && (estimator == PBR_L6_ESTIMATOR_NEE
+#if !defined(PBR_L6_WAVE2_PRODUCTION) || defined(PBR_L6_ENABLE_RESTIR_OWNERSHIP)
+                    || restirOwnsThisEmitter
+#endif
+                    ))
+            {
+                // NEE already sampled finite emitters at the previous
+                // vertex. Suppress the BSDF emitter hit to avoid a duplicate.
+                misWeight = 0.0f;
             }
             PbrAccumulateTerminalL6(
                 signals, depth, beta, betaDiffuse, betaSpecular, environment, misWeight);
@@ -290,7 +519,7 @@ PbrPathSignalsL6 PbrTraceMegakernelPathL6(
         PbrIncrementCounterL6(PBR_L6_COUNTER_SURFACE_HITS);
         if (hit.materialIndex >= gPbrFrameL6.trace.z)
         {
-            PbrIncrementCounterL6(PBR_L6_COUNTER_NONFINITE_BSDF);
+            PbrIncrementCounterL6(PBR_L6_COUNTER_INVALID_MATERIAL);
             break;
         }
 
@@ -334,7 +563,23 @@ PbrPathSignalsL6 PbrTraceMegakernelPathL6(
             {
                 PbrIncrementCounterL6(PBR_L6_COUNTER_DELTA_EMITTER_HITS);
             }
-            else if (gPbrFrameL6.sampling.w != 0u)
+            else if (gPbrFrameL6.sampling.w == PBR_L6_ESTIMATOR_NEE
+#if !defined(PBR_L6_WAVE2_PRODUCTION) || defined(PBR_L6_ENABLE_RESTIR_OWNERSHIP)
+                || (gPbrFrameL6.sampling.w == PBR_L6_ESTIMATOR_RESTIR_PRIMARY
+                    && depth == 1u && previousRestirOwned)
+#endif
+                )
+            {
+                // NEE accounts for direct finite-light transport. A
+                // non-delta BSDF hit must not add the same emitter again.
+                misWeight = 0.0f;
+            }
+            else if (gPbrFrameL6.sampling.w == PBR_L6_ESTIMATOR_MIS
+#if !defined(PBR_L6_WAVE2_PRODUCTION) || defined(PBR_L6_ENABLE_RESTIR_OWNERSHIP)
+                || (gPbrFrameL6.sampling.w == PBR_L6_ESTIMATOR_RESTIR_PRIMARY
+                    && depth > 1u)
+#endif
+                )
             {
                 const float lightPdf = PbrSelectedLightPdfL6(
                     hit.emitterLightIndex,
@@ -342,9 +587,10 @@ PbrPathSignalsL6 PbrTraceMegakernelPathL6(
                     ray.direction,
                     hit.t,
                     hit.geometricNormal);
-                misWeight = lightPdf > 0.0f
-                    ? PbrPowerHeuristicL6(previousBsdfPdf, lightPdf)
-                    : 1.0f;
+                if (!PbrTryPowerHeuristicL6(previousBsdfPdf, lightPdf, misWeight))
+                {
+                    misWeight = 0.0f;
+                }
                 PbrIncrementCounterL6(PBR_L6_COUNTER_MIS_EMITTER_HITS);
             }
             PbrAccumulateTerminalL6(
@@ -362,13 +608,22 @@ PbrPathSignalsL6 PbrTraceMegakernelPathL6(
             PbrIncrementCounterL6(PBR_L6_COUNTER_INVALID_MATERIAL);
             break;
         }
+        const bool currentRestirOwned = depth == 0u
+            && BsdfSupportsRestirPrimaryDirectL6(bsdfParameters);
         const float3 wo = -ray.direction;
         const PbrDirectEstimateL6 direct = PbrEstimateDirectL6(
             hit,
             bsdfContext,
             bsdfParameters,
             wo,
-            PbrMakeLightRandomL6(pixelIndex, sampleIndex, depth, streamTag, seed));
+            PbrMakeLightRandomL6(pixelIndex, sampleIndex, depth, streamTag, seed)
+#if !defined(PBR_L6_WAVE2_PRODUCTION) || defined(PBR_L6_ENABLE_RESTIR_OWNERSHIP)
+            ,
+            depth,
+            currentRestirOwned);
+#else
+            );
+#endif
         if (direct.valid != 0u)
         {
             const float3 total = beta * direct.total;
@@ -398,8 +653,7 @@ PbrPathSignalsL6 PbrTraceMegakernelPathL6(
             PbrMakeBsdfRandomL6(pixelIndex, sampleIndex, depth, streamTag, seed));
         if (bsdfSample.isValid == 0u)
         {
-            // VNDF reflection rejection and zero-support lobes are ordinary
-            // absorption events, not malformed BSDF samples.
+            PbrIncrementCounterL6(PBR_L6_COUNTER_INVALID_BSDF_SAMPLE);
             break;
         }
         if (!PbrIsFiniteFloatL6(bsdfSample.pdf))
@@ -450,6 +704,7 @@ PbrPathSignalsL6 PbrTraceMegakernelPathL6(
         }
         previousBsdfPdf = bsdfSample.pdf;
         previousWasDelta = bsdfSample.isDelta;
+        previousRestirOwned = currentRestirOwned;
         previousLightContext.position = hit.position;
         previousLightContext.geometricNormal = hit.geometricNormal;
         previousLightContext.shadingNormal = hit.shadingNormal;
@@ -509,15 +764,14 @@ PbrPathSignalsL6 PbrTraceMegakernelPathL6(
     return signals;
 }
 
-void PbrStoreOnlineMeanL6(
+// Integrators publish current-frame estimates only. Progressive accumulation
+// has one owner after all primary-direct replacement: L8 Compose's film.
+void PbrStoreCurrentFrameL6(
     RWTexture2D<float4> outputTexture,
     uint2 pixel,
-    float3 sampleValue,
-    uint sampleIndex)
+    float3 sampleValue)
 {
-    const float blend = rcp(float(sampleIndex + 1u));
-    const float3 previous = sampleIndex == 0u ? 0.0f : outputTexture[pixel].rgb;
-    outputTexture[pixel] = float4(lerp(previous, sampleValue, blend), 1.0f);
+    outputTexture[pixel] = float4(sampleValue, 1.0f);
 }
 
 [numthreads(8, 8, 1)]
@@ -558,10 +812,12 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID)
     const PbrPathSignalsL6 signals = PbrTraceMegakernelPathL6(
         cameraRay, pixelIndex, sampleIndex);
 
-    PbrStoreOnlineMeanL6(gPbrRawOutputL6, pixel, signals.raw, sampleIndex);
-    PbrStoreOnlineMeanL6(gPbrCameraEmissionOutputL6, pixel, signals.cameraEmission, sampleIndex);
-    PbrStoreOnlineMeanL6(gPbrDirectDiffuseOutputL6, pixel, signals.directDiffuse, sampleIndex);
-    PbrStoreOnlineMeanL6(gPbrDirectSpecularOutputL6, pixel, signals.directSpecular, sampleIndex);
-    PbrStoreOnlineMeanL6(gPbrIndirectDiffuseOutputL6, pixel, signals.indirectDiffuse, sampleIndex);
-    PbrStoreOnlineMeanL6(gPbrIndirectSpecularOutputL6, pixel, signals.indirectSpecular, sampleIndex);
+    PbrStoreCurrentFrameL6(gPbrRawOutputL6, pixel, signals.raw);
+#if !defined(PBR_L6_RAW_OUTPUT_ONLY)
+    PbrStoreCurrentFrameL6(gPbrCameraEmissionOutputL6, pixel, signals.cameraEmission);
+    PbrStoreCurrentFrameL6(gPbrDirectDiffuseOutputL6, pixel, signals.directDiffuse);
+    PbrStoreCurrentFrameL6(gPbrDirectSpecularOutputL6, pixel, signals.directSpecular);
+    PbrStoreCurrentFrameL6(gPbrIndirectDiffuseOutputL6, pixel, signals.indirectDiffuse);
+    PbrStoreCurrentFrameL6(gPbrIndirectSpecularOutputL6, pixel, signals.indirectSpecular);
+#endif
 }

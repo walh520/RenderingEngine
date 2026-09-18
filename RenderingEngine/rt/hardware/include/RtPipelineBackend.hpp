@@ -53,6 +53,27 @@ namespace RenderingEngine::Rt::Hardware
             VkDescriptorSet traversalSet,
             const RayQueryTraversalBindings& bindings) const noexcept;
 
+        [[nodiscard]] Status RecordTraceClosestBatch(
+            VkCommandBuffer commandBuffer,
+            VkDescriptorSet sceneSet,
+            VkDescriptorSet traversalSet,
+            std::uint32_t rayOffset,
+            std::uint32_t hitOffset,
+            std::uint32_t rayCount,
+            std::uint32_t alphaAtlasLayerCount,
+            std::uint32_t alphaSamplerId = 0xffffffffu) const noexcept;
+        [[nodiscard]] Status RecordTraceAnyBatch(
+            VkCommandBuffer commandBuffer,
+            VkDescriptorSet sceneSet,
+            VkDescriptorSet traversalSet,
+            std::uint32_t rayOffset,
+            std::uint32_t hitOffset,
+            std::uint32_t rayCount,
+            std::uint32_t alphaAtlasLayerCount,
+            std::uint32_t alphaSamplerId = 0xffffffffu) const noexcept;
+
+        // Compatibility overloads for callers that intentionally trace from
+        // record zero. The Status-returning overloads above are the ABI-v1 seam.
         void RecordTraceClosestBatch(
             VkCommandBuffer commandBuffer,
             VkDescriptorSet sceneSet,
@@ -75,7 +96,7 @@ namespace RenderingEngine::Rt::Hardware
         [[nodiscard]] const ShaderBindingTable& Sbt() const noexcept;
 
     private:
-        void Record(
+        [[nodiscard]] Status Record(
             VkCommandBuffer commandBuffer,
             VkDescriptorSet sceneSet,
             VkDescriptorSet traversalSet,

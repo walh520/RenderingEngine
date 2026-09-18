@@ -352,9 +352,58 @@ namespace RenderingEngine::Integrators::Megakernel
         }
     }
 
+    std::vector<EmitterMapEntryGpu> BuildEmitterMap(
+        const std::span<const PbrLightGpu> lights)
+    {
+        std::vector<EmitterMapEntryGpu> result;
+        result.reserve(lights.size());
+        for (std::size_t lightIndex = 0u; lightIndex < lights.size(); ++lightIndex)
+        {
+            const PbrLightGpu& light = lights[lightIndex];
+            if (static_cast<LightType>(light.identity.x) != LightType::EmissiveTriangle)
+            {
+                continue;
+            }
+            if (lightIndex > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()))
+            {
+                throw std::length_error("emitter light index exceeds uint32");
+            }
+            if (light.payload.w == kInvalidIndex || light.identity.w == kInvalidIndex)
+            {
+                throw std::invalid_argument(
+                    "emissive-triangle lights require stable instance and primitive IDs");
+            }
+            result.push_back({
+                light.payload.w,
+                light.identity.w,
+                static_cast<std::uint32_t>(lightIndex),
+                0u});
+        }
+
+        std::sort(result.begin(), result.end(),
+            [](const EmitterMapEntryGpu& left, const EmitterMapEntryGpu& right)
+            {
+                return left.instanceId < right.instanceId ||
+                    (left.instanceId == right.instanceId &&
+                     left.primitiveId < right.primitiveId);
+            });
+        const auto duplicate = std::adjacent_find(result.begin(), result.end(),
+            [](const EmitterMapEntryGpu& left, const EmitterMapEntryGpu& right)
+            {
+                return left.instanceId == right.instanceId &&
+                    left.primitiveId == right.primitiveId;
+            });
+        if (duplicate != result.end())
+        {
+            throw std::invalid_argument(
+                "multiple emissive lights reference the same instance/primitive pair");
+        }
+        return result;
+    }
+
     TopLevelLightDistribution BuildTopLevelLightDistribution(
         const std::span<const PbrLightGpu> lights,
-        const LightProposal proposal,
+        const LightSelection selection,
         const float sceneRadius,
         const double environmentIntegratedLuminance)
     {
@@ -378,16 +427,16 @@ namespace RenderingEngine::Integrators::Megakernel
             }
 
             double weight = 0.0;
-            switch (proposal)
+            switch (selection)
             {
-            case LightProposal::Uniform:
+            case LightSelection::Uniform:
                 weight = 1.0;
                 break;
-            case LightProposal::Power:
+            case LightSelection::PowerWeighted:
                 weight = LightPowerWeight(light, sceneRadius, environmentIntegratedLuminance);
                 break;
             default:
-                throw std::invalid_argument("unknown light proposal");
+                throw std::invalid_argument("unknown light-selection strategy");
             }
             weights.push_back(weight);
             items.push_back(static_cast<std::uint32_t>(index));
@@ -413,12 +462,25 @@ namespace RenderingEngine::Integrators::Megakernel
         const float rayEpsilon = frame.russianRoulette.w;
         const std::uint64_t pixelCount = static_cast<std::uint64_t>(frame.image.x)
             * static_cast<std::uint64_t>(frame.image.y);
+        const bool traversalValid = frame.traversal.x <=
+            static_cast<std::uint32_t>(TraversalBackend::CanonicalLinear)
+            && (frame.traversal.x != static_cast<std::uint32_t>(TraversalBackend::FlattenedSah)
+                || (frame.traversal.y != 0u && frame.traversal.z != 0u))
+            && (frame.traversal.x != static_cast<std::uint32_t>(TraversalBackend::CanonicalLinear)
+                || frame.traversal.z != 0u);
         return frame.image.x != 0u
             && frame.image.y != 0u
+            // PbrStoreOnlineMeanL6 evaluates sampleIndex + 1 in uint32.
+            // Reject the only value that would wrap the divisor to zero.
+            && frame.image.z != std::numeric_limits<std::uint32_t>::max()
             && frame.image.w != 0u
             && pixelCount <= std::numeric_limits<std::uint32_t>::max()
-            && frame.sampling.z <= static_cast<std::uint32_t>(LightProposal::Power)
-            && frame.sampling.w <= 1u
+            && frame.sampling.z
+                <= static_cast<std::uint32_t>(LightSelection::PowerWeighted)
+            && frame.sampling.w
+                <= static_cast<std::uint32_t>(DirectLightingEstimator::RestirPrimary)
+            && frame.environment.w
+                <= static_cast<std::uint32_t>(EnvironmentSampler::ImportanceMap)
             && std::isfinite(rouletteStart)
             && rouletteStart >= 0.0f
             && std::floor(rouletteStart) == rouletteStart
@@ -428,7 +490,63 @@ namespace RenderingEngine::Integrators::Megakernel
             && rouletteMinimum <= rouletteMaximum
             && rouletteMaximum <= 1.0f
             && std::isfinite(rayEpsilon)
-            && rayEpsilon > 0.0f;
+            && rayEpsilon > 0.0f
+            && traversalValid;
+    }
+
+    EmitterHitWeightResult ComputeEmitterHitWeight(
+        const DirectLightingEstimator estimator,
+        const EmitterHitKind kind,
+        const float previousBsdfPdf,
+        const float lightPdf) noexcept
+    {
+        if (kind == EmitterHitKind::Camera
+            || kind == EmitterHitKind::DeltaBsdf
+            || estimator == DirectLightingEstimator::BsdfOnly)
+        {
+            return { 1.0f, true };
+        }
+        if (estimator == DirectLightingEstimator::NextEventEstimation)
+        {
+            // NEE already accounts for a finite emitter at the current
+            // vertex. A non-delta BSDF hit is suppressed to avoid counting it
+            // a second time; camera and delta events above remain visible.
+            return { 0.0f, true };
+        }
+        if (estimator == DirectLightingEstimator::RestirPrimary)
+        {
+            // This helper has no path-depth argument. It therefore represents
+            // the primary non-delta ownership seam and must suppress the hit.
+            // Production shaders switch secondary vertices to MIS explicitly.
+            return { 0.0f, true };
+        }
+        if (estimator != DirectLightingEstimator::Mis
+            || !std::isfinite(previousBsdfPdf)
+            || !std::isfinite(lightPdf)
+            || previousBsdfPdf < 0.0f
+            || lightPdf < 0.0f)
+        {
+            return {};
+        }
+        const float maximumPdf = std::max(previousBsdfPdf, lightPdf);
+        if (!(maximumPdf > 0.0f))
+        {
+            return { 0.0f, true };
+        }
+        const float normalizedBsdfPdf = previousBsdfPdf / maximumPdf;
+        const float normalizedLightPdf = lightPdf / maximumPdf;
+        const float squaredBsdfPdf = normalizedBsdfPdf * normalizedBsdfPdf;
+        const float squaredLightPdf = normalizedLightPdf * normalizedLightPdf;
+        const float denominator = squaredBsdfPdf + squaredLightPdf;
+        if (!(denominator > 0.0f) || !std::isfinite(denominator))
+        {
+            return {};
+        }
+        const float weight = squaredBsdfPdf / denominator;
+        return {
+            weight,
+            std::isfinite(weight) && weight >= 0.0f && weight <= 1.0f
+        };
     }
 
     std::array<std::uint32_t, 4> Philox4x32TenRounds(

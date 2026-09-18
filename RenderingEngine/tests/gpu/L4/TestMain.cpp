@@ -1,10 +1,12 @@
 #include "rt/software_gpu/SoftwareGpu.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <exception>
 #include <iostream>
 #include <limits>
+#include <span>
 #include <stdexcept>
 #include <string_view>
 #include <vector>
@@ -76,6 +78,77 @@ namespace
         return result;
     }
 
+    [[nodiscard]] std::vector<RenderingEngine::Rt::Cpu::Triangle<float>> ToCpuTriangles(
+        const std::span<const L4::SoftwarePrimitiveRecord> primitives)
+    {
+        std::vector<RenderingEngine::Rt::Cpu::Triangle<float>> result{};
+        result.reserve(primitives.size());
+        for (const L4::SoftwarePrimitiveRecord& primitive : primitives)
+        {
+            result.emplace_back(
+                RenderingEngine::Rt::Cpu::Vec3<float>{
+                    primitive.v0.x, primitive.v0.y, primitive.v0.z},
+                RenderingEngine::Rt::Cpu::Vec3<float>{
+                    primitive.v1.x, primitive.v1.y, primitive.v1.z},
+                RenderingEngine::Rt::Cpu::Vec3<float>{
+                    primitive.v2.x, primitive.v2.y, primitive.v2.z},
+                primitive.identity.x);
+        }
+        return result;
+    }
+
+    [[nodiscard]] RenderingEngine::Rt::Cpu::Ray<float> ToCpuRay(
+        const L4::SoftwareRayRecord& ray)
+    {
+        return {
+            {ray.originTMin.x, ray.originTMin.y, ray.originTMin.z},
+            {ray.directionTMax.x, ray.directionTMax.y, ray.directionTMax.z},
+            ray.originTMin.w,
+            ray.directionTMax.w};
+    }
+
+    void CheckL3ClosestAndAnyParity(
+        const RenderingEngine::Rt::Cpu::Bvh<float>& cpuBvh,
+        const L4::FlatBvh& flattened,
+        const std::span<const L4::SoftwareRayRecord> rays)
+    {
+        for (const L4::SoftwareRayRecord& ray : rays)
+        {
+            const RenderingEngine::Rt::Cpu::Hit<float> expected =
+                cpuBvh.TraceClosest(ToCpuRay(ray));
+            const L4::TraceResult actual = L4::Trace(
+                flattened,
+                ray,
+                L4::QueryMode::Closest);
+            Require(actual.Succeeded(), "L3-adapted closest query must succeed");
+            Require(actual.IsHit() == expected.IsHit(), "L3 closest hit/miss parity failed");
+            if (expected.IsHit())
+            {
+                Require(
+                    actual.hit.identity.x == expected.primitiveId,
+                    "L3 closest stable primitive ID parity failed");
+                Require(
+                    std::fabs(actual.hit.tBary.x - expected.t) <= 1.0e-5f,
+                    "L3 closest distance parity failed");
+                Require(
+                    std::fabs(actual.hit.tBary.y - expected.barycentric.y) <= 1.0e-5f &&
+                        std::fabs(actual.hit.tBary.z - expected.barycentric.z) <= 1.0e-5f,
+                    "L3 closest barycentric parity failed");
+            }
+
+            L4::SoftwareRayRecord anyRay = ray;
+            anyRay.query.y = static_cast<std::uint32_t>(L4::QueryMode::Any);
+            const L4::TraceResult actualAny = L4::Trace(
+                flattened,
+                anyRay,
+                L4::QueryMode::Any);
+            Require(actualAny.Succeeded(), "L3-adapted any query must succeed");
+            Require(
+                actualAny.IsHit() == cpuBvh.TraceAny(ToCpuRay(anyRay)),
+                "L3 any-hit parity failed");
+        }
+    }
+
     void CheckClosestParity(
         const L4::FlatBvh& bvh,
         const std::span<const L4::SoftwarePrimitiveRecord> source,
@@ -142,6 +215,137 @@ namespace
         Require(batch.counters.maximumLeafOccupancy == 1u, "maximum leaf occupancy drifted");
         Require(batch.counters.stackOverflows == 0u, "normal SAH traversal overflowed");
         Require(batch.counters.maximumStackDepth != 0u, "maximum stack depth was not reported");
+    }
+
+    void TestCanonicalL3BinnedSahAdapter()
+    {
+        const std::vector<L4::SoftwarePrimitiveRecord> primitives = MakeGrid(12u);
+        const std::vector<RenderingEngine::Rt::Cpu::Triangle<float>> cpuTriangles =
+            ToCpuTriangles(primitives);
+        const RenderingEngine::Rt::Cpu::Bvh<float> cpuBvh(
+            cpuTriangles,
+            RenderingEngine::Rt::Cpu::BvhBuildMethod::BinnedSah,
+            2u);
+        const L4::FlatBuildResult flattened = L4::FlattenCanonicalL3BinnedSah(
+            cpuBvh,
+            primitives);
+        Require(flattened.Succeeded(), "canonical L3 SAH adapter failed");
+        Require(
+            flattened.bvh.nodes.size() == cpuBvh.NodeCount(),
+            "canonical L3 node count was not preserved");
+        Require(
+            flattened.bvh.maximumDepth == cpuBvh.MaximumDepth(),
+            "canonical L3 maximum depth was not preserved");
+        Require(
+            flattened.bvh.primitives.size() == cpuBvh.PrimitiveCount(),
+            "canonical L3 primitive count was not preserved");
+
+        const auto cpuNodes = cpuBvh.Nodes();
+        for (std::size_t index = 0u; index < cpuNodes.size(); ++index)
+        {
+            const auto& cpuNode = cpuNodes[index];
+            const L4::SoftwareNodeRecord& gpuNode = flattened.bvh.nodes[index];
+            Require(
+                gpuNode.boundsMin.x == cpuNode.bounds.minimum.x &&
+                    gpuNode.boundsMin.y == cpuNode.bounds.minimum.y &&
+                    gpuNode.boundsMin.z == cpuNode.bounds.minimum.z &&
+                    gpuNode.boundsMax.x == cpuNode.bounds.maximum.x &&
+                    gpuNode.boundsMax.y == cpuNode.bounds.maximum.y &&
+                    gpuNode.boundsMax.z == cpuNode.bounds.maximum.z,
+                "canonical L3 node bounds changed during flattening");
+            if (cpuNode.IsLeaf())
+            {
+                Require(gpuNode.IsLeaf(), "canonical L3 leaf changed to interior");
+                Require(
+                    gpuNode.links.x == cpuNode.firstPrimitive &&
+                        gpuNode.links.y == cpuNode.primitiveCount,
+                    "canonical L3 leaf range changed during flattening");
+            }
+            else
+            {
+                Require(!gpuNode.IsLeaf(), "canonical L3 interior changed to leaf");
+                Require(
+                    gpuNode.links.x == cpuNode.leftChild &&
+                        gpuNode.links.z == cpuNode.rightChild,
+                    "canonical L3 child order changed during flattening");
+            }
+        }
+        const auto cpuOrder = cpuBvh.PrimitiveOrder();
+        for (std::size_t orderedIndex = 0u; orderedIndex < cpuOrder.size(); ++orderedIndex)
+        {
+            const std::size_t sourceIndex = cpuOrder[orderedIndex];
+            Require(
+                flattened.bvh.primitives[orderedIndex].identity.x ==
+                    primitives[sourceIndex].identity.x,
+                "canonical L3 primitive order changed during flattening");
+        }
+        CheckL3ClosestAndAnyParity(cpuBvh, flattened.bvh, MakeCorpus(12u));
+
+        const std::vector<L4::SoftwarePrimitiveRecord> sharedEdgePrimitives{
+            L4::MakeTriangle({-1.0f, -1.0f, -2.0f}, {1.0f, -1.0f, -2.0f}, {1.0f, 1.0f, -2.0f}, 17u),
+            L4::MakeTriangle({-1.0f, -1.0f, -2.0f}, {1.0f, 1.0f, -2.0f}, {-1.0f, 1.0f, -2.0f}, 11u)};
+        const std::vector<RenderingEngine::Rt::Cpu::Triangle<float>> sharedEdgeCpuTriangles =
+            ToCpuTriangles(sharedEdgePrimitives);
+        const RenderingEngine::Rt::Cpu::Bvh<float> sharedEdgeCpuBvh(
+            sharedEdgeCpuTriangles,
+            RenderingEngine::Rt::Cpu::BvhBuildMethod::BinnedSah,
+            1u);
+        const L4::FlatBuildResult sharedEdgeFlattened = L4::FlattenCanonicalL3BinnedSah(
+            sharedEdgeCpuBvh,
+            sharedEdgePrimitives);
+        Require(sharedEdgeFlattened.Succeeded(), "shared-edge L3 adapter failed");
+        const L4::SoftwareRayRecord sharedEdgeRay = L4::MakeRay(
+            {0.0f, 0.0f, 0.0f},
+            {0.0f, 0.0f, -1.0f},
+            0.0f,
+            100.0f,
+            55u);
+        const L4::TraceResult sharedEdgeHit = L4::Trace(
+            sharedEdgeFlattened.bvh,
+            sharedEdgeRay,
+            L4::QueryMode::Closest);
+        Require(sharedEdgeHit.Succeeded() && sharedEdgeHit.IsHit(), "shared-edge L4 query missed");
+        Require(sharedEdgeHit.hit.identity.x == 11u, "shared-edge stable ID parity failed");
+
+        const RenderingEngine::Rt::Cpu::Bvh<float> emptyCpuBvh(
+            std::span<const RenderingEngine::Rt::Cpu::Triangle<float>>{},
+            RenderingEngine::Rt::Cpu::BvhBuildMethod::BinnedSah,
+            1u);
+        const L4::FlatBuildResult empty = L4::FlattenCanonicalL3BinnedSah(emptyCpuBvh, {});
+        Require(empty.Succeeded() && empty.bvh.nodes.empty() && empty.bvh.primitives.empty(),
+            "empty canonical L3 scene was not preserved");
+        Require(
+            L4::FlattenCanonicalL3BinnedSah(emptyCpuBvh, primitives).status ==
+                L4::BuildStatus::InvalidInput,
+            "empty L3 scene accepted mismatched canonical primitives");
+
+        const RenderingEngine::Rt::Cpu::Bvh<float> medianCpuBvh(
+            cpuTriangles,
+            RenderingEngine::Rt::Cpu::BvhBuildMethod::Median,
+            2u);
+        Require(
+            L4::FlattenCanonicalL3BinnedSah(medianCpuBvh, primitives).status ==
+                L4::BuildStatus::InvalidInput,
+            "non-SAH L3 BVH was accepted by canonical adapter");
+
+        std::vector<L4::SoftwarePrimitiveRecord> wrongId = primitives;
+        wrongId[0].identity.x += 10000u;
+        Require(
+            L4::FlattenCanonicalL3BinnedSah(cpuBvh, wrongId).status ==
+                L4::BuildStatus::InvalidInput,
+            "canonical adapter accepted an ID mismatch");
+        std::vector<L4::SoftwarePrimitiveRecord> wrongCount = primitives;
+        wrongCount.pop_back();
+        Require(
+            L4::FlattenCanonicalL3BinnedSah(cpuBvh, wrongCount).status ==
+                L4::BuildStatus::InvalidInput,
+            "canonical adapter accepted a primitive-count mismatch");
+        std::vector<L4::SoftwarePrimitiveRecord> wrongOrder = primitives;
+        std::swap(wrongOrder[0], wrongOrder[1]);
+        Require(
+            L4::FlattenCanonicalL3BinnedSah(cpuBvh, wrongOrder).status ==
+                L4::BuildStatus::InvalidInput,
+            "canonical adapter accepted an input-order mismatch");
     }
 
     void TestExplicitStackOverflow()
@@ -546,6 +750,7 @@ int main()
 {
     std::uint32_t passed{};
     passed += RunTest("flattened SAH conversion and fixed-ray parity", TestFlattenedSahAndParity) ? 1u : 0u;
+    passed += RunTest("canonical L3 SAH flatten adapter", TestCanonicalL3BinnedSahAdapter) ? 1u : 0u;
     passed += RunTest("bounded stack overflow", TestExplicitStackOverflow) ? 1u : 0u;
     passed += RunTest("Morton stable radix and duplicate centroids", TestMortonStableRadixAndDuplicateCentroids) ? 1u : 0u;
     passed += RunTest("Karras LBVH topology, bottom-up bounds, parity", TestKarrasLbvhTopologyAndParity) ? 1u : 0u;
@@ -553,6 +758,6 @@ int main()
     passed += RunTest("malformed adapters and logical keys", TestMalformedAdapterAndInputs) ? 1u : 0u;
     passed += RunTest("trace input and malformed BVH", TestTraceInputAndMalformedBvh) ? 1u : 0u;
     passed += RunTest("benchmark harness smoke", TestBenchmarkHarnessSmoke) ? 1u : 0u;
-    std::cout << "L4 tests: " << passed << "/8 groups, " << gAssertions << " assertions\n";
-    return passed == 8u ? 0 : 1;
+    std::cout << "L4 tests: " << passed << "/9 groups, " << gAssertions << " assertions\n";
+    return passed == 9u ? 0 : 1;
 }

@@ -1,5 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #define VK_USE_PLATFORM_WIN32_KHR
 
 #include "platform/win32/Win32PlatformHost.hpp"

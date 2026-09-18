@@ -1,12 +1,12 @@
 #include "ReconstructionCommon.hlsli"
 
-[[vk::binding(0, 0)]] StructuredBuffer<L8GBufferRecord> gATrousGBuffer : register(t0);
-[[vk::binding(1, 0)]] StructuredBuffer<L8SignalRecord> gATrousInput : register(t1);
-[[vk::binding(2, 0)]] StructuredBuffer<float> gATrousVariance : register(t2);
-[[vk::binding(3, 0)]] RWStructuredBuffer<L8SignalRecord> gATrousOutput : register(u0);
-[[vk::binding(4, 0)]] RWStructuredBuffer<float> gATrousOutputVariance : register(u1);
+[[vk::binding(0, 4)]] StructuredBuffer<GpuGBufferRecordV2> gATrousGBuffer;
+[[vk::binding(11, 4)]] StructuredBuffer<L8SignalRecord> gATrousInput;
+[[vk::binding(10, 4)]] StructuredBuffer<float> gATrousVariance;
+[[vk::binding(12, 4)]] RWStructuredBuffer<L8SignalRecord> gATrousOutput;
+[[vk::binding(14, 4)]] RWStructuredBuffer<float> gATrousOutputVariance;
 
-[[vk::binding(5, 0)]] cbuffer L8ATrousConstants : register(b0)
+[[vk::binding(20, 4)]] cbuffer L8ATrousConstants
 {
     uint2 gATrousExtent;
     uint gATrousStep;
@@ -24,7 +24,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     const uint2 pixel = dispatchThreadId.xy;
     if (any(pixel >= gATrousExtent)) return;
     const uint index = L8LinearIndex(pixel, gATrousExtent);
-    const L8GBufferRecord centerGBuffer = gATrousGBuffer[index];
+    const L8GBufferRecord centerGBuffer = L8LoadGBuffer(gATrousGBuffer[index]);
     const L8SignalRecord centerSignal = gATrousInput[index];
     L8SignalRecord safeCenterSignal = (L8SignalRecord)0;
     if (L8IsFiniteSignal(centerSignal)) safeCenterSignal = centerSignal;
@@ -53,7 +53,8 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             const int2 samplePixel = int2(pixel) + int2(kernelX, kernelY) * int(gATrousStep);
             if (any(samplePixel < 0) || any(samplePixel >= int2(gATrousExtent))) continue;
             const uint sampleIndex = L8LinearIndex(uint2(samplePixel), gATrousExtent);
-            const L8GBufferRecord sampleGBuffer = gATrousGBuffer[sampleIndex];
+            const L8GBufferRecord sampleGBuffer =
+                L8LoadGBuffer(gATrousGBuffer[sampleIndex]);
             const L8SignalRecord sampleSignal = gATrousInput[sampleIndex];
             const float sampleVariance = gATrousVariance[sampleIndex];
             if (sampleGBuffer.valid == 0u || sampleGBuffer.linearDepth < 0.0f ||

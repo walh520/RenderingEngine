@@ -50,8 +50,10 @@
     <ClCompile Include="tests\MegakernelCpuTests.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <L6Shader Include="..\..\resources\shaders\integrators\pbr_megakernel.hlsl"><EntryPoint>CSMain</EntryPoint><OutputFile>pbr_megakernel.spv</OutputFile></L6Shader>
-    <L6Shader Include="..\..\resources\shaders\integrators\pbr_sampling_probe.hlsl"><EntryPoint>ProbeMain</EntryPoint><OutputFile>pbr_sampling_probe.spv</OutputFile></L6Shader>
+    <L6Shader Include="..\..\resources\shaders\integrators\pbr_megakernel.hlsl"><EntryPoint>CSMain</EntryPoint><OutputFile>pbr_megakernel.spv</OutputFile><ExtraArgs></ExtraArgs></L6Shader>
+    <L6Shader Include="..\..\resources\shaders\integrators\pbr_megakernel.hlsl"><EntryPoint>CSMain</EntryPoint><OutputFile>pbr_megakernel_software.spv</OutputFile><ExtraArgs>-D PBR_L6_TRAVERSAL_SOFTWARE=1</ExtraArgs></L6Shader>
+    <L6Shader Include="..\..\resources\shaders\integrators\pbr_megakernel.hlsl"><EntryPoint>CSMain</EntryPoint><OutputFile>pbr_megakernel_rayquery.spv</OutputFile><ExtraArgs>-D PBR_L6_TRAVERSAL_RAY_QUERY=1 -fspv-extension=SPV_KHR_ray_query</ExtraArgs></L6Shader>
+    <L6Shader Include="..\..\resources\shaders\integrators\pbr_sampling_probe.hlsl"><EntryPoint>ProbeMain</EntryPoint><OutputFile>pbr_sampling_probe.spv</OutputFile><ExtraArgs></ExtraArgs></L6Shader>
     <L6ShaderDependency Include="..\..\resources\shaders\integrators\*.hlsli" />
     <L6ShaderDependency Include="..\..\resources\shaders\include\bsdf\*.hlsli" />
   </ItemGroup>
@@ -62,7 +64,7 @@
   </Target>
   <Target Name="CompileL6Shaders" BeforeTargets="ClCompile" DependsOnTargets="ValidateL6ShaderToolchain" Inputs="@(L6Shader);@(L6ShaderDependency);$(MSBuildProjectFullPath)" Outputs="@(L6Shader->'$(L6ShaderOutputDir)%(OutputFile)')" Condition="'$(DesignTimeBuild)' != 'true'">
     <MakeDir Directories="$(L6ShaderOutputDir)" />
-    <Exec Command="&quot;$(L6DxcExecutable)&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -HV 2021 -T cs_6_6 -E %(L6Shader.EntryPoint) -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -Fo &quot;$(L6ShaderOutputDir)%(L6Shader.OutputFile)&quot; &quot;%(L6Shader.FullPath)&quot;" />
+    <Exec Command="&quot;$(L6DxcExecutable)&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -HV 2021 -T cs_6_6 -E %(L6Shader.EntryPoint) -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; %(L6Shader.ExtraArgs) -Fo &quot;$(L6ShaderOutputDir)%(L6Shader.OutputFile)&quot; &quot;%(L6Shader.FullPath)&quot;" />
     <Exec Command="&quot;$(L6SpirvValExecutable)&quot; --target-env vulkan1.3 &quot;$(L6ShaderOutputDir)%(L6Shader.OutputFile)&quot;" />
   </Target>
   <Target Name="CleanL6ShaderOutputs" AfterTargets="Clean">

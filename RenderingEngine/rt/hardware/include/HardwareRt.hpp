@@ -8,4 +8,5 @@
 #include "ParityHarness.hpp"
 #include "RayQueryBackend.hpp"
 #include "RtPipelineBackend.hpp"
+#include "RtPipelineTraversalAdapter.hpp"
 #include "SbtBuilder.hpp"

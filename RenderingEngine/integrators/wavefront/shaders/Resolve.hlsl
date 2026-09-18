@@ -1,4 +1,5 @@
 #include "include/WavefrontResources.hlsli"
+#include "include/WavefrontReconstructionExport.hlsli"
 
 [numthreads(8, 8, 1)]
 void ResolveCS(uint3 dispatchThreadId : SV_DispatchThreadID)
@@ -11,9 +12,33 @@ void ResolveCS(uint3 dispatchThreadId : SV_DispatchThreadID)
     }
 
     const uint pixelIndex = pixel.x + pixel.y * imageSize.x;
-    if (WfGlobalFatalMask() != 0u || pixelIndex >= gWfFrame.capacityModeSeed.x)
+    const uint fatalMask = WfGlobalFatalMask();
+    if (fatalMask != 0u || pixelIndex >= gWfFrame.capacityModeSeed.x)
     {
-        gWfOutput[pixel] = float4(1.0f, 0.0f, 1.0f, 1.0f);
+        // Stable colors identify the first frame-global failure class without
+        // requiring a GPU debugger: RGB=ray A/B/next, yellow=shadow,
+        // cyan=material, white=dispatch, magenta=capacity/contract.
+        float3 fatalColor = float3(0.5f, 0.5f, 0.5f);
+        if ((fatalMask & kWfFatalRayAOverflow) != 0u) fatalColor = float3(1.0f, 0.0f, 0.0f);
+        else if ((fatalMask & kWfFatalRayBOverflow) != 0u) fatalColor = float3(0.0f, 1.0f, 0.0f);
+        else if ((fatalMask & kWfFatalNextOverflow) != 0u) fatalColor = float3(0.0f, 0.0f, 1.0f);
+        else if ((fatalMask & kWfFatalShadowOverflow) != 0u) fatalColor = float3(1.0f, 1.0f, 0.0f);
+        else if ((fatalMask & kWfFatalMaterialOverflow) != 0u) fatalColor = float3(0.0f, 1.0f, 1.0f);
+        else if ((fatalMask & kWfFatalDispatchOverflow) != 0u) fatalColor = float3(1.0f, 1.0f, 1.0f);
+        else if ((fatalMask & kWfFatalInvalidCapacity) != 0u) fatalColor = float3(1.0f, 0.0f, 1.0f);
+        else if ((fatalMask & kWfFatalRayGenPathCapacity) != 0u) fatalColor = float3(1.0f, 0.25f, 0.0f);
+        else if ((fatalMask & kWfFatalRayGenPbrFrame) != 0u) fatalColor = float3(0.5f, 0.0f, 1.0f);
+        else if ((fatalMask & kWfFatalRayGenImageContract) != 0u) fatalColor = float3(0.0f, 0.5f, 1.0f);
+        else if ((fatalMask & kWfFatalRayGenSeedContract) != 0u) fatalColor = float3(0.0f, 1.0f, 0.5f);
+        else if ((fatalMask & kWfFatalRayGenQueueMode) != 0u) fatalColor = float3(0.5f, 1.0f, 0.0f);
+        else if ((fatalMask & kWfFatalRayGenDispatchContract) != 0u) fatalColor = float3(1.0f, 0.5f, 0.0f);
+        else if ((fatalMask & kWfFatalRayGenStreamContract) != 0u) fatalColor = float3(1.0f, 0.0f, 0.5f);
+        else if ((fatalMask & kWfFatalResetFrameCapacity) != 0u) fatalColor = float3(0.75f, 0.1f, 0.1f);
+        else if ((fatalMask & kWfFatalShadeSourceQueue) != 0u) fatalColor = float3(0.1f, 0.75f, 0.1f);
+        else if ((fatalMask & kWfFatalShadePathIndex) != 0u) fatalColor = float3(0.1f, 0.1f, 0.75f);
+        else if ((fatalMask & kWfFatalNextPathIndex) != 0u) fatalColor = float3(0.75f, 0.75f, 0.1f);
+        else if ((fatalMask & kWfFatalShadowPathIndex) != 0u) fatalColor = float3(0.1f, 0.75f, 0.75f);
+        gWfOutput[pixel] = float4(fatalColor, 1.0f);
         gWfCameraEmission[pixel] = 0.0f;
         gWfDirectDiffuse[pixel] = 0.0f;
         gWfDirectSpecular[pixel] = 0.0f;
@@ -38,7 +63,8 @@ void ResolveCS(uint3 dispatchThreadId : SV_DispatchThreadID)
         uint ignored;
         InterlockedAdd(gWfBounceCounters[bounce].errors.y, 1u, ignored);
         gWfPaths[pixelIndex].identity.w |= kWfPathError;
-        gWfOutput[pixel] = float4(1.0f, 0.0f, 1.0f, 1.0f);
+        WfPublishSharedPath(pixelIndex, gWfPaths[pixelIndex]);
+        gWfOutput[pixel] = float4(1.0f, 1.0f, 0.0f, 1.0f);
         gWfCameraEmission[pixel] = 0.0f;
         gWfDirectDiffuse[pixel] = 0.0f;
         gWfDirectSpecular[pixel] = 0.0f;
@@ -48,32 +74,17 @@ void ResolveCS(uint3 dispatchThreadId : SV_DispatchThreadID)
     }
     const float3 sampleValue = cameraEmission + directDiffuse + directSpecular
         + indirectDiffuse + indirectSpecular;
-    const uint sampleIndex = gWfFrame.imageSample.z;
-    const float denominator = float(sampleIndex + 1u);
-    const float3 previousCombined = sampleIndex == 0u ? 0.0f : gWfOutput[pixel].xyz;
-    const float3 previousCameraEmission = sampleIndex == 0u
-        ? 0.0f : gWfCameraEmission[pixel].xyz;
-    const float3 previousDirectDiffuse = sampleIndex == 0u ? 0.0f : gWfDirectDiffuse[pixel].xyz;
-    const float3 previousDirectSpecular = sampleIndex == 0u ? 0.0f : gWfDirectSpecular[pixel].xyz;
-    const float3 previousIndirectDiffuse = sampleIndex == 0u ? 0.0f : gWfIndirectDiffuse[pixel].xyz;
-    const float3 previousIndirectSpecular = sampleIndex == 0u ? 0.0f : gWfIndirectSpecular[pixel].xyz;
-
-    gWfOutput[pixel] = float4(
-        previousCombined + (sampleValue - previousCombined) / denominator,
-        1.0f);
-    gWfCameraEmission[pixel] = float4(
-        previousCameraEmission + (cameraEmission - previousCameraEmission) / denominator,
-        1.0f);
-    gWfDirectDiffuse[pixel] = float4(
-        previousDirectDiffuse + (directDiffuse - previousDirectDiffuse) / denominator,
-        1.0f);
-    gWfDirectSpecular[pixel] = float4(
-        previousDirectSpecular + (directSpecular - previousDirectSpecular) / denominator,
-        1.0f);
-    gWfIndirectDiffuse[pixel] = float4(
-        previousIndirectDiffuse + (indirectDiffuse - previousIndirectDiffuse) / denominator,
-        1.0f);
-    gWfIndirectSpecular[pixel] = float4(
-        previousIndirectSpecular + (indirectSpecular - previousIndirectSpecular) / denominator,
-        1.0f);
+    WfPublishReconstructionSignalV2(
+        pixelIndex,
+        cameraEmission,
+        directDiffuse,
+        directSpecular,
+        indirectDiffuse,
+        indirectSpecular);
+    gWfOutput[pixel] = float4(sampleValue, 1.0f);
+    gWfCameraEmission[pixel] = float4(cameraEmission, 1.0f);
+    gWfDirectDiffuse[pixel] = float4(directDiffuse, 1.0f);
+    gWfDirectSpecular[pixel] = float4(directSpecular, 1.0f);
+    gWfIndirectDiffuse[pixel] = float4(indirectDiffuse, 1.0f);
+    gWfIndirectSpecular[pixel] = float4(indirectSpecular, 1.0f);
 }

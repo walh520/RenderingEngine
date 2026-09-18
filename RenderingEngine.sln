@@ -3,9 +3,19 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.36518.9 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RenderingEngine", "RenderingEngine\RenderingEngine.Vulkan.vcxproj", "{C04D9934-D10F-4599-A56D-D215D3C36D50}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RenderingEngine.Wave5.Debug", "RenderingEngine\RenderingEngine.Vulkan.vcxproj", "{C04D9934-D10F-4599-A56D-D215D3C36D50}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RenderingEngine.Contracts.Tests", "RenderingEngine\tests\contracts\RenderingEngine.Contracts.Tests.vcxproj", "{846E6A32-8FCA-41C4-AF03-A9252D572FB4}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RenderingEngine.GpuTraversalContract", "RenderingEngine\src\rt\gpu\RenderingEngine.GpuTraversalContract.vcxproj", "{6F79534E-2D7F-4D76-A15D-931E8CB24819}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RenderingEngine.PlatformGlfw", "RenderingEngine\src\platform\glfw\RenderingEngine.PlatformGlfw.vcxproj", "{FC06E194-84C3-4B39-83C9-E270995B7A34}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RenderingEngine.PlatformGlfw.Tests", "RenderingEngine\src\platform\glfw\tests\RenderingEngine.PlatformGlfw.Tests.vcxproj", "{05F21A83-BDE9-4164-9724-BE0A74E6133F}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RenderingEngine.SceneWave1", "RenderingEngine\src\scene\RenderingEngine.SceneWave1.vcxproj", "{F14B5DBA-D9DB-47E5-A61F-C8ECADFBDB2A}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RenderingEngine.SceneWave1.Tests", "RenderingEngine\src\scene\tests\RenderingEngine.SceneWave1.Tests.vcxproj", "{7C3014F3-D659-45F9-95F9-187A0E27B38A}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RenderingEngine.CpuReference", "RenderingEngine\rt\cpu\RenderingEngine.CpuReference.vcxproj", "{F3A708A1-0BFA-4C34-9F0C-65B791C3E201}"
 EndProject
@@ -51,6 +61,26 @@ Global
 		{846E6A32-8FCA-41C4-AF03-A9252D572FB4}.Debug|x64.Build.0 = Debug|x64
 		{846E6A32-8FCA-41C4-AF03-A9252D572FB4}.Release|x64.ActiveCfg = Release|x64
 		{846E6A32-8FCA-41C4-AF03-A9252D572FB4}.Release|x64.Build.0 = Release|x64
+		{6F79534E-2D7F-4D76-A15D-931E8CB24819}.Debug|x64.ActiveCfg = Debug|x64
+		{6F79534E-2D7F-4D76-A15D-931E8CB24819}.Debug|x64.Build.0 = Debug|x64
+		{6F79534E-2D7F-4D76-A15D-931E8CB24819}.Release|x64.ActiveCfg = Release|x64
+		{6F79534E-2D7F-4D76-A15D-931E8CB24819}.Release|x64.Build.0 = Release|x64
+		{FC06E194-84C3-4B39-83C9-E270995B7A34}.Debug|x64.ActiveCfg = Debug|x64
+		{FC06E194-84C3-4B39-83C9-E270995B7A34}.Debug|x64.Build.0 = Debug|x64
+		{FC06E194-84C3-4B39-83C9-E270995B7A34}.Release|x64.ActiveCfg = Release|x64
+		{FC06E194-84C3-4B39-83C9-E270995B7A34}.Release|x64.Build.0 = Release|x64
+		{05F21A83-BDE9-4164-9724-BE0A74E6133F}.Debug|x64.ActiveCfg = Debug|x64
+		{05F21A83-BDE9-4164-9724-BE0A74E6133F}.Debug|x64.Build.0 = Debug|x64
+		{05F21A83-BDE9-4164-9724-BE0A74E6133F}.Release|x64.ActiveCfg = Release|x64
+		{05F21A83-BDE9-4164-9724-BE0A74E6133F}.Release|x64.Build.0 = Release|x64
+		{F14B5DBA-D9DB-47E5-A61F-C8ECADFBDB2A}.Debug|x64.ActiveCfg = Debug|x64
+		{F14B5DBA-D9DB-47E5-A61F-C8ECADFBDB2A}.Debug|x64.Build.0 = Debug|x64
+		{F14B5DBA-D9DB-47E5-A61F-C8ECADFBDB2A}.Release|x64.ActiveCfg = Release|x64
+		{F14B5DBA-D9DB-47E5-A61F-C8ECADFBDB2A}.Release|x64.Build.0 = Release|x64
+		{7C3014F3-D659-45F9-95F9-187A0E27B38A}.Debug|x64.ActiveCfg = Debug|x64
+		{7C3014F3-D659-45F9-95F9-187A0E27B38A}.Debug|x64.Build.0 = Debug|x64
+		{7C3014F3-D659-45F9-95F9-187A0E27B38A}.Release|x64.ActiveCfg = Release|x64
+		{7C3014F3-D659-45F9-95F9-187A0E27B38A}.Release|x64.Build.0 = Release|x64
 		{F3A708A1-0BFA-4C34-9F0C-65B791C3E201}.Debug|x64.ActiveCfg = Debug|x64
 		{F3A708A1-0BFA-4C34-9F0C-65B791C3E201}.Debug|x64.Build.0 = Debug|x64
 		{F3A708A1-0BFA-4C34-9F0C-65B791C3E201}.Release|x64.ActiveCfg = Release|x64

@@ -1,4 +1,5 @@
 #include "contracts/AbiV0.hpp"
+#include "contracts/AbiV2.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -125,6 +126,56 @@ static_assert(Abi::SceneBinding::Lights == 6u);
 static_assert(Abi::SceneBinding::Textures == 16u);
 static_assert(Abi::SceneBinding::Samplers == 17u);
 static_assert(Abi::DebugProfilerBinding::Constants == 0u);
+
+namespace Abi2 = RenderingEngine::Contracts::AbiV2;
+
+ABI_ASSERT_RECORD(Abi2::GpuPrimarySurfaceV2, 96u);
+ABI_ASSERT_FIELD(Abi2::GpuPrimarySurfaceV2, worldPositionLinearDepth, 0u, 16u);
+ABI_ASSERT_FIELD(Abi2::GpuPrimarySurfaceV2, geometricNormalRoughness, 16u, 16u);
+ABI_ASSERT_FIELD(Abi2::GpuPrimarySurfaceV2, shadingNormalMetallic, 32u, 16u);
+ABI_ASSERT_FIELD(Abi2::GpuPrimarySurfaceV2, diffuseAlbedo, 48u, 16u);
+ABI_ASSERT_FIELD(Abi2::GpuPrimarySurfaceV2, specularAlbedo, 64u, 16u);
+ABI_ASSERT_FIELD(Abi2::GpuPrimarySurfaceV2, identity, 80u, 16u);
+
+ABI_ASSERT_RECORD(Abi2::GpuMotionVectorV2, 48u);
+ABI_ASSERT_FIELD(Abi2::GpuMotionVectorV2, motionExpectedDepth, 0u, 16u);
+ABI_ASSERT_FIELD(Abi2::GpuMotionVectorV2, currentPreviousUv, 16u, 16u);
+ABI_ASSERT_FIELD(Abi2::GpuMotionVectorV2, identity, 32u, 16u);
+
+ABI_ASSERT_RECORD(Abi2::GpuReconstructionSignalV2, 64u);
+ABI_ASSERT_FIELD(Abi2::GpuReconstructionSignalV2, directDiffuse, 0u, 16u);
+ABI_ASSERT_FIELD(Abi2::GpuReconstructionSignalV2, directSpecular, 16u, 16u);
+ABI_ASSERT_FIELD(Abi2::GpuReconstructionSignalV2, indirectDiffuse, 32u, 16u);
+ABI_ASSERT_FIELD(Abi2::GpuReconstructionSignalV2, indirectSpecular, 48u, 16u);
+
+ABI_ASSERT_RECORD(Abi2::GpuHistoryMetadataV2, 48u);
+ABI_ASSERT_FIELD(Abi2::GpuHistoryMetadataV2, momentsVarianceHistory, 0u, 16u);
+ABI_ASSERT_FIELD(Abi2::GpuHistoryMetadataV2, surfaceIdentity, 16u, 16u);
+ABI_ASSERT_FIELD(Abi2::GpuHistoryMetadataV2, frameIdentity, 32u, 16u);
+
+ABI_ASSERT_RECORD(Abi2::GpuGBufferRecordV2, 208u);
+ABI_ASSERT_FIELD(Abi2::GpuGBufferRecordV2, primary, 0u, 96u);
+ABI_ASSERT_FIELD(Abi2::GpuGBufferRecordV2, motion, 96u, 48u);
+ABI_ASSERT_FIELD(Abi2::GpuGBufferRecordV2, signal, 144u, 64u);
+
+static_assert(Abi2::kAbiVersion == 3u);
+static_assert(static_cast<std::uint32_t>(Abi2::DescriptorSet::WavefrontQueues) == 3u);
+static_assert(static_cast<std::uint32_t>(Abi2::DescriptorSet::Reconstruction) == 4u);
+static_assert(Abi2::WavefrontBinding::Constants == 0u);
+static_assert(Abi2::WavefrontBinding::ShadowQueue == 4u);
+static_assert(Abi2::WavefrontBinding::CameraEmission == 22u);
+static_assert(Abi2::WavefrontBinding::ShadowAov == 23u);
+static_assert(Abi2::WavefrontBinding::PrimarySurfaceV2Export == 24u);
+static_assert(Abi2::WavefrontBinding::PrimarySurfaceV2Export
+    != Abi2::WavefrontBinding::BounceCounters);
+static_assert(Abi2::WavefrontBinding::PrivatePathStates == 6u);
+static_assert(Abi2::WavefrontBinding::MaterialWork ==
+    Abi2::WavefrontBinding::HitQueue);
+static_assert(Abi2::ReconstructionBinding::AtrousVarianceOutput == 14u);
+static_assert(Abi2::ReconstructionBinding::PrimarySurfaceExport == 15u);
+static_assert(Abi2::ReconstructionBinding::PrimarySurface == 0u);
+static_assert(Abi2::ReconstructionBinding::ComposedOutput == 13u);
+static_assert(Abi2::ReconstructionBinding::ComposeConstants == 21u);
 
 #undef ABI_ASSERT_FIELD
 #undef ABI_ASSERT_RECORD

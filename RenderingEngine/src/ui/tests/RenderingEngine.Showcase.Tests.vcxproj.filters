@@ -6,6 +6,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DebugProfilerModelTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Wave2TelemetryAdapterTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Wave4TelemetryAdapterTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="ManyLightsWave4Tests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="CapturePreviewTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="GlfwActionAdapterTests.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="ImGuiShowcasePanelsTests.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="ShowcaseControllerTests.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="ShowcaseEvidenceTests.cpp"><Filter>Source Files</Filter></ClCompile>
@@ -16,5 +21,7 @@
     <ClCompile Include="..\..\app\ArtifactLayout.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
     <ClCompile Include="..\..\app\CapabilityTable.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
     <ClCompile Include="..\..\app\RuntimeConfig.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\app\RuntimeStatusText.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\app\IntegratedModuleRegistry.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
   </ItemGroup>
 </Project>

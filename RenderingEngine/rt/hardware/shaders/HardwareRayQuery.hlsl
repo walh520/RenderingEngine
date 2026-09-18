@@ -1,8 +1,11 @@
 #include "contracts/AbiTypesV0.hlsli"
 #include "contracts/AbiVersionV0.hlsli"
+#include "contracts/AbiVersionV1.hlsli"
 #include "contracts/SceneAbiV0.hlsli"
 #include "contracts/RayHitAbiV0.hlsli"
+#include "contracts/GpuRecordsAbiV1.hlsli"
 
+[[vk::binding(0, 1)]] ConstantBuffer<GpuSceneConstantsV0> gSceneConstants;
 [[vk::binding(1, 1)]] StructuredBuffer<GpuVertexV0> gVertices;
 [[vk::binding(2, 1)]] StructuredBuffer<uint> gIndices;
 [[vk::binding(3, 1)]] StructuredBuffer<GpuGeometryV0> gGeometries;
@@ -10,39 +13,30 @@
 [[vk::binding(5, 1)]] StructuredBuffer<GpuMaterialV0> gMaterials;
 
 [[vk::binding(0, 2)]] RaytracingAccelerationStructure gSceneAccelerationStructure;
-[[vk::binding(1, 2)]] StructuredBuffer<GpuRayV0> gRays;
-[[vk::binding(2, 2)]] RWStructuredBuffer<GpuHitV0> gHits;
+[[vk::binding(1, 2)]] StructuredBuffer<GpuRayQueueRecordV1> gRays;
+[[vk::binding(2, 2)]] RWStructuredBuffer<GpuHitQueueRecordV1> gHits;
 [[vk::binding(8, 2)]] Texture2DArray<float4> gAlphaAtlas;
 [[vk::binding(9, 2)]] SamplerState gAlphaSampler;
 
-struct RayBatchPushConstants
+struct RayQueryPushConstants
 {
     uint rayCount;
     uint queryMode;
     uint alphaAtlasLayerCount;
     uint alphaSamplerId;
     uint rayOffset;
+    uint hitOffset;
 };
 
-[[vk::push_constant]] RayBatchPushConstants gBatch;
+[[vk::push_constant]] RayQueryPushConstants gBatch;
 
 static const uint kQueryClosest = 0u;
 static const uint kQueryAny = 1u;
-static const uint kInvalidId = 0xffffffffu;
-static const uint kKnownRayFlags = kRayFlagCullFrontFaceV0 | kRayFlagCullBackFaceV0 |
-    kRayFlagForceOpaqueV0;
+static const uint kInvalidId = kInvalidIdV1;
 
-uint CanonicalRayFlagsToVulkan(uint flags, bool anyHit)
+uint CanonicalRayFlagsToVulkan(bool anyHit)
 {
     uint result = 0u;
-    if ((flags & kRayFlagCullFrontFaceV0) != 0u)
-    {
-        result |= RAY_FLAG_CULL_FRONT_FACING_TRIANGLES;
-    }
-    if ((flags & kRayFlagCullBackFaceV0) != 0u)
-    {
-        result |= RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
-    }
     if (anyHit)
     {
         result |= RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH;
@@ -77,13 +71,48 @@ void FetchTriangle(
 
 bool IsCandidateAccepted(
     inout RayQuery<RAY_FLAG_NONE> query,
-    bool forceOpaque,
+    GpuRayQueueRecordV1 ray,
     out bool samplerMappingValid)
 {
     samplerMappingValid = true;
+    // Vulkan traversal may treat a candidate exactly at tMax as either the
+    // closest hit or a dropped hit. ABI v1 deliberately defines an open
+    // interval, so enforce both endpoints before any material decision.
+    const float candidateT = query.CandidateTriangleRayT();
+    if (!(candidateT > ray.originTMin.w && candidateT < ray.directionTMax.w))
+    {
+        return false;
+    }
     uint instanceIndex = query.CandidateInstanceID();
-    uint geometryIndex = CanonicalGeometryIndex(instanceIndex, query.CandidateGeometryIndex());
+    if (instanceIndex >= gSceneConstants.counts0.w)
+    {
+        samplerMappingValid = false;
+        return false;
+    }
+    const uint localGeometryIndex = query.CandidateGeometryIndex();
+    if (localGeometryIndex >= gInstances[instanceIndex].metadata.y)
+    {
+        samplerMappingValid = false;
+        return false;
+    }
+    uint geometryIndex = CanonicalGeometryIndex(instanceIndex, localGeometryIndex);
+    if (geometryIndex >= gSceneConstants.counts0.z)
+    {
+        samplerMappingValid = false;
+        return false;
+    }
     GpuGeometryV0 geometry = gGeometries[geometryIndex];
+    if (geometry.identity.z >= gSceneConstants.counts1.x)
+    {
+        samplerMappingValid = false;
+        return false;
+    }
+    const uint localPrimitiveIndex = query.CandidatePrimitiveIndex();
+    if (localPrimitiveIndex >= geometry.indexRange.y / 3u)
+    {
+        samplerMappingValid = false;
+        return false;
+    }
     GpuMaterialV0 material = gMaterials[geometry.identity.z];
     bool doubleSided = ((geometry.identity.w & kGeometryFlagDoubleSidedV0) != 0u) ||
         ((material.metadata.y & kMaterialFlagDoubleSidedV0) != 0u);
@@ -98,16 +127,11 @@ bool IsCandidateAccepted(
     {
         return true;
     }
-    if (forceOpaque)
-    {
-        return true;
-    }
-
     uint3 ignoredIndices;
     GpuVertexV0 v0;
     GpuVertexV0 v1;
     GpuVertexV0 v2;
-    FetchTriangle(geometryIndex, query.CandidatePrimitiveIndex(), ignoredIndices, v0, v1, v2);
+    FetchTriangle(geometryIndex, localPrimitiveIndex, ignoredIndices, v0, v1, v2);
     float2 bary = query.CandidateTriangleBarycentrics();
     float weight0 = 1.0f - bary.x - bary.y;
     float2 uv = weight0 * v0.texcoord0.xy + bary.x * v1.texcoord0.xy + bary.y * v2.texcoord0.xy;
@@ -143,52 +167,45 @@ float3 TransformNormalFromWorldToObject(AbiMat4Rows worldToObject, float3 object
     return normalize(worldNormal);
 }
 
-GpuHitV0 MakeMiss(GpuRayV0 ray)
+GpuHitQueueRecordV1 MakeMiss(GpuRayQueueRecordV1 ray)
 {
-    GpuHitV0 hit = (GpuHitV0)0;
+    GpuHitQueueRecordV1 hit = (GpuHitQueueRecordV1)0;
     hit.positionT.w = ray.directionTMax.w;
     hit.ids = uint4(kInvalidId, kInvalidId, kInvalidId, kInvalidId);
-    hit.metadata = uint4(ray.query.x, kHitKindMissV0, kHitFlagNoneV0, 0u);
+    hit.metadata = uint4(ray.identity.x, kHitKindMissV0, kHitFlagNoneV0, ray.identity.y);
     return hit;
 }
 
-GpuHitV0 MakeInvalid(GpuRayV0 ray)
+GpuHitQueueRecordV1 MakeInvalid(GpuRayQueueRecordV1 ray)
 {
-    GpuHitV0 hit = (GpuHitV0)0;
+    GpuHitQueueRecordV1 hit = (GpuHitQueueRecordV1)0;
     hit.ids = uint4(kInvalidId, kInvalidId, kInvalidId, kInvalidId);
-    hit.metadata = uint4(ray.query.x, kHitKindInvalidV0, kHitFlagNoneV0, 0u);
+    hit.metadata = uint4(ray.identity.x, kHitKindInvalidV0, kHitFlagNoneV0, ray.identity.y);
     return hit;
 }
 
-bool IsCanonicalRayValid(GpuRayV0 ray)
+bool IsCanonicalRayValid(GpuRayQueueRecordV1 ray)
 {
     bool finite = all(isfinite(ray.originTMin)) && all(isfinite(ray.directionTMax));
     float directionLengthSquared = dot(ray.directionTMax.xyz, ray.directionTMax.xyz);
-    bool normalized = abs(directionLengthSquared - 1.0f) <= 1.0e-3f;
-    bool rangeValid = ray.originTMin.w >= 0.0f && ray.originTMin.w <= ray.directionTMax.w;
-    bool flagsValid = (ray.query.z & ~kKnownRayFlags) == 0u;
-    bool metadataValid = ray.query.y <= 0xffu && ray.query.w == 0u &&
-        all(ray.reserved0 == uint4(0u, 0u, 0u, 0u));
-    return finite && normalized && rangeValid && flagsValid && metadataValid;
+    bool normalized = abs(directionLengthSquared - 1.0f) <= 1.0e-4f;
+    // ABI v1 defines both bounds as exclusive.  An empty or reversed interval
+    // is malformed rather than a canonical miss.
+    bool rangeValid = ray.originTMin.w >= 0.0f && ray.originTMin.w < ray.directionTMax.w;
+    bool metadataValid = ray.identity.w <= 0xffu;
+    return finite && normalized && rangeValid && metadataValid;
 }
 
-bool CullsBothTriangleFaces(uint flags)
-{
-    return (flags & kRayFlagCullFrontFaceV0) != 0u &&
-        (flags & kRayFlagCullBackFaceV0) != 0u;
-}
-
-GpuHitV0 MakeCommittedHit(
+GpuHitQueueRecordV1 MakeCommittedHit(
     inout RayQuery<RAY_FLAG_NONE> query,
-    GpuRayV0 ray,
-    bool forceOpaque)
+    GpuRayQueueRecordV1 ray)
 {
     uint instanceIndex = query.CommittedInstanceID();
     uint geometryIndex = CanonicalGeometryIndex(instanceIndex, query.CommittedGeometryIndex());
     GpuGeometryV0 geometry = gGeometries[geometryIndex];
     GpuInstanceV0 instance = gInstances[instanceIndex];
     GpuMaterialV0 material = gMaterials[geometry.identity.z];
-    bool alphaTested = !forceOpaque &&
+    bool alphaTested =
         (((geometry.identity.w & kGeometryFlagAlphaMaskV0) != 0u) ||
          ((material.metadata.y & kMaterialFlagAlphaMaskV0) != 0u));
     uint3 ignoredIndices;
@@ -213,7 +230,7 @@ GpuHitV0 MakeCommittedHit(
     }
 
     float hitT = query.CommittedRayT();
-    GpuHitV0 hit = (GpuHitV0)0;
+    GpuHitQueueRecordV1 hit = (GpuHitQueueRecordV1)0;
     hit.positionT = float4(ray.originTMin.xyz + ray.directionTMax.xyz * hitT, hitT);
     hit.geometricNormalBaryU = float4(geometricNormal, bary.x);
     hit.shadingNormalBaryV = float4(shadingNormal, bary.y);
@@ -227,7 +244,7 @@ GpuHitV0 MakeCommittedHit(
     {
         hitFlags |= kHitFlagAlphaTestedV0;
     }
-    hit.metadata = uint4(ray.query.x, kHitKindTriangleV0, hitFlags, 0u);
+    hit.metadata = uint4(ray.identity.x, kHitKindTriangleV0, hitFlags, ray.identity.y);
     return hit;
 }
 
@@ -240,21 +257,23 @@ void RayQueryMain(uint3 dispatchThreadId : SV_DispatchThreadID)
         return;
     }
     uint rayIndex = gBatch.rayOffset + localRayIndex;
+    uint hitIndex = gBatch.hitOffset + localRayIndex;
 
-    GpuRayV0 ray = gRays[rayIndex];
+    GpuRayQueueRecordV1 ray = gRays[rayIndex];
     if (!IsCanonicalRayValid(ray))
     {
-        gHits[rayIndex] = MakeInvalid(ray);
+        gHits[hitIndex] = MakeInvalid(ray);
         return;
     }
-    if (CullsBothTriangleFaces(ray.query.z))
+    if (gBatch.queryMode != kQueryClosest && gBatch.queryMode != kQueryAny)
     {
-        gHits[rayIndex] = MakeMiss(ray);
+        gHits[hitIndex] = MakeInvalid(ray);
         return;
     }
     bool anyHit = gBatch.queryMode == kQueryAny;
-    bool forceOpaque = (ray.query.z & kRayFlagForceOpaqueV0) != 0u;
-    uint rayFlags = CanonicalRayFlagsToVulkan(ray.query.z, anyHit);
+    // Candidate confirmation owns canonical back-face, alpha-mask, and open
+    // ray-interval semantics. Force even AS-opaque triangles through it.
+    uint rayFlags = CanonicalRayFlagsToVulkan(anyHit) | RAY_FLAG_FORCE_NON_OPAQUE;
     RayDesc rayDescription;
     rayDescription.Origin = ray.originTMin.xyz;
     rayDescription.TMin = ray.originTMin.w;
@@ -264,7 +283,7 @@ void RayQueryMain(uint3 dispatchThreadId : SV_DispatchThreadID)
     query.TraceRayInline(
         gSceneAccelerationStructure,
         rayFlags,
-        ray.query.y,
+        ray.identity.w,
         rayDescription);
 
     bool samplerMappingValid = true;
@@ -273,7 +292,7 @@ void RayQueryMain(uint3 dispatchThreadId : SV_DispatchThreadID)
         if (query.CandidateType() == CANDIDATE_NON_OPAQUE_TRIANGLE)
         {
             bool candidateMappingValid = true;
-            if (IsCandidateAccepted(query, forceOpaque, candidateMappingValid))
+            if (IsCandidateAccepted(query, ray, candidateMappingValid))
             {
                 query.CommitNonOpaqueTriangleHit();
             }
@@ -283,14 +302,14 @@ void RayQueryMain(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     if (!samplerMappingValid)
     {
-        gHits[rayIndex] = MakeInvalid(ray);
+        gHits[hitIndex] = MakeInvalid(ray);
     }
     else if (query.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
     {
-        gHits[rayIndex] = MakeCommittedHit(query, ray, forceOpaque);
+        gHits[hitIndex] = MakeCommittedHit(query, ray);
     }
     else
     {
-        gHits[rayIndex] = MakeMiss(ray);
+        gHits[hitIndex] = MakeMiss(ray);
     }
 }

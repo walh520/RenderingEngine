@@ -6,7 +6,7 @@ bool WfRayQueryTraceClosest(
     out WfMaterialWorkItem hit)
 {
     hit = (WfMaterialWorkItem)0;
-    hit.identity = uint4(ray.path.x, rayIndex, kWfHitMiss, 0u);
+    hit.metadata = uint4(ray.identity.x, kWfHitMiss, 0u, ray.identity.y);
     return false;
 }
 

@@ -16,7 +16,7 @@ void NextBounceCS(
     const uint pathIndex = candidate.identity.x;
     if (pathIndex >= gWfFrame.capacityModeSeed.x)
     {
-        WfSetFatal(kWfFatalInvalidCapacity);
+        WfSetFatal(kWfFatalNextPathIndex);
         return;
     }
 
@@ -55,6 +55,7 @@ void NextBounceCS(
             (invalidState.identity.w & ~kWfPathActive) |
             kWfPathTerminated | kWfPathError;
         gWfPaths[pathIndex] = invalidState;
+        WfPublishSharedPath(pathIndex, invalidState);
         return;
     }
 
@@ -69,7 +70,15 @@ void NextBounceCS(
     WfRayItem ray;
     ray.originTMin = candidate.originTMin;
     ray.directionTMax = candidate.directionTMax;
-    ray.path = uint4(pathIndex, gWfPaths[pathIndex].identity.x, candidate.identity.y, candidate.identity.z);
+    ray.identity = uint4(
+        pathIndex + candidate.identity.y * gWfFrame.capacityModeSeed.x,
+        pathIndex,
+        candidate.identity.y,
+        0xffffffffu);
+    ray.rng = uint4(
+        gWfFrame.capacityModeSeed.zw,
+        candidate.identity.y,
+        gWfFrame.dispatchLimits.w);
 
     uint slot;
     const uint destinationQueue = gWfPass.pass.z;
@@ -96,8 +105,10 @@ void NextBounceCS(
     state.identity.w =
         (state.identity.w & kWfPathError) |
         kWfPathActive |
-        (candidate.identity.z & (kWfPathPreviousDelta | kWfPathPreviousSpecular));
+        (candidate.identity.z & (kWfPathPreviousDelta |
+            kWfPathPreviousSpecular | kWfPathPreviousRestirOwned));
     gWfPaths[pathIndex] = state;
+    WfPublishSharedPath(pathIndex, state);
 
     uint ignored;
     InterlockedAdd(gWfBounceCounters[candidate.identity.y].work.x, 1u, ignored);

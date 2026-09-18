@@ -1104,6 +1104,152 @@ namespace RenderingEngine::Rt::SoftwareGpu
         return result;
     }
 
+    FlatBuildResult FlattenCanonicalL3BinnedSah(
+        const Cpu::Bvh<float>& cpuBvh,
+        const std::span<const SoftwarePrimitiveRecord> sourcePrimitives)
+    {
+        FlatBuildResult result{};
+        result.bvh.kind = BuildKind::FlattenedCpuSah;
+
+        if (cpuBvh.BuildMethod() != Cpu::BvhBuildMethod::BinnedSah)
+        {
+            result.status = BuildStatus::InvalidInput;
+            result.message = "L4 canonical flatten requires an L3 binned-SAH BVH";
+            return result;
+        }
+
+        const std::span<const Cpu::Triangle<float>> cpuTriangles = cpuBvh.Triangles();
+        const std::span<const Cpu::Bvh<float>::NodeView> cpuNodes = cpuBvh.Nodes();
+        const std::span<const std::size_t> primitiveOrder = cpuBvh.PrimitiveOrder();
+        if (cpuBvh.PrimitiveCount() != sourcePrimitives.size() ||
+            cpuTriangles.size() != sourcePrimitives.size() ||
+            primitiveOrder.size() != sourcePrimitives.size())
+        {
+            result.status = BuildStatus::InvalidInput;
+            result.message = "L3 BVH and canonical primitive counts do not match";
+            return result;
+        }
+        if (sourcePrimitives.empty())
+        {
+            if (!cpuNodes.empty() || cpuBvh.NodeCount() != 0u || cpuBvh.MaximumDepth() != 0u)
+            {
+                result.status = BuildStatus::MalformedHierarchy;
+                result.message = "empty L3 BVH has non-empty topology";
+            }
+            return result;
+        }
+        if (cpuNodes.empty() || cpuBvh.NodeCount() != cpuNodes.size())
+        {
+            result.status = BuildStatus::MalformedHierarchy;
+            result.message = "non-empty L3 BVH has no matching topology view";
+            return result;
+        }
+        if (cpuBvh.MaximumDepth() == 0u || cpuBvh.MaximumDepth() > kMaximumTraversalStack)
+        {
+            result.status = BuildStatus::DepthOverflow;
+            result.message = "L3 BVH depth exceeds the L4 traversal stack contract";
+            return result;
+        }
+
+        for (std::size_t index = 0u; index < sourcePrimitives.size(); ++index)
+        {
+            const SoftwarePrimitiveRecord& source = sourcePrimitives[index];
+            const Cpu::Triangle<float>& cpuTriangle = cpuTriangles[index];
+            if (!IsPrimitiveValid(source) ||
+                cpuTriangle.primitiveId != source.identity.x ||
+                cpuTriangle.v0.x != source.v0.x || cpuTriangle.v0.y != source.v0.y ||
+                cpuTriangle.v0.z != source.v0.z || cpuTriangle.v1.x != source.v1.x ||
+                cpuTriangle.v1.y != source.v1.y || cpuTriangle.v1.z != source.v1.z ||
+                cpuTriangle.v2.x != source.v2.x || cpuTriangle.v2.y != source.v2.y ||
+                cpuTriangle.v2.z != source.v2.z)
+            {
+                result.status = BuildStatus::InvalidInput;
+                result.message = "L3 BVH triangles do not match canonical input order";
+                return result;
+            }
+        }
+        if (!HasUniqueIds(sourcePrimitives))
+        {
+            result.status = BuildStatus::DuplicatePrimitiveId;
+            result.message = "canonical primitive IDs must be unique for L4 flattening";
+            return result;
+        }
+
+        const auto FitsUint32 = [](const std::size_t value) noexcept
+        {
+            return value <= static_cast<std::size_t>((std::numeric_limits<std::uint32_t>::max)());
+        };
+        CpuSahTree tree{};
+        tree.sourcePrimitives.assign(sourcePrimitives.begin(), sourcePrimitives.end());
+        tree.nodes.reserve(cpuNodes.size());
+        tree.primitiveOrder.reserve(primitiveOrder.size());
+        tree.maximumDepth = static_cast<std::uint32_t>(cpuBvh.MaximumDepth());
+
+        for (const Cpu::Bvh<float>::NodeView& cpuNode : cpuNodes)
+        {
+            if (!cpuNode.bounds.IsValid())
+            {
+                result.status = BuildStatus::MalformedHierarchy;
+                result.message = "L3 BVH contains an invalid node bound";
+                return result;
+            }
+            CpuSahNodeInput node{};
+            node.bounds = {
+                {cpuNode.bounds.minimum.x, cpuNode.bounds.minimum.y, cpuNode.bounds.minimum.z},
+                {cpuNode.bounds.maximum.x, cpuNode.bounds.maximum.y, cpuNode.bounds.maximum.z}};
+            if (cpuNode.IsLeaf())
+            {
+                if (cpuNode.leftChild != Cpu::Bvh<float>::kNoNode ||
+                    cpuNode.rightChild != Cpu::Bvh<float>::kNoNode ||
+                    !FitsUint32(cpuNode.firstPrimitive) ||
+                    !FitsUint32(cpuNode.primitiveCount))
+                {
+                    result.status = BuildStatus::MalformedHierarchy;
+                    result.message = "L3 BVH leaf range or child sentinel is invalid";
+                    return result;
+                }
+                node.firstPrimitive = static_cast<std::uint32_t>(cpuNode.firstPrimitive);
+                node.primitiveCount = static_cast<std::uint32_t>(cpuNode.primitiveCount);
+            }
+            else
+            {
+                if (cpuNode.leftChild == Cpu::Bvh<float>::kNoNode ||
+                    cpuNode.rightChild == Cpu::Bvh<float>::kNoNode ||
+                    !FitsUint32(cpuNode.leftChild) || !FitsUint32(cpuNode.rightChild))
+                {
+                    result.status = BuildStatus::MalformedHierarchy;
+                    result.message = "L3 BVH interior child relation is invalid";
+                    return result;
+                }
+                node.leftChild = static_cast<std::uint32_t>(cpuNode.leftChild);
+                node.rightChild = static_cast<std::uint32_t>(cpuNode.rightChild);
+            }
+            tree.nodes.push_back(node);
+        }
+        for (const std::size_t sourceIndex : primitiveOrder)
+        {
+            if (!FitsUint32(sourceIndex))
+            {
+                result.status = BuildStatus::MalformedHierarchy;
+                result.message = "L3 BVH primitive order exceeds the L4 index contract";
+                return result;
+            }
+            tree.primitiveOrder.push_back(static_cast<std::uint32_t>(sourceIndex));
+        }
+
+        result = FlattenCpuSah(tree);
+        if (result.Succeeded() &&
+            (result.bvh.nodes.size() != cpuNodes.size() ||
+             result.bvh.primitives.size() != sourcePrimitives.size() ||
+             result.bvh.maximumDepth != cpuBvh.MaximumDepth()))
+        {
+            result.status = BuildStatus::MalformedHierarchy;
+            result.message = "L3 BVH topology or depth changed during flattening";
+            result.bvh = {};
+        }
+        return result;
+    }
+
     FlatBuildResult BuildFlattenedSah(
         const std::span<const SoftwarePrimitiveRecord> primitives,
         const BuildOptions options)

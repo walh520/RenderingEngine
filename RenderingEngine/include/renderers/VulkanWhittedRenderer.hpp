@@ -8,6 +8,10 @@
 namespace RenderingEngine
 {
     class IPlatformHost;
+    namespace Scene
+    {
+        struct CanonicalScene;
+    }
 
     class VulkanWhittedRenderer final
     {
@@ -21,7 +25,8 @@ namespace RenderingEngine
         VulkanWhittedRenderer(VulkanWhittedRenderer&&) noexcept;
         VulkanWhittedRenderer& operator=(VulkanWhittedRenderer&&) noexcept;
 
-        void Run(const RunOptions& options = {});
+        void Run(const RuntimeConfig& config);
+        void Run(const RuntimeConfig& config, const Scene::CanonicalScene& canonicalScene);
 
     private:
         class Impl;

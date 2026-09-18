@@ -109,6 +109,7 @@ namespace RenderingEngine::Ui
         case RoutedCommand::ToggleAlgorithmPanel:
         case RoutedCommand::ToggleProfilerPanel:
         case RoutedCommand::ToggleDebugLegend:
+        case RoutedCommand::PrintCurrentReview:
         case RoutedCommand::None:
             return false;
         }
@@ -157,6 +158,8 @@ namespace RenderingEngine::Ui
             return true;
         case RoutedCommand::ToggleDebugLegend:
             panels_.debugLegend = !panels_.debugLegend;
+            return true;
+        case RoutedCommand::PrintCurrentReview:
             return true;
         default:
             return false;

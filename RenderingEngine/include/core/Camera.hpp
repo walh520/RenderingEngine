@@ -87,6 +87,24 @@ namespace RenderingEngine
 
         [[nodiscard]] float VerticalFovDegrees() const noexcept { return verticalFovDegrees_; }
 
+        void SetLookAt(
+            const Vec3& eye,
+            const Vec3& target,
+            float verticalFovDegrees)
+        {
+            const Vec3 forward = Normalize(target - eye);
+            if (Dot(forward, forward) <= 1.0e-12f)
+            {
+                return;
+            }
+            constexpr float radiansToDegrees = 57.295779513082320876f;
+            position_ = eye;
+            yawDegrees_ = std::atan2(forward.z, forward.x) * radiansToDegrees;
+            pitchDegrees_ = std::asin(std::clamp(forward.y, -1.0f, 1.0f))
+                * radiansToDegrees;
+            SetVerticalFovDegrees(verticalFovDegrees);
+        }
+
         void SetVerticalFovDegrees(float degrees)
         {
             verticalFovDegrees_ = std::clamp(degrees, 25.0f, 80.0f);

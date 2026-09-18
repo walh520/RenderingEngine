@@ -51,10 +51,14 @@
     <Lib><TreatLibWarningAsErrors>true</TreatLibWarningAsErrors></Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\rt\software_gpu\GpuLbvhBuildOwner.hpp" />
     <ClInclude Include="..\..\include\rt\software_gpu\SoftwareGpu.hpp" />
+    <ClInclude Include="..\..\include\rt\software_gpu\SoftwareGpuBackend.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\rt\software_gpu\GpuLbvhBuildOwner.cpp" />
     <ClCompile Include="..\..\src\rt\software_gpu\SoftwareGpu.cpp" />
+    <ClCompile Include="..\..\src\rt\software_gpu\SoftwareGpuBackend.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

@@ -1,5 +1,6 @@
 #include "VulkanSmoke.hpp"
 
+#include "rt/software_gpu/GpuLbvhBuildOwner.hpp"
 #include "rt/software_gpu/SoftwareGpu.hpp"
 
 #include <vulkan/vulkan.h>
@@ -151,9 +152,25 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
 
             [[nodiscard]] VkDevice Device() const noexcept { return device_; }
             [[nodiscard]] VkPhysicalDevice PhysicalDevice() const noexcept { return physicalDevice_; }
+            [[nodiscard]] VkQueue Queue() const noexcept { return queue_; }
+            [[nodiscard]] std::uint32_t QueueFamilyIndex() const noexcept { return queueFamily_; }
+            [[nodiscard]] VkCommandPool CommandPool() const noexcept { return commandPool_; }
             [[nodiscard]] VkDescriptorSetLayout EmptySetLayout() const noexcept { return emptySetLayout_; }
 
             void Submit(const std::function<void(VkCommandBuffer)>& record)
+            {
+                static_cast<void>(SubmitInternal(record, false));
+            }
+
+            [[nodiscard]] double SubmitTimed(
+                const std::function<void(VkCommandBuffer)>& record)
+            {
+                return SubmitInternal(record, true);
+            }
+
+            [[nodiscard]] double SubmitInternal(
+                const std::function<void(VkCommandBuffer)>& record,
+                const bool measure)
             {
                 Check(vkResetCommandPool(device_, commandPool_, 0u), "vkResetCommandPool");
                 VkCommandBufferAllocateInfo allocateInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
@@ -167,7 +184,18 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
                 VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
                 beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
                 Check(vkBeginCommandBuffer(commandBuffer, &beginInfo), "vkBeginCommandBuffer");
+                if (measure)
+                {
+                    vkCmdResetQueryPool(commandBuffer, timestampQueryPool_, 0u, 2u);
+                    vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                        timestampQueryPool_, 0u);
+                }
                 record(commandBuffer);
+                if (measure)
+                {
+                    vkCmdWriteTimestamp(commandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                        timestampQueryPool_, 1u);
+                }
                 Check(vkEndCommandBuffer(commandBuffer), "vkEndCommandBuffer");
 
                 VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
@@ -176,6 +204,22 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
                 Check(vkQueueSubmit(queue_, 1u, &submitInfo, VK_NULL_HANDLE), "vkQueueSubmit");
                 Check(vkQueueWaitIdle(queue_), "vkQueueWaitIdle");
                 vkFreeCommandBuffers(device_, commandPool_, 1u, &commandBuffer);
+                if (!measure)
+                {
+                    return 0.0;
+                }
+                std::array<std::uint64_t, 2> timestamps{};
+                Check(vkGetQueryPoolResults(device_, timestampQueryPool_, 0u, 2u,
+                    sizeof(timestamps), timestamps.data(), sizeof(std::uint64_t),
+                    VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT),
+                    "vkGetQueryPoolResults(timestamp)");
+                const std::uint64_t mask = timestampValidBits_ == 64u
+                    ? (std::numeric_limits<std::uint64_t>::max)()
+                    : (1ull << timestampValidBits_) - 1ull;
+                const std::uint64_t delta =
+                    (timestamps[1] - timestamps[0]) & mask;
+                return static_cast<double>(delta) *
+                    static_cast<double>(timestampPeriod_) * 1.0e-6;
             }
 
             [[nodiscard]] std::uint32_t FindMemoryType(
@@ -207,6 +251,11 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
                     {
                         vkDestroyDescriptorSetLayout(device_, emptySetLayout_, nullptr);
                         emptySetLayout_ = VK_NULL_HANDLE;
+                    }
+                    if (timestampQueryPool_ != VK_NULL_HANDLE)
+                    {
+                        vkDestroyQueryPool(device_, timestampQueryPool_, nullptr);
+                        timestampQueryPool_ = VK_NULL_HANDLE;
                     }
                     if (commandPool_ != VK_NULL_HANDLE)
                     {
@@ -371,10 +420,13 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
                     vkGetPhysicalDeviceQueueFamilyProperties(device, &familyCount, families.data());
                     for (std::uint32_t family = 0u; family < familyCount; ++family)
                     {
-                        if ((families[family].queueFlags & VK_QUEUE_COMPUTE_BIT) != 0u)
+                        if ((families[family].queueFlags & VK_QUEUE_COMPUTE_BIT) != 0u &&
+                            families[family].timestampValidBits != 0u)
                         {
                             physicalDevice_ = device;
                             queueFamily_ = family;
+                            timestampValidBits_ = families[family].timestampValidBits;
+                            timestampPeriod_ = properties.limits.timestampPeriod;
                             report_.deviceName = properties.deviceName;
                             return;
                         }
@@ -407,6 +459,12 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
                 createInfo.queueFamilyIndex = queueFamily_;
                 Check(vkCreateCommandPool(device_, &createInfo, nullptr, &commandPool_),
                       "vkCreateCommandPool");
+                VkQueryPoolCreateInfo queryInfo{VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
+                queryInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+                queryInfo.queryCount = 2u;
+                Check(vkCreateQueryPool(
+                    device_, &queryInfo, nullptr, &timestampQueryPool_),
+                    "vkCreateQueryPool(timestamp)");
             }
 
             void CreateEmptySetLayout()
@@ -428,7 +486,10 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
             VkDevice device_{VK_NULL_HANDLE};
             VkQueue queue_{VK_NULL_HANDLE};
             std::uint32_t queueFamily_{};
+            std::uint32_t timestampValidBits_{};
+            float timestampPeriod_{};
             VkCommandPool commandPool_{VK_NULL_HANDLE};
+            VkQueryPool timestampQueryPool_{VK_NULL_HANDLE};
             VkDescriptorSetLayout emptySetLayout_{VK_NULL_HANDLE};
             VkDebugUtilsMessengerEXT debugMessenger_{VK_NULL_HANDLE};
             PFN_vkDestroyDebugUtilsMessengerEXT destroyDebugMessenger_{};
@@ -719,6 +780,49 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
             return values;
         }
 
+        template <typename T>
+        [[nodiscard]] std::vector<T> DownloadDescriptorVector(
+            Context& context,
+            const VkDescriptorBufferInfo& source,
+            const std::size_t count)
+        {
+            const VkDeviceSize byteCount =
+                static_cast<VkDeviceSize>(count * sizeof(T));
+            if (source.buffer == VK_NULL_HANDLE || source.range < byteCount)
+            {
+                throw std::runtime_error(
+                    "invalid production-owner descriptor readback request");
+            }
+            Buffer staging(context, byteCount, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+            context.Submit([&](const VkCommandBuffer commandBuffer)
+            {
+                VkBufferMemoryBarrier sourceBarrier{
+                    VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+                sourceBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+                sourceBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+                sourceBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                sourceBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                sourceBarrier.buffer = source.buffer;
+                sourceBarrier.offset = source.offset;
+                sourceBarrier.size = byteCount;
+                vkCmdPipelineBarrier(commandBuffer,
+                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT, 0u, 0u, nullptr,
+                    1u, &sourceBarrier, 0u, nullptr);
+                VkBufferCopy copy{};
+                copy.srcOffset = source.offset;
+                copy.size = byteCount;
+                vkCmdCopyBuffer(commandBuffer, source.buffer, staging.Handle(), 1u, &copy);
+                BufferBarrier(commandBuffer, staging, VK_ACCESS_TRANSFER_WRITE_BIT,
+                    VK_ACCESS_HOST_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    VK_PIPELINE_STAGE_HOST_BIT);
+            });
+            std::vector<T> values(count);
+            staging.Read(values.data(), static_cast<std::size_t>(byteCount));
+            return values;
+        }
+
         [[nodiscard]] std::vector<std::uint32_t> LoadSpirv(
             const std::filesystem::path& path)
         {
@@ -919,13 +1023,13 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
                     nullptr);
             }
 
-            void Dispatch(const std::uint32_t groupCountX)
+            double Dispatch(const std::uint32_t groupCountX)
             {
                 if (groupCountX == 0u)
                 {
                     throw std::runtime_error("zero-group compute dispatch requested");
                 }
-                context_->Submit([&](const VkCommandBuffer commandBuffer)
+                return context_->SubmitTimed([&](const VkCommandBuffer commandBuffer)
                 {
                     ComputeBoundary(commandBuffer);
                     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_);
@@ -1020,6 +1124,32 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
                     stableIds[index]));
             }
             return primitives;
+        }
+
+        [[nodiscard]] std::vector<Gpu::CanonicalTraversalTriangle>
+            MakeFixedCanonicalTriangles(
+                const std::span<const SoftwarePrimitiveRecord> primitives)
+        {
+            std::vector<Gpu::CanonicalTraversalTriangle> triangles;
+            triangles.reserve(primitives.size());
+            for (const SoftwarePrimitiveRecord& primitive : primitives)
+            {
+                Gpu::CanonicalTraversalTriangle triangle{};
+                triangle.positions[0] = {
+                    primitive.v0.x, primitive.v0.y, primitive.v0.z, 1.0f};
+                triangle.positions[1] = {
+                    primitive.v1.x, primitive.v1.y, primitive.v1.z, 1.0f};
+                triangle.positions[2] = {
+                    primitive.v2.x, primitive.v2.y, primitive.v2.z, 1.0f};
+                for (auto& normal : triangle.normals)
+                {
+                    normal = {0.0f, 0.0f, 1.0f, 0.0f};
+                }
+                triangle.identity = {0u, primitive.identity.x, 0u, 0u};
+                triangle.metadata = {0u, 0u, primitive.identity.x, 0u};
+                triangles.push_back(triangle);
+            }
+            return triangles;
         }
 
         [[nodiscard]] std::vector<SoftwareRayRecord> MakeFixedRays()
@@ -1159,8 +1289,10 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
                 DescriptorResource{configBuffer.get(), VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER}};
             reset.Bind(resources);
             trace.Bind(resources);
-            reset.Dispatch(1u);
-            trace.Dispatch(DivideRoundUp(static_cast<std::uint32_t>(rays.size()), kTraceThreads));
+            static_cast<void>(reset.Dispatch(1u));
+            evidence.traceGpuMilliseconds = trace.Dispatch(
+                DivideRoundUp(static_cast<std::uint32_t>(rays.size()), kTraceThreads));
+            evidence.traceGpuTimestampMeasured = true;
 
             const std::vector<SoftwareHitRecord> gpuHits = DownloadVector<SoftwareHitRecord>(
                 context,
@@ -1324,8 +1456,10 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
                 DescriptorResource{mortonInvalid.get(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}};
             mortonReset.Bind(mortonResources);
             morton.Bind(mortonResources);
-            mortonReset.Dispatch(1u);
-            morton.Dispatch(DivideRoundUp(primitiveCount, kTraceThreads));
+            double buildGpuMilliseconds = 0.0;
+            buildGpuMilliseconds += mortonReset.Dispatch(1u);
+            buildGpuMilliseconds += morton.Dispatch(
+                DivideRoundUp(primitiveCount, kTraceThreads));
             RequireZeroCounter(context, *mortonInvalid, "Morton");
 
             constexpr std::array radixTypes{
@@ -1381,9 +1515,9 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
                 bindRadix(histogramKernel);
                 bindRadix(prefixKernel);
                 bindRadix(scatterKernel);
-                histogramKernel.Dispatch(radixGroupCount);
-                prefixKernel.Dispatch(1u);
-                scatterKernel.Dispatch(radixGroupCount);
+                buildGpuMilliseconds += histogramKernel.Dispatch(radixGroupCount);
+                buildGpuMilliseconds += prefixKernel.Dispatch(1u);
+                buildGpuMilliseconds += scatterKernel.Dispatch(radixGroupCount);
                 std::swap(radixInput, radixOutput);
             };
 
@@ -1395,8 +1529,8 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
             radixConfig->Write(&validateSettings, sizeof(validateSettings));
             bindRadix(stableReset);
             bindRadix(stableValidate);
-            stableReset.Dispatch(1u);
-            stableValidate.Dispatch(radixGroupCount);
+            buildGpuMilliseconds += stableReset.Dispatch(1u);
+            buildGpuMilliseconds += stableValidate.Dispatch(radixGroupCount);
             RequireZeroCounter(context, *stableIdInvalid, "stable-ID radix");
             for (std::uint32_t shift = 0u; shift < 32u; shift += 4u)
             {
@@ -1452,8 +1586,10 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
                 DescriptorResource{hierarchyInvalid.get(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}};
             hierarchyReset.Bind(hierarchyResources);
             hierarchy.Bind(hierarchyResources);
-            hierarchyReset.Dispatch(DivideRoundUp(nodeCount, kTraceThreads));
-            hierarchy.Dispatch(DivideRoundUp(primitiveCount - 1u, kTraceThreads));
+            buildGpuMilliseconds += hierarchyReset.Dispatch(
+                DivideRoundUp(nodeCount, kTraceThreads));
+            buildGpuMilliseconds += hierarchy.Dispatch(
+                DivideRoundUp(primitiveCount - 1u, kTraceThreads));
             RequireZeroCounter(context, *hierarchyInvalid, "Karras hierarchy");
 
             auto sortedPrimitives = CreateDeviceBuffer(
@@ -1514,9 +1650,11 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
             emitLeaves.Bind(boundsResources);
             computeDepths.Bind(boundsResources);
             internalBounds.Bind(boundsResources);
-            boundsReset.Dispatch(1u);
-            emitLeaves.Dispatch(DivideRoundUp(primitiveCount, kTraceThreads));
-            computeDepths.Dispatch(DivideRoundUp(nodeCount, kTraceThreads));
+            buildGpuMilliseconds += boundsReset.Dispatch(1u);
+            buildGpuMilliseconds += emitLeaves.Dispatch(
+                DivideRoundUp(primitiveCount, kTraceThreads));
+            buildGpuMilliseconds += computeDepths.Dispatch(
+                DivideRoundUp(nodeCount, kTraceThreads));
             RequireZeroCounter(context, *hierarchyInvalid, "LBVH depth");
             const std::vector<std::uint32_t> maximumDepthValue =
                 DownloadVector<std::uint32_t>(context, *maximumDepth, 1u);
@@ -1528,7 +1666,8 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
             {
                 boundsSettings.currentDepth = depth;
                 boundsConfig->Write(&boundsSettings, sizeof(boundsSettings));
-                internalBounds.Dispatch(DivideRoundUp(primitiveCount - 1u, kTraceThreads));
+                buildGpuMilliseconds += internalBounds.Dispatch(
+                    DivideRoundUp(primitiveCount - 1u, kTraceThreads));
                 if (depth == 0u)
                 {
                     break;
@@ -1548,6 +1687,8 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
                 rays,
                 maximumDepthValue[0] + 1u,
                 buildUploadBytes);
+            evidence.buildGpuMilliseconds = buildGpuMilliseconds;
+            evidence.buildGpuTimestampMeasured = true;
             evidence.readbackBytes +=
                 actualPairs.size() * sizeof(MortonPair) + (3u * sizeof(std::uint32_t));
 
@@ -1592,6 +1733,97 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
             return evidence;
         }
 
+        void ValidateProductionGpuLbvhOwner(
+            Context& context,
+            const std::filesystem::path& shaderDirectory,
+            const std::span<const SoftwarePrimitiveRecord> primitives)
+        {
+            GpuLbvhBuildOwner owner;
+            const GpuLbvhBuildOutput created = owner.Create({
+                context.PhysicalDevice(), context.Device(), context.Queue(),
+                context.QueueFamilyIndex(), context.CommandPool(), shaderDirectory,
+                kBuildDepthLimit});
+            if (!created.Succeeded() || !owner.IsCreated())
+            {
+                throw std::runtime_error(
+                    "production GPU LBVH owner creation failed: " + created.message);
+            }
+            constexpr std::uint64_t kSceneFingerprint = 0x4c344c4256480001ull;
+            constexpr std::uint32_t kSceneGeneration = 1u;
+            const std::vector<Gpu::CanonicalTraversalTriangle> canonicalTriangles =
+                MakeFixedCanonicalTriangles(primitives);
+            const GpuLbvhBuildOutput built = owner.Build(
+                primitives, canonicalTriangles, kSceneFingerprint, kSceneGeneration);
+            if (!built.HasTraversalBuffers())
+            {
+                throw std::runtime_error(
+                    "production GPU LBVH owner build failed: " + built.message);
+            }
+            if (built.nodeCount != primitives.size() * 2u - 1u ||
+                built.triangleCount != primitives.size() ||
+                built.sceneFingerprint != kSceneFingerprint ||
+                built.sceneGeneration != kSceneGeneration ||
+                built.maximumDepth == 0u || built.maximumDepth > kBuildDepthLimit ||
+                built.triangles.range != canonicalTriangles.size() *
+                    sizeof(Gpu::CanonicalTraversalTriangle) ||
+                !built.buildGpuTimestampMeasured || built.buildGpuMilliseconds < 0.0)
+            {
+                throw std::runtime_error(
+                    "production GPU LBVH owner returned an invalid ABI-v1 output contract");
+            }
+            BuildStatus sortStatus{};
+            const std::vector<MortonPair> expectedOrder =
+                StableRadixSortMorton(primitives, &sortStatus);
+            const std::vector<Gpu::CanonicalTraversalTriangle> actualTriangles =
+                DownloadDescriptorVector<Gpu::CanonicalTraversalTriangle>(
+                    context, built.triangles, canonicalTriangles.size());
+            if (sortStatus != BuildStatus::Success ||
+                actualTriangles.size() != expectedOrder.size())
+            {
+                throw std::runtime_error(
+                    "production GPU LBVH ABI-v1 reorder oracle setup failed");
+            }
+            for (std::size_t index = 0u; index < actualTriangles.size(); ++index)
+            {
+                const auto& expected =
+                    canonicalTriangles[expectedOrder[index].sourceIndex];
+                if (std::memcmp(&actualTriangles[index], &expected,
+                        sizeof(Gpu::CanonicalTraversalTriangle)) != 0)
+                {
+                    throw std::runtime_error(
+                        "production GPU LBVH ABI-v1 triangle reorder differs from the stable GPU key order");
+                }
+            }
+            const GpuLbvhBuildOutput& retained = owner.Output();
+            if (retained.nodes.buffer != built.nodes.buffer ||
+                retained.triangles.buffer != built.triangles.buffer)
+            {
+                throw std::runtime_error(
+                    "production GPU LBVH owner did not retain its output resources");
+            }
+
+            std::vector<SoftwarePrimitiveRecord> duplicateIds(
+                primitives.begin(), primitives.end());
+            duplicateIds[1].identity.x = duplicateIds[0].identity.x;
+            std::vector<Gpu::CanonicalTraversalTriangle> duplicateCanonical =
+                canonicalTriangles;
+            duplicateCanonical[1].metadata.z = duplicateIds[1].identity.x;
+            const GpuLbvhBuildOutput rejected = owner.Build(
+                duplicateIds, duplicateCanonical,
+                kSceneFingerprint + 1u, kSceneGeneration + 1u);
+            if (rejected.fault != GpuLbvhBuildFault::DuplicatePrimitiveId)
+            {
+                throw std::runtime_error(
+                    "production GPU LBVH owner did not surface the device-side duplicate-ID fault");
+            }
+            if (owner.Output().nodes.buffer != built.nodes.buffer ||
+                owner.Output().triangles.buffer != built.triangles.buffer)
+            {
+                throw std::runtime_error(
+                    "failed GPU LBVH rebuild invalidated the last successful traversal buffers");
+            }
+        }
+
     }
 
     Report Run(const std::filesystem::path& shaderDirectory) noexcept
@@ -1614,6 +1846,7 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
                     shaderDirectory,
                     primitives,
                     rays);
+                ValidateProductionGpuLbvhOwner(context, shaderDirectory, primitives);
                 report.gpuLbvh = RunGpuLbvh(
                     context,
                     shaderDirectory,

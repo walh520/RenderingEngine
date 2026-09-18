@@ -62,6 +62,8 @@ namespace
         start.variantAStableId = "whitted-a";
         start.variantBStableId = "whitted-b";
         start.configGeneration = 3u;
+        start.captureFrameIndex = 23u;
+        start.captureSampleIndex = 64u;
         start.captureProvider = {
             "capture:renderer-readback", Availability::Available, {}
         };
@@ -80,6 +82,11 @@ namespace
         artifact.configGeneration = request.configGeneration;
         artifact.sceneGeneration = request.sceneGeneration;
         artifact.resourceGeneration = request.resourceGeneration;
+        artifact.sceneStableId = request.sceneStableId;
+        artifact.variantStableId = request.variantStableId;
+        artifact.anchor = request.anchor;
+        artifact.frameIndex = request.frameIndex;
+        artifact.sampleIndex = request.sampleIndex;
         artifact.runId = runId;
         artifact.exrPath = "captures/image.exr";
         artifact.pngPath = "captures/preview.png";
@@ -130,14 +137,28 @@ bool RunImGuiShowcasePanelsTests(std::ostream& errors)
     const ActionBatchResult directLightingBatch = ApplyQueuedActions(queue, config);
     expect(directLightingBatch.actions.size() == 1u
         && directLightingBatch.actions[0].queued.event.action
-            == SemanticAction::CycleLightSamplingForward,
-        "direct-lighting and proposal panels must preserve the paired semantic action");
+            == SemanticAction::CycleDirectLightingForward,
+        "the direct-lighting panel must enqueue only its independent axis action");
+    expect(QueueShowcaseDimensionCycle(queue, "light-selection", false),
+        "the light-selection view-model dimension must expose its own reverse cycle");
+    const ActionBatchResult lightProposalBatch = ApplyQueuedActions(queue, config);
+    expect(lightProposalBatch.actions.size() == 1u
+        && lightProposalBatch.actions[0].queued.event.action
+            == SemanticAction::CycleLightSelectionBackward,
+        "the light-selection panel must enqueue only its independent axis action");
+    expect(QueueShowcaseDimensionCycle(queue, "shadow-method", true),
+        "the shadow-method view-model dimension must expose its own forward cycle");
+    const ActionBatchResult shadowBatch = ApplyQueuedActions(queue, config);
+    expect(shadowBatch.actions.size() == 1u
+        && shadowBatch.actions[0].queued.event.action
+            == SemanticAction::CycleShadowForward,
+        "the shadow-method panel must enqueue only its independent axis action");
     expect(!QueueShowcaseDimensionCycle(queue, "scene", true) && queue.Empty(),
         "dimensions without a cycle action must fail without queue mutation");
 
     const ShowcaseViewModel unavailableRuntimeModel = BuildShowcaseViewModel(config);
     expect(unavailableRuntimeModel.runtimeStatus.text
-            == "Resolution: 1280x720 | Seed: 0 | Frame: -- | SPP: -- | Bounce: 8 | GPU ms: --",
+            == "Resolution: 1280x720 | Seed: 0 | Frame: -- | Film SPP: -- | Paths/pixel/frame: -- | Reference SPP: -- | Temporal H: -- | Reservoir M/Age: --/-- | Candidates: -- | Visibility/Total rays: --/-- | Bounce: 8 | GPU ms: --",
         "config-owned status must remain visible while absent runtime-only observations use placeholders");
     expect(unavailableRuntimeModel.currentTupleCapability.status
             == CapabilityStatus::Supported
@@ -157,7 +178,15 @@ bool RunImGuiShowcasePanelsTests(std::ostream& errors)
     runtimeStatus.resolution = ShowcaseRuntimeResolution{ 1920u, 1080u };
     runtimeStatus.seed = 0u;
     runtimeStatus.frameIndex = 77u;
-    runtimeStatus.samplesPerPixel = 64u;
+    runtimeStatus.progressiveFilmSpp = 64u;
+    runtimeStatus.currentFramePathsPerPixel = 1u;
+    runtimeStatus.referenceSpp = 256u;
+    runtimeStatus.temporalHistoryLength = 12u;
+    runtimeStatus.reservoirM = 32u;
+    runtimeStatus.reservoirAge = 7u;
+    runtimeStatus.reservoirCandidates = 1843200u;
+    runtimeStatus.visibilityRays = 230400u;
+    runtimeStatus.totalTracedRays = 921600u;
     runtimeStatus.maximumBounce = 8u;
     runtimeStatus.gpuFrameMilliseconds = 2.5;
     const ShowcaseRuntimeGenerationTuple runtimeGenerations = { 3u, 5u, 8u };
@@ -168,7 +197,14 @@ bool RunImGuiShowcasePanelsTests(std::ostream& errors)
     expect(viewModel.runtimeStatus.resolution == "1920x1080"
         && viewModel.runtimeStatus.seed == "0"
         && viewModel.runtimeStatus.frame == "77"
-        && viewModel.runtimeStatus.samplesPerPixel == "64"
+        && viewModel.runtimeStatus.progressiveFilmSpp == "64"
+        && viewModel.runtimeStatus.referenceSpp == "256"
+        && viewModel.runtimeStatus.temporalHistoryLength == "12"
+        && viewModel.runtimeStatus.reservoirM == "32"
+        && viewModel.runtimeStatus.reservoirAge == "7"
+        && viewModel.runtimeStatus.reservoirCandidates == "1843200"
+        && viewModel.runtimeStatus.visibilityRays == "230400"
+        && viewModel.runtimeStatus.totalTracedRays == "921600"
         && viewModel.runtimeStatus.bounce == "8"
         && viewModel.runtimeStatus.gpuMilliseconds == "2.5"
         && viewModel.runtimeStatus.providerId == "renderer.frame-status"
@@ -179,10 +215,22 @@ bool RunImGuiShowcasePanelsTests(std::ostream& errors)
         && viewModel.runtimeStatus.sceneGeneration == 5u
         && viewModel.runtimeStatus.resourceGeneration == 8u
         && viewModel.runtimeStatus.text
-            == "Resolution: 1920x1080 | Seed: 0 | Frame: 77 | SPP: 64 | Bounce: 8 | GPU ms: 2.5",
+            == "Resolution: 1920x1080 | Seed: 0 | Frame: 77 | Film SPP: 64 | Paths/pixel/frame: 1 | Reference SPP: 256 | Temporal H: 12 | Reservoir M/Age: 32/7 | Candidates: 1843200 | Visibility/Total rays: 230400/921600 | Bounce: 8 | GPU ms: 2.5",
         "provider runtime observations must populate every explicitly labelled second-line field");
 
     ShowcaseRuntimeStatus invalidRuntimeStatus = runtimeStatus;
+    ShowcaseRuntimeStatus emptyFilm = runtimeStatus;
+    emptyFilm.progressiveFilmSpp = 0u;
+    const auto emptyFilmModel = BuildShowcaseViewModel(config, {}, emptyFilm, runtimeGenerations);
+    expect(emptyFilmModel.runtimeStatus.availability == TelemetryAvailability::Fresh
+            && emptyFilmModel.runtimeStatus.progressiveFilmSpp == "0"
+            && emptyFilmModel.runtimeStatus.currentFramePathsPerPixel == "1",
+        "an empty/reset Film must not invalidate independently measured current-frame paths");
+    emptyFilm.progressiveFilmSpp.reset();
+    const auto noFilmModel = BuildShowcaseViewModel(config, {}, emptyFilm, runtimeGenerations);
+    expect(noFilmModel.runtimeStatus.progressiveFilmSpp == "--"
+            && noFilmModel.runtimeStatus.currentFramePathsPerPixel == "1",
+        "current-frame output must not invent Film SPP from paths or history");
     invalidRuntimeStatus.resolution = ShowcaseRuntimeResolution{ 0u, 1080u };
     invalidRuntimeStatus.gpuFrameMilliseconds =
         std::numeric_limits<double>::quiet_NaN();
@@ -210,7 +258,7 @@ bool RunImGuiShowcasePanelsTests(std::ostream& errors)
     const ShowcaseViewModel staleRuntimeModel =
         BuildShowcaseViewModel(config, {}, staleRuntimeStatus, runtimeGenerations);
     expect(staleRuntimeModel.runtimeStatus.frame == "--"
-            && staleRuntimeModel.runtimeStatus.samplesPerPixel == "--"
+            && staleRuntimeModel.runtimeStatus.progressiveFilmSpp == "--"
             && staleRuntimeModel.runtimeStatus.gpuMilliseconds == "--"
             && staleRuntimeModel.runtimeStatus.reason == "provider generation is stale",
         "stale runtime observations must retain their reason without displaying old frame/SPP/GPU values");
@@ -221,12 +269,12 @@ bool RunImGuiShowcasePanelsTests(std::ostream& errors)
     const ShowcaseViewModel unavailableObservationModel =
         BuildShowcaseViewModel(config, {}, unavailableRuntimeStatus, runtimeGenerations);
     expect(unavailableObservationModel.runtimeStatus.frame == "--"
-            && unavailableObservationModel.runtimeStatus.samplesPerPixel == "--"
+            && unavailableObservationModel.runtimeStatus.progressiveFilmSpp == "--"
             && unavailableObservationModel.runtimeStatus.gpuMilliseconds == "--",
         "unavailable runtime observations must never display provider frame/SPP/GPU values");
 
     RuntimeConfig unsupportedConfig = config;
-    unsupportedConfig.scene = ScenePreset::CornellBox;
+    unsupportedConfig.scene = ScenePreset::SponzaTraversalHall;
     const CapabilityDecision unsupportedDecision =
         CapabilityTable::Evaluate(unsupportedConfig);
     const ShowcaseViewModel unsupportedModel = BuildShowcaseViewModel(unsupportedConfig);

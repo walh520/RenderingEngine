@@ -41,6 +41,9 @@
     <IntDir>$(MSBuildThisFileDirectory)build\obj\$(Platform)\$(Configuration)\</IntDir>
     <TargetName>RenderingEngine.Reconstruction.Tests</TargetName>
     <VcpkgEnableManifest>false</VcpkgEnableManifest>
+    <L8DxcExecutable>$(VULKAN_SDK)\Bin\dxc.exe</L8DxcExecutable>
+    <L8SpirvValExecutable>$(VULKAN_SDK)\Bin\spirv-val.exe</L8SpirvValExecutable>
+    <L8ShaderOutputDir>$(OutDir)shaders\</L8ShaderOutputDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -54,17 +57,22 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="include\reconstruction\AbiV2Bridge.hpp" />
     <ClInclude Include="include\reconstruction\Math.hpp" />
     <ClInclude Include="include\reconstruction\Types.hpp" />
     <ClInclude Include="include\reconstruction\MotionVectors.hpp" />
     <ClInclude Include="include\reconstruction\History.hpp" />
     <ClInclude Include="include\reconstruction\Svgf.hpp" />
+    <ClInclude Include="include\reconstruction\VulkanReconstructionRecorder.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AbiV2Bridge.cpp" />
     <ClCompile Include="src\MotionVectors.cpp" />
     <ClCompile Include="src\History.cpp" />
     <ClCompile Include="src\Svgf.cpp" />
+    <ClCompile Include="src\VulkanReconstructionRecorder.cpp" />
     <ClCompile Include="tests\ReconstructionTests.cpp" />
+    <ClCompile Include="tests\VulkanReconstructionRecorderTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\ReconstructionCommon.hlsli" />
@@ -75,6 +83,32 @@
     <None Include="shaders\ATrousCS.hlsl" />
     <None Include="shaders\ComposeCS.hlsl" />
   </ItemGroup>
+  <ItemGroup>
+    <L8Shader Include="shaders\MotionVectorsCS.hlsl"><OutputFile>motion_vectors.spv</OutputFile></L8Shader>
+    <L8Shader Include="shaders\PrepareSignalCS.hlsl"><OutputFile>prepare_signal.spv</OutputFile></L8Shader>
+    <L8Shader Include="shaders\TemporalAccumulationCS.hlsl"><OutputFile>temporal_accumulation.spv</OutputFile></L8Shader>
+    <L8Shader Include="shaders\VarianceBootstrapCS.hlsl"><OutputFile>variance_bootstrap.spv</OutputFile></L8Shader>
+    <L8Shader Include="shaders\ATrousCS.hlsl"><OutputFile>atrous.spv</OutputFile></L8Shader>
+    <L8Shader Include="shaders\ComposeCS.hlsl"><OutputFile>compose.spv</OutputFile></L8Shader>
+    <L8ShaderDependency Include="shaders\ReconstructionCommon.hlsli" />
+    <L8ShaderDependency Include="..\resources\shaders\include\contracts\*.hlsli" />
+  </ItemGroup>
+  <Target Name="ValidateL8ShaderToolchain" BeforeTargets="CompileL8Shaders" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="'$(VULKAN_SDK)' == ''" Text="VULKAN_SDK is not set; L8 shader compilation cannot run." />
+    <Error Condition="!Exists('$(L8DxcExecutable)')" Text="DXC was not found at $(L8DxcExecutable)." />
+    <Error Condition="!Exists('$(L8SpirvValExecutable)')" Text="spirv-val was not found at $(L8SpirvValExecutable)." />
+  </Target>
+  <Target Name="CompileL8Shaders" BeforeTargets="ClCompile" DependsOnTargets="ValidateL8ShaderToolchain"
+          Inputs="@(L8Shader);@(L8ShaderDependency);$(MSBuildProjectFullPath)"
+          Outputs="@(L8Shader->'$(L8ShaderOutputDir)%(OutputFile)')"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <MakeDir Directories="$(L8ShaderOutputDir)" />
+    <Exec Command="&quot;$(L8DxcExecutable)&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -HV 2021 -T cs_6_6 -E main -Fo &quot;$(L8ShaderOutputDir)%(L8Shader.OutputFile)&quot; &quot;%(L8Shader.FullPath)&quot;" />
+    <Exec Command="&quot;$(L8SpirvValExecutable)&quot; --target-env vulkan1.3 &quot;$(L8ShaderOutputDir)%(L8Shader.OutputFile)&quot;" />
+  </Target>
+  <Target Name="CleanL8ShaderOutputs" AfterTargets="Clean">
+    <Delete Files="@(L8Shader->'$(L8ShaderOutputDir)%(OutputFile)')" />
+  </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
 </Project>

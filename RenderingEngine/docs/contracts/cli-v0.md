@@ -1,6 +1,6 @@
 # Command-line interface v0
 
-Status: **frozen Wave 0 application contract**
+Status: **frozen application contract; Wave 1 capture implementation attached**
 Configuration contract: `runtime-config-v0`
 
 The command line is a deterministic front end to `RuntimeConfig`. It is not a
@@ -72,7 +72,7 @@ backend:         legacy-analytic-gpu, cpu-brute-force, cpu-sah,
 integrator:      whitted, cpu-reference, megakernel, wavefront, pbr
 direct lighting: legacy-analytic-direct, bsdf-only, nee, mis, restir-di
 proposal:        legacy-analytic, uniform, power, environment
-reconstruction:  raw, temporal, temporal-atrous, svgf
+reconstruction:  current-frame, progressive-mean, temporal, atrous-spatial, svgf
 shadow:          physical, pcf, pcss
 debug:           final, base-color, normal, roughness, metallic, emissive
 ```
@@ -99,7 +99,7 @@ ray-query` is well-formed but exits as unsupported until L5 is integrated.
 An unsupported result must name the rejected field or feature. Automated
 callers may rely on code 4 to distinguish future capability from a typo.
 
-## Wave 0 examples
+## Wave 1 implementation examples
 
 Supported compatibility requests:
 
@@ -110,16 +110,18 @@ RenderingEngine.exe --integrator whitted --frames 8
 RenderingEngine.exe --integrator pbr --debug-view normal --frames 8
 RenderingEngine.exe --resolution 1280x720 --resize-test --frames 90
 RenderingEngine.exe --artifact-root artifacts --run-id smoke --frames 1
+RenderingEngine.exe --capture artifacts --run-id portfolio --frames 8
+RenderingEngine.exe --scene cornell --backend cpu-sah --integrator cpu-reference --direct-lighting mis --light-proposal uniform --headless --spp 64 --run-id cornell-reference
 ```
 
-Recognized but unsupported in Wave 0:
+Recognized but unsupported in the current production composition:
 
 ```powershell
 RenderingEngine.exe --backend ray-query
 RenderingEngine.exe --reconstruction svgf
-RenderingEngine.exe --headless --capture .artifacts
 RenderingEngine.exe --spp-per-frame 2
 RenderingEngine.exe --benchmark short
+RenderingEngine.exe --reference reference.exr
 ```
 
 The latter group must return 4 before a window appears and before files are
@@ -133,8 +135,11 @@ Wave 0 target SPP is limited to 4096. A non-zero target SPP with a non-final
 debug view is invalid (exit 2), because deterministic first-hit debug output is
 not progressive radiance. Startup FOV is limited to 25 through 80 degrees.
 
-For a future capture run, the `--capture` directory is the artifact root and
+For a capture run, the `--capture` directory is the artifact root and
 the images remain under `<directory>/<run-id>/captures/`. If
 `--artifact-root` is also present, its normalized value must match the capture
-directory or the CLI returns 2. `--reference` is an input image; `--benchmark`
-is a named preset, not a path.
+directory or the CLI returns 2. The live renderer writes linear EXR, display
+PNG, and metadata after the requested frame/SPP terminal condition; an
+interactive F4 request writes a sequence-suffixed bundle without exiting.
+`--reference` is an input image and remains unsupported; `--benchmark` is a
+named preset, not a path, and also remains unsupported.

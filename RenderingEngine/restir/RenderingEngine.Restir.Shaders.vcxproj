@@ -35,11 +35,23 @@
     <VcpkgEnableManifest>false</VcpkgEnableManifest>
   </PropertyGroup>
   <ItemGroup>
-    <RestirShader Include="$(RestirShaderSourceRoot)\RestirInitial.comp.hlsl"><SpirvOutput>$(RestirShaderOutputRoot)RestirInitial.comp.spv</SpirvOutput></RestirShader>
-    <RestirShader Include="$(RestirShaderSourceRoot)\RestirTemporal.comp.hlsl"><SpirvOutput>$(RestirShaderOutputRoot)RestirTemporal.comp.spv</SpirvOutput></RestirShader>
-    <RestirShader Include="$(RestirShaderSourceRoot)\RestirSpatial.comp.hlsl"><SpirvOutput>$(RestirShaderOutputRoot)RestirSpatial.comp.spv</SpirvOutput></RestirShader>
-    <RestirShader Include="$(RestirShaderSourceRoot)\RestirVisibility.comp.hlsl"><SpirvOutput>$(RestirShaderOutputRoot)RestirVisibility.comp.spv</SpirvOutput></RestirShader>
-    <RestirShader Include="$(RestirShaderSourceRoot)\RestirDebug.comp.hlsl"><SpirvOutput>$(RestirShaderOutputRoot)RestirDebug.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirInitial.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirInitial.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirTemporal.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirTemporal.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirSpatial.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirSpatial.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirVisibility.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirVisibility.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirDebug.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirDebug.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirClearV3.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirClearV3.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirDebugV3.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirDebugV3.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirInitialV3.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirInitialV3.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirPublishDirectV3.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirPublishDirectV3.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirPublishHistoryV3.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirPublishHistoryV3.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirReferenceResolveV3.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirReferenceResolveV3.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirReferenceVisibilityPrepareV3.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirReferenceVisibilityPrepareV3.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirSpatialV3.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirSpatialV3.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirTemporalV3.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirTemporalV3.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirWinnerResolveV3.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirWinnerResolveV3.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RestirShaderSourceRoot)\RestirWinnerVisibilityPrepareV3.comp.hlsl"><EntryPoint>main</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)RestirWinnerVisibilityPrepareV3.comp.spv</SpirvOutput></RestirShader>
+    <RestirShader Include="$(RenderingEngineSourceRoot)resources\shaders\integrators\pbr_restir_candidate_export_v3.hlsl"><EntryPoint>CSMain</EntryPoint><SpirvOutput>$(RestirShaderOutputRoot)pbr_restir_candidate_export_v3.spv</SpirvOutput></RestirShader>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\resources\shaders\restir\RestirCandidateGeneration.hlsli" />
@@ -49,12 +61,25 @@
     <None Include="..\resources\shaders\restir\RestirSpatial.comp.hlsl" />
     <None Include="..\resources\shaders\restir\RestirVisibility.comp.hlsl" />
     <None Include="..\resources\shaders\restir\RestirDebug.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirProductionV3.hlsli" />
+    <None Include="..\resources\shaders\restir\RestirClearV3.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirDebugV3.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirInitialV3.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirPublishDirectV3.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirPublishHistoryV3.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirReferenceResolveV3.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirReferenceVisibilityPrepareV3.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirSpatialV3.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirTemporalV3.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirWinnerResolveV3.comp.hlsl" />
+    <None Include="..\resources\shaders\restir\RestirWinnerVisibilityPrepareV3.comp.hlsl" />
+    <None Include="..\resources\shaders\integrators\pbr_restir_candidate_export_v3.hlsl" />
   </ItemGroup>
   <Target Name="CompileRestirShaders" BeforeTargets="Build">
     <Error Condition="!Exists('$(DxcPath)')" Text="DXC was not found at $(DxcPath)." />
     <Error Condition="!Exists('$(SpirvValPath)')" Text="spirv-val was not found at $(SpirvValPath)." />
     <MakeDir Directories="$(RestirShaderOutputRoot)" />
-    <Exec Command="&quot;$(DxcPath)&quot; -T cs_6_6 -E main -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -I &quot;$(RestirShaderSourceRoot)&quot; -Fo &quot;%(RestirShader.SpirvOutput)&quot; &quot;%(RestirShader.Identity)&quot;" />
+    <Exec Command="&quot;$(DxcPath)&quot; -T cs_6_6 -E %(RestirShader.EntryPoint) -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -I &quot;$(RestirShaderSourceRoot)&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot; -Fo &quot;%(RestirShader.SpirvOutput)&quot; &quot;%(RestirShader.Identity)&quot;" />
     <Exec Command="&quot;$(SpirvValPath)&quot; --target-env vulkan1.3 &quot;%(RestirShader.SpirvOutput)&quot;" />
   </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

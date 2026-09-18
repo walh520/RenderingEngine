@@ -26,8 +26,12 @@ namespace
                   << ", bvhDepth=" << evidence.maximumDepth
                   << ", uploadBytes=" << evidence.uploadBytes
                   << ", readbackBytes=" << evidence.readbackBytes
-                  << ", gpuTimestampsMeasured="
-                  << (evidence.gpuTimestampsMeasured ? "true" : "false") << '\n';
+                  << ", buildGpuMs=" << evidence.buildGpuMilliseconds
+                  << ", traceGpuMs=" << evidence.traceGpuMilliseconds
+                  << ", buildGpuTimestampMeasured="
+                  << (evidence.buildGpuTimestampMeasured ? "true" : "false")
+                  << ", traceGpuTimestampMeasured="
+                  << (evidence.traceGpuTimestampMeasured ? "true" : "false") << '\n';
     }
 }
 

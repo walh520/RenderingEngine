@@ -9,11 +9,16 @@
   <ItemGroup>
     <ClCompile Include="ActionMap.cpp"><Filter>Source Files\UI</Filter></ClCompile>
     <ClCompile Include="DebugProfilerModel.cpp"><Filter>Source Files\UI</Filter></ClCompile>
+    <ClCompile Include="Wave2TelemetryAdapter.cpp"><Filter>Source Files\UI</Filter></ClCompile>
+    <ClCompile Include="Wave4TelemetryAdapter.cpp"><Filter>Source Files\UI</Filter></ClCompile>
+    <ClCompile Include="GlfwActionAdapter.cpp"><Filter>Source Files\UI</Filter></ClCompile>
     <ClCompile Include="ImGuiShowcasePanels.cpp"><Filter>Source Files\UI</Filter></ClCompile>
     <ClCompile Include="RuntimeConfigHarness.cpp"><Filter>Source Files\UI</Filter></ClCompile>
     <ClCompile Include="ShowcaseController.cpp"><Filter>Source Files\UI</Filter></ClCompile>
     <ClCompile Include="ShowcaseViewModel.cpp"><Filter>Source Files\UI</Filter></ClCompile>
     <ClCompile Include="..\demos\CaptureBundleWriter.cpp"><Filter>Source Files\Demos</Filter></ClCompile>
+    <ClCompile Include="..\demos\CapturePreview.cpp"><Filter>Source Files\Demos</Filter></ClCompile>
+    <ClCompile Include="..\demos\ManyLightsWave4.cpp"><Filter>Source Files\Demos</Filter></ClCompile>
     <ClCompile Include="..\demos\ShowcaseEvidence.cpp"><Filter>Source Files\Demos</Filter></ClCompile>
     <ClCompile Include="..\demos\ShowcaseProgram.cpp"><Filter>Source Files\Demos</Filter></ClCompile>
     <ClCompile Include="..\demos\ShowcaseReport.cpp"><Filter>Source Files\Demos</Filter></ClCompile>
@@ -22,11 +27,16 @@
   <ItemGroup>
     <ClInclude Include="..\..\include\ui\ActionMap.hpp"><Filter>Header Files\UI</Filter></ClInclude>
     <ClInclude Include="..\..\include\ui\DebugProfilerModel.hpp"><Filter>Header Files\UI</Filter></ClInclude>
+    <ClInclude Include="..\..\include\ui\Wave2TelemetryAdapter.hpp"><Filter>Header Files\UI</Filter></ClInclude>
+    <ClInclude Include="..\..\include\ui\Wave4TelemetryAdapter.hpp"><Filter>Header Files\UI</Filter></ClInclude>
+    <ClInclude Include="..\..\include\ui\GlfwActionAdapter.hpp"><Filter>Header Files\UI</Filter></ClInclude>
     <ClInclude Include="..\..\include\ui\ImGuiShowcasePanels.hpp"><Filter>Header Files\UI</Filter></ClInclude>
     <ClInclude Include="..\..\include\ui\RuntimeConfigHarness.hpp"><Filter>Header Files\UI</Filter></ClInclude>
     <ClInclude Include="..\..\include\ui\ShowcaseController.hpp"><Filter>Header Files\UI</Filter></ClInclude>
     <ClInclude Include="..\..\include\ui\ShowcaseViewModel.hpp"><Filter>Header Files\UI</Filter></ClInclude>
     <ClInclude Include="..\..\include\demos\CaptureBundleWriter.hpp"><Filter>Header Files\Demos</Filter></ClInclude>
+    <ClInclude Include="..\..\include\demos\CapturePreview.hpp"><Filter>Header Files\Demos</Filter></ClInclude>
+    <ClInclude Include="..\..\include\demos\ManyLightsWave4.hpp"><Filter>Header Files\Demos</Filter></ClInclude>
     <ClInclude Include="..\..\include\demos\ShowcaseEvidence.hpp"><Filter>Header Files\Demos</Filter></ClInclude>
     <ClInclude Include="..\..\include\demos\ShowcaseProgram.hpp"><Filter>Header Files\Demos</Filter></ClInclude>
     <ClInclude Include="..\..\include\demos\ShowcaseReport.hpp"><Filter>Header Files\Demos</Filter></ClInclude>

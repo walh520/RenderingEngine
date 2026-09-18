@@ -47,6 +47,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="RestirTestsMain.cpp" />
+    <ClCompile Include="LightHistoryTests.cpp" />
+    <ClCompile Include="VulkanProductionRuntimeTests.cpp" />
     <ClCompile Include="VulkanSmoke.cpp" />
   </ItemGroup>
   <ItemGroup>

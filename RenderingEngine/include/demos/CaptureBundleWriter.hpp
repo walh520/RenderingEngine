@@ -4,6 +4,8 @@
 #include "app/RuntimeConfig.hpp"
 
 #include <cstdint>
+#include <array>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -96,6 +98,9 @@ namespace RenderingEngine::Demos
         std::string sceneHash;
         std::vector<CaptureNamedHash> assetHashes;
         std::string cameraPreset;
+        // Actual submitted GPU camera: position.xyz, forward.xyz, right.xyz,
+        // up.xyz, vertical FOV in degrees. Absent means not observed.
+        std::optional<std::array<float, 13>> submittedCamera;
 
         // Keeping both tuples prevents a capability fallback from being hidden.
         // They may be equal when no fallback or normalization change occurred.

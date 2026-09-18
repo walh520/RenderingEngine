@@ -166,7 +166,8 @@ namespace RenderingEngine::Demos
     {
         Biased,
         Unbiased,
-        NotApplicable
+        NotApplicable,
+        ReferenceCorrection
     };
 
     struct ManyLightsBiasModeRequirement
@@ -182,7 +183,7 @@ namespace RenderingEngine::Demos
         std::string_view stableToken;
         std::string_view label;
         std::string_view directEstimatorToken;
-        std::string_view lightProposalToken;
+        std::string_view lightSelectionToken;
         std::string_view algorithmProviderToken;
         std::array<std::string_view, 2> requiredAlgorithmProviderTokens{};
         std::uint8_t requiredAlgorithmProviderCount = 0;

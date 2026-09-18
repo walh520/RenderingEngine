@@ -1,10 +1,10 @@
 # L8 Temporal Reconstruction
 
-This directory is the lane-private implementation of the L8 temporal/SVGF
-pipeline. It is self-contained: no shared contract or root solution file is
-modified. `include/reconstruction` and `src` provide the deterministic CPU
-reference used by the local test project; `shaders` provides the Vulkan 1.3
-compute implementation.
+This directory is the L8 temporal/SVGF implementation. `include/reconstruction`
+and `src` provide the deterministic CPU reference and the explicit abi-v2
+packing bridge; `shaders` provides the Vulkan 1.3 compute implementation. The
+Wave 3 shadow composes the shared abi-v2 boundary centrally, but the production
+renderer still has no Vulkan resource/dispatch provider for these passes.
 
 ## Private data contract
 
@@ -28,8 +28,10 @@ the private GBuffer consumed by temporal and compose. Miss pixels and transform
 indices outside the explicitly supplied current/previous transform counts are
 cleared before either transform SSBO is indexed.
 
-These records are L8-private staging types, not a replacement shared ABI. The
-future renderer adapter must pack the primary-hit output into these records.
+These records are L8-private working types, not a replacement shared ABI.
+`AbiV2Bridge` packs and unpacks the published primary-surface, motion, signal,
+GBuffer, and history records without changing their sign, depth, or identity
+semantics.
 The HLSL storage-buffer records are padded to Vulkan relaxed-layout-safe 16-byte
 strides and validate without requiring scalar block layout.
 
@@ -88,16 +90,21 @@ camera/rigid motion is not a reset trigger and relies on reprojection.
 
 ## Local build
 
-The project is intentionally not added to the root solution:
+The lane project can be built directly; L0's central item composition is a
+separate build fact and does not make the provider production-ready:
 
 ```powershell
 msbuild RenderingEngine.Reconstruction.Tests.vcxproj /m /p:Configuration=Debug /p:Platform=x64
 .\build\x64\Debug\RenderingEngine.Reconstruction.Tests.exe
 ```
 
-The executable runs eleven suites, including `N=1/2/3/4` history rotation,
+The executable runs twelve suites, including abi-v2 bridge coverage,
+`N=1/2/3/4` history rotation,
 camera/rigid depth-domain reprojection, invalid-motion recovery, exact rejection
 masks, and NaN/Inf containment. Shaders use entry point `main`, profile
 `cs_6_6`, and are compiled with DXC for `vulkan1.3`. The host integration must
 ping-pong both signal and variance for each A-Trous iteration and bind a distinct
 history resource for every logical generation/frame-in-flight pair.
+
+No lane-local CPU fixture, shader compilation, or provider-shaped execution
+fixture is GPU runtime, dynamic-scene visual, ghosting, or convergence evidence.

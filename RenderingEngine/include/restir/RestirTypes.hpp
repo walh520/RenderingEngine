@@ -67,7 +67,7 @@ namespace RenderingEngine::Restir
     enum class EstimatorMode : std::uint32_t
     {
         Biased = 0u,
-        UnbiasedReference = 1u
+        ReferenceCorrection = 1u
     };
 
     enum ReservoirFlags : std::uint32_t

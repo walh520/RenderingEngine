@@ -32,7 +32,8 @@ $specifications = @(
     @{ File = 'software_lbvh_bounds.hlsl'; Entry = 'ResetBoundsValidationCS'; Output = 'software_lbvh_bounds_reset.spv' },
     @{ File = 'software_lbvh_bounds.hlsl'; Entry = 'EmitLeavesCS'; Output = 'software_lbvh_emit_leaves.spv' },
     @{ File = 'software_lbvh_bounds.hlsl'; Entry = 'ComputeDepthsCS'; Output = 'software_lbvh_depths.spv' },
-    @{ File = 'software_lbvh_bounds.hlsl'; Entry = 'InternalBoundsCS'; Output = 'software_lbvh_internal_bounds.spv' }
+    @{ File = 'software_lbvh_bounds.hlsl'; Entry = 'InternalBoundsCS'; Output = 'software_lbvh_internal_bounds.spv' },
+    @{ File = 'software_lbvh_reorder_v1.hlsl'; Entry = 'ReorderCanonicalTrianglesV1'; Output = 'software_lbvh_reorder_v1.spv' }
 )
 
 foreach ($specification in $specifications) {

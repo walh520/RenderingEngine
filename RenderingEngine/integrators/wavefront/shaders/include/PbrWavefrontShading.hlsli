@@ -21,9 +21,10 @@ PbrHitL6 WfToPbrHit(WfMaterialWorkItem hit)
     result.geometricNormal = hit.geometricNormalBaryU.xyz;
     result.shadingNormal = hit.shadingNormalBaryV.xyz;
     result.materialIndex = hit.ids.w;
+    result.instanceId = hit.ids.z;
     result.primitiveId = hit.ids.y;
     result.emitterLightIndex = hit.ids.x;
-    result.frontFace = hit.identity.w & 1u;
+    result.frontFace = hit.metadata.z & 1u;
     return result;
 }
 
@@ -180,10 +181,19 @@ bool WfPbrBuildDirectShadow(
     float3 beta,
     float3 betaDiffuse,
     float3 betaSpecular,
+    bool restirOwnsPrimary,
     out WfShadowWorkItem shadowWork)
 {
     shadowWork = (WfShadowWorkItem)0;
     if (gPbrFrameL6.sampling.w == 0u || gPbrFrameL6.distribution.x == 0u)
+    {
+        return false;
+    }
+    // ReSTIR DI owns non-delta direct lighting at the primary surface.  The
+    // Wavefront integrator still runs NEE/MIS from secondary vertices so its
+    // indirect transport contract remains unchanged.
+    if (gPbrFrameL6.sampling.w == PBR_L6_ESTIMATOR_RESTIR_PRIMARY &&
+        bounce == 0u && restirOwnsPrimary)
     {
         return false;
     }
@@ -274,6 +284,10 @@ bool WfPbrBuildDirectShadow(
     shadowWork.specularContributionLight = float4(specular, lightSample.combinedPdfW);
     shadowWork.identity = uint4(
         pathIndex, bounce, lightSample.lightIndex, lightSample.primitiveId);
+    // Preserve the public ShadowMethod carried by the shared L6 frame through
+    // dense compaction and the published abi-v1 shadow queue. TraceShadow must
+    // consume this per-work value rather than infer a legacy Wave profile.
+    shadowWork.sampling = uint4(gPbrFrameL6.output.w, 0u, 0u, 0u);
     return true;
 }
 

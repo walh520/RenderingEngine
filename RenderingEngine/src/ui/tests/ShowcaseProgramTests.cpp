@@ -320,7 +320,7 @@ namespace
                 "L9 runtime provider is absent."
             },
             AlgorithmCompletionClaim{
-                "algorithm:legacy-whitted", AlgorithmCompletionState::Implemented, {}
+                "algorithm:whitted", AlgorithmCompletionState::Implemented, {}
             }
         };
         const std::vector<AlgorithmCompletionEntry> partialMatrix =
@@ -356,10 +356,10 @@ namespace
                 && !blocked.availability.reason.empty(),
             "comparison request must remain unavailable while a leg is not runnable");
         test.Expect(blocked.legs[0].stableToken == "uniform"
-                && blocked.legs[0].lightProposalToken == "uniform",
+                && blocked.legs[0].lightSelectionToken == "uniform",
             "uniform comparison leg must keep the uniform proposal token");
         test.Expect(blocked.legs[1].stableToken == "power"
-                && blocked.legs[1].lightProposalToken == "power",
+                && blocked.legs[1].lightSelectionToken == "power",
             "power comparison leg must keep the power proposal token");
         test.Expect(blocked.legs[2].stableToken == "restir"
                 && blocked.legs[2].directEstimatorToken == "restir-di",
@@ -399,12 +399,12 @@ namespace
                 && blocked.legs[2].requiredBiasModes[0].stableToken == "biased"
                 && blocked.legs[2].requiredBiasModes[0].classification
                     == ManyLightsBiasClassification::Biased
-                && blocked.legs[2].requiredBiasModes[1].stableToken == "unbiased"
+                && blocked.legs[2].requiredBiasModes[1].stableToken == "reference-correction"
                 && blocked.legs[2].requiredBiasModes[1].classification
-                    == ManyLightsBiasClassification::Unbiased
+                    == ManyLightsBiasClassification::ReferenceCorrection
                 && blocked.legs[2].bias
                     == ManyLightsBiasClassification::NotApplicable,
-            "ReSTIR leg must preserve both biased and unbiased validation modes");
+            "ReSTIR must expose reference correction without claiming proven unbiasedness");
 
         const std::vector<AlgorithmCompletionClaim> allClaims =
             MakeAllAlgorithmsImplemented();
@@ -470,13 +470,13 @@ namespace
 
         const std::array<AlgorithmCompletionClaim, 5> evidenceClaims = {
             AlgorithmCompletionClaim{
-                "algorithm:legacy-whitted",
+                "algorithm:whitted",
                 AlgorithmCompletionState::RuntimeValidated,
                 {},
                 std::nullopt
             },
             AlgorithmCompletionClaim{
-                "algorithm:legacy-pbr",
+                "algorithm:pbr",
                 AlgorithmCompletionState::VisualAccepted,
                 {},
                 syntheticEvidence
@@ -503,9 +503,9 @@ namespace
         const std::vector<AlgorithmCompletionEntry> evidenceMatrix =
             BuildAlgorithmCompletionMatrix(evidenceClaims);
         const AlgorithmCompletionEntry* const missingEvidence =
-            FindAlgorithmEntry(evidenceMatrix, "algorithm:legacy-whitted");
+            FindAlgorithmEntry(evidenceMatrix, "algorithm:whitted");
         const AlgorithmCompletionEntry* const syntheticClaim =
-            FindAlgorithmEntry(evidenceMatrix, "algorithm:legacy-pbr");
+            FindAlgorithmEntry(evidenceMatrix, "algorithm:pbr");
         const AlgorithmCompletionEntry* const validatedClaim =
             FindAlgorithmEntry(evidenceMatrix, "algorithm:cpu-reference");
         const AlgorithmCompletionEntry* const missingSceneClaim =

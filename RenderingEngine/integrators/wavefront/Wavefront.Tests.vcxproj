@@ -46,10 +46,17 @@
     <Link><SubSystem>Console</SubSystem><GenerateDebugInformation>true</GenerateDebugInformation><TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors><AdditionalDependencies>$(VULKAN_SDK)\Lib\vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="include\VulkanWavefrontRecorder.hpp" />
+    <ClInclude Include="include\WavefrontShadowPolicy.hpp" />
+  </ItemGroup>
+  <ItemGroup>
     <ClCompile Include="src\WavefrontCompactionOracle.cpp" />
     <ClCompile Include="src\WavefrontProfiler.cpp" />
     <ClCompile Include="src\WavefrontSchedule.cpp" />
+    <ClCompile Include="src\VulkanWavefrontRecorder.cpp" />
     <ClCompile Include="tests\WavefrontCpuOracleTests.cpp" />
+    <ClCompile Include="tests\WavefrontShadowPolicyTests.cpp" />
+    <ClCompile Include="tests\VulkanWavefrontRecorderTests.cpp" />
     <ClCompile Include="tests\WavefrontTestsMain.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -62,6 +69,8 @@
     <L7Shader Include="shaders\AddOffsets.hlsl"><EntryPoint>AddOffsetsCS</EntryPoint><OutputFile>add_offsets.spv</OutputFile></L7Shader>
     <L7Shader Include="shaders\Scatter.hlsl"><EntryPoint>ScatterCS</EntryPoint><OutputFile>scatter.spv</OutputFile></L7Shader>
     <L7Shader Include="shaders\TraceShadow.hlsl"><EntryPoint>TraceShadowCS</EntryPoint><OutputFile>trace_shadow.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\tests\TraceShadowSoftware.hlsl"><EntryPoint>TraceShadowCS</EntryPoint><OutputFile>trace_shadow_software.spv</OutputFile></L7Shader>
+    <L7Shader Include="shaders\tests\TraceShadowRayQuery.hlsl"><EntryPoint>TraceShadowCS</EntryPoint><OutputFile>trace_shadow_ray_query.spv</OutputFile><ExtraArgs>-fspv-extension=SPV_KHR_ray_query</ExtraArgs></L7Shader>
     <L7Shader Include="shaders\NextBounce.hlsl"><EntryPoint>NextBounceCS</EntryPoint><OutputFile>next_bounce.spv</OutputFile></L7Shader>
     <L7Shader Include="shaders\Resolve.hlsl"><EntryPoint>ResolveCS</EntryPoint><OutputFile>resolve.spv</OutputFile></L7Shader>
     <L7Shader Include="shaders\VisualizeCounters.hlsl"><EntryPoint>VisualizeCountersCS</EntryPoint><OutputFile>visualize_counters.spv</OutputFile></L7Shader>
@@ -79,7 +88,7 @@
   </Target>
   <Target Name="CompileL7Shaders" BeforeTargets="ClCompile" DependsOnTargets="ValidateL7ShaderToolchain" Inputs="@(L7Shader);@(L7ShaderDependency);$(MSBuildProjectFullPath)" Outputs="@(L7Shader->'$(L7ShaderOutputDir)%(OutputFile)')" Condition="'$(DesignTimeBuild)' != 'true'">
     <MakeDir Directories="$(L7ShaderOutputDir)" />
-    <Exec Command="&quot;$(L7DxcExecutable)&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -HV 2021 -T cs_6_6 -E %(L7Shader.EntryPoint) -I &quot;$(MSBuildProjectDirectory)\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; -Fo &quot;$(L7ShaderOutputDir)%(L7Shader.OutputFile)&quot; &quot;%(L7Shader.FullPath)&quot;" />
+    <Exec Command="&quot;$(L7DxcExecutable)&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -HV 2021 -T cs_6_6 -E %(L7Shader.EntryPoint) -I &quot;$(MSBuildProjectDirectory)\shaders&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\integrators&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders&quot; %(L7Shader.ExtraArgs) -Fo &quot;$(L7ShaderOutputDir)%(L7Shader.OutputFile)&quot; &quot;%(L7Shader.FullPath)&quot;" />
     <Exec Command="&quot;$(L7SpirvValExecutable)&quot; --target-env vulkan1.3 &quot;$(L7ShaderOutputDir)%(L7Shader.OutputFile)&quot;" />
   </Target>
   <Target Name="CleanL7ShaderOutputs" AfterTargets="Clean">

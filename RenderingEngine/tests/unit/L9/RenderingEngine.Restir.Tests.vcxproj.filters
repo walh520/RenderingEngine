@@ -6,6 +6,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RestirTestsMain.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="LightHistoryTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="VulkanProductionRuntimeTests.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="VulkanSmoke.cpp"><Filter>Source Files</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>

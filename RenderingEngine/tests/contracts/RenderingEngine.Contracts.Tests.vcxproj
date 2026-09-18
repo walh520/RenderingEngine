@@ -48,13 +48,30 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="AbiLayoutStaticTests.cpp" />
+    <ClCompile Include="AbiV3LayoutStaticTests.cpp" />
     <ClCompile Include="AbiLayoutTestsMain.cpp" />
+    <ClCompile Include="ReSTIRDIRuntimeTests.cpp" />
+    <ClCompile Include="ReSTIRFrameParametersTests.cpp" />
     <ClCompile Include="RuntimeControlTests.cpp" />
+    <ClCompile Include="VulkanReSTIRRecorderTests.cpp" />
+    <ClCompile Include="Wave3AcceptanceTests.cpp" />
+    <ClCompile Include="Wave3ExecutionTests.cpp" />
+    <ClCompile Include="Wave3FrameGraphTests.cpp" />
+    <ClCompile Include="Wave4AcceptanceTests.cpp" />
+    <ClCompile Include="Wave4FrameGraphTests.cpp" />
     <ClCompile Include="..\..\src\app\ArtifactLayout.cpp" />
     <ClCompile Include="..\..\src\app\CapabilityTable.cpp" />
     <ClCompile Include="..\..\src\app\CommandLine.cpp" />
     <ClCompile Include="..\..\src\app\IntegratedModuleRegistry.cpp" />
     <ClCompile Include="..\..\src\app\RuntimeConfig.cpp" />
+    <ClCompile Include="..\..\src\demos\ShowcaseEvidence.cpp" />
+    <ClCompile Include="..\..\src\renderers\Wave3Acceptance.cpp" />
+    <ClCompile Include="..\..\src\renderers\Wave3Execution.cpp" />
+    <ClCompile Include="..\..\src\renderers\Wave3FrameGraph.cpp" />
+    <ClCompile Include="..\..\src\renderers\ReSTIRDIRuntime.cpp" />
+    <ClCompile Include="..\..\src\renderers\ReSTIRFrameParameters.cpp" />
+    <ClCompile Include="..\..\src\renderers\Wave4Acceptance.cpp" />
+    <ClCompile Include="..\..\src\renderers\Wave4FrameGraph.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="AbiV0LayoutProbe.hlsl" />

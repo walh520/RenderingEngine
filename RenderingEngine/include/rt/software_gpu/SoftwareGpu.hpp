@@ -1,5 +1,7 @@
 #pragma once
 
+#include "rt/cpu/Bvh.hpp"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -341,6 +343,14 @@ namespace RenderingEngine::Rt::SoftwareGpu
         BuildOptions options = {});
 
     [[nodiscard]] FlatBuildResult FlattenCpuSah(const CpuSahTree& tree);
+
+    // Adapt the already-built L3 binned-SAH topology without rebuilding it.
+    // sourcePrimitives must be in the exact input order used to construct
+    // cpuBvh. The resulting records remain L4-private; this seam only
+    // transfers L3 topology/order/bounds into the private flattened storage.
+    [[nodiscard]] FlatBuildResult FlattenCanonicalL3BinnedSah(
+        const Cpu::Bvh<float>& cpuBvh,
+        std::span<const SoftwarePrimitiveRecord> sourcePrimitives);
 
     [[nodiscard]] FlatBuildResult BuildFlattenedSah(
         std::span<const SoftwarePrimitiveRecord> primitives,

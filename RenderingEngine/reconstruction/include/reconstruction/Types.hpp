@@ -134,7 +134,7 @@ enum class ResetTrigger : std::uint32_t {
     Resolution = 1U << 2U,
     Scene = 1U << 3U,
     Backend = 1U << 4U,
-    Integrator = 1U << 5U,
+    Transport = 1U << 5U,
     ReconstructionParameters = 1U << 6U,
     ShaderReload = 1U << 7U,
 };

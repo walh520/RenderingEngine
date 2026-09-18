@@ -199,7 +199,12 @@ namespace RenderingEngine::Rt::Hardware
             AccelerationStructureResource& destination) const noexcept;
 
         void RecordBuildToBuildBarrier(VkCommandBuffer commandBuffer) const noexcept;
-        void RecordBuildToTraceBarrier(VkCommandBuffer commandBuffer) const noexcept;
+        // Ray Query executes in Compute and is the Wave 2 default.  Callers
+        // must opt into the Ray Tracing Shader stage only after enabling the
+        // rayTracingPipeline feature for the Wave 3 pipeline path.
+        void RecordBuildToTraceBarrier(
+            VkCommandBuffer commandBuffer,
+            bool includeRayTracingPipelineStage = false) const noexcept;
 
     private:
         [[nodiscard]] Status CreateResource(

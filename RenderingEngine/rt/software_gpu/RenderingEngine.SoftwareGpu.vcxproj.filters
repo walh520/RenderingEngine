@@ -5,9 +5,13 @@
     <Filter Include="Source Files"><UniqueIdentifier>{346FAAE0-8C75-4440-897D-D63FCE263695}</UniqueIdentifier></Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\rt\software_gpu\GpuLbvhBuildOwner.hpp"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="..\..\include\rt\software_gpu\SoftwareGpu.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\include\rt\software_gpu\SoftwareGpuBackend.hpp"><Filter>Header Files</Filter></ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\rt\software_gpu\GpuLbvhBuildOwner.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="..\..\src\rt\software_gpu\SoftwareGpu.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\src\rt\software_gpu\SoftwareGpuBackend.cpp"><Filter>Source Files</Filter></ClCompile>
   </ItemGroup>
 </Project>

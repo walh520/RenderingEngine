@@ -36,7 +36,7 @@ namespace RenderingEngine::Ui
         Cpu,
         Gpu,
         Traversal,
-        Integrator,
+        PathTransport,
         Reconstruction,
         Memory,
         Quality,

@@ -1,8 +1,11 @@
 #ifndef RENDERING_ENGINE_L8_RECONSTRUCTION_COMMON_HLSLI
 #define RENDERING_ENGINE_L8_RECONSTRUCTION_COMMON_HLSLI
 
-// L8-private records. They intentionally do not claim compatibility with a
-// shared renderer ABI; the host adapter owns packing these resources.
+#include "../../resources/shaders/include/contracts/AbiV2.hlsli"
+
+// L8 keeps compact working records internally. Shader entry points bind the
+// published GpuGBufferRecordV2/GpuReconstructionSignalV2 records at set 4 and
+// convert them explicitly at the pass boundary.
 struct L8GBufferRecord
 {
     float linearDepth;
@@ -51,6 +54,32 @@ struct L8TemporalDebugRecord
     uint rejectReasons;
 };
 
+L8GBufferRecord L8LoadGBuffer(GpuGBufferRecordV2 value)
+{
+    L8GBufferRecord result = (L8GBufferRecord)0;
+    result.linearDepth = value.primary.worldPositionLinearDepth.w;
+    result.worldNormal = value.primary.shadingNormalMetallic.xyz;
+    result.diffuseAlbedo = value.primary.diffuseAlbedo.xyz;
+    result.specularAlbedo = value.primary.specularAlbedo.xyz;
+    result.expectedPreviousLinearDepth = value.motion.motionExpectedDepth.z;
+    result.motion = value.motion.motionExpectedDepth.xy;
+    result.materialId = value.primary.identity.x;
+    result.objectId = value.primary.identity.y;
+    result.valid =
+        (value.primary.identity.w & kPrimarySurfaceFlagValidV2) != 0u ? 1u : 0u;
+    result.motionValid =
+        (value.motion.identity.w & kMotionFlagValidV2) != 0u ? 1u : 0u;
+    return result;
+}
+
+L8SignalRecord L8LoadRawSignal(GpuReconstructionSignalV2 value)
+{
+    L8SignalRecord result = (L8SignalRecord)0;
+    result.diffuse = value.directDiffuse.xyz + value.indirectDiffuse.xyz;
+    result.specular = value.directSpecular.xyz + value.indirectSpecular.xyz;
+    return result;
+}
+
 static const uint L8_REJECT_NO_HISTORY = 1u << 0u;
 static const uint L8_REJECT_RESET = 1u << 1u;
 static const uint L8_REJECT_SCREEN_BOUNDS = 1u << 2u;
@@ -73,6 +102,12 @@ static const uint L8_OUTPUT_MOMENTS = 6u;
 static const uint L8_OUTPUT_VARIANCE = 7u;
 static const uint L8_OUTPUT_ACCEPTANCE = 8u;
 static const uint L8_OUTPUT_REJECT_REASONS = 9u;
+static const uint L8_OUTPUT_BASE_COLOR = 10u;
+static const uint L8_OUTPUT_NORMAL = 11u;
+static const uint L8_OUTPUT_ROUGHNESS = 12u;
+static const uint L8_OUTPUT_METALLIC = 13u;
+static const uint L8_OUTPUT_EMISSIVE = 14u;
+static const uint L8_OUTPUT_PROGRESSIVE_MEAN = 15u;
 
 uint L8LinearIndex(uint2 pixel, uint2 extent)
 {

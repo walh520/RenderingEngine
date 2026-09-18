@@ -1,25 +1,31 @@
 # Vulkan HLSL PBR Path Tracer
 
-The active Visual Studio target is a modern Vulkan 1.3 renderer whose startup
-default is the progressive PBR path tracer. The classic Whitted integrator is
-kept as an explicit runtime comparison, and the repository's older OpenGL/CPU
-experiments are not compiled into the active executable. ADR 0005 records this
-default promotion without changing either integrator's token or numeric value.
+The active Visual Studio target is a Vulkan 1.3 algorithm demonstrator. With no
+CLI arguments it starts in Baseline with staged PBR path transport; the saved
+Debug F5 profile starts in Many Lights with PBR/Wavefront/ReSTIR/SVGF.
+Whitted is an independent transport
+model; Megakernel and Wavefront are independent execution architectures. Older
+OpenGL samples are not compiled into the active executable, and the CPU
+reference path remains a finite headless verifier.
 
 ## Active rendering path
 
 - HLSL compute shader compiled to SPIR-V by DXC (`-fvk-use-dx-layout`).
-- Analytic sphere and plane intersections with robust near/far sphere roots.
+- A canonical linear baseline plus provider-owned canonical triangle scenes;
+  interactive traversal can use canonical linear search, flattened SAH, or
+  Vulkan Ray Query without changing the scene.
 - Default PBR path integration with glTF metallic-roughness materials,
   Cook-Torrance GGX, height-correlated Smith visibility, Schlick Fresnel,
   Heitz visible-normal sampling, cosine diffuse sampling, multi-bounce indirect
   light, finite sphere-light next-event estimation, and Russian roulette.
-- Smooth dielectric reflection/refraction with exact Fresnel, total internal
+- Smooth and rough dielectric reflection/refraction with exact Fresnel, total internal
   reflection, ray-origin offsets, and Beer-Lambert attenuation.
-- Explicit Whitted comparison through `--integrator whitted`, retaining its
-  deterministic depth-first reflection/refraction behavior for regression.
-- The physical sphere-light method is the default shadow method. PCF and PCSS
-  remain deterministic legacy comparison modes.
+- Explicit Whitted comparison through `--transport whitted --execution staged`:
+  local direct light plus sampled ideal-specular chains, not an exhaustive
+  deterministic reflection/refraction tree.
+- Physical visibility is the default shadow method. PCF and PCSS remain
+  deterministic teaching/comparison modes and are carried through every
+  interactive integrator, including Wavefront and ReSTIR DI.
 - One sub-pixel Monte Carlo sample per pixel and frame, progressively averaged
   in an RGBA32F storage image and capped at 4096 samples per pixel.
 - Fullscreen HLSL presentation with exposure, Khronos PBR Neutral tone mapping,
@@ -35,11 +41,14 @@ default promotion without changing either integrator's token or numeric value.
 - A Vulkan 1.3 GPU/driver supporting dynamic rendering, `synchronization2`, and
   RGBA32F storage images.
 
-The Wave 0 compatibility host currently uses Win32 for window creation, raw
-mouse input, and `VK_KHR_win32_surface`, behind `IPlatformHost`; renderer code
-does not own native window messages or handles. L1 replaces this host with the
-frozen GLFW dependency. The active target has no GLFW, GLAD, GLM, or OpenGL
-runtime dependency yet.
+The active application uses the frozen GLFW dependency for window creation,
+keyboard/mouse input, and Vulkan surface creation through `IPlatformHost`.
+The current shared GPU runtime initializes all three interactive traversal
+providers, so it requires buffer device address, acceleration structures,
+deferred host operations, and Vulkan Ray Query even when it starts in Linear
+or software BVH mode. This is a runtime requirement, not a software-BVH
+algorithm requirement. The
+active target does not depend on GLAD, GLM, or an OpenGL runtime.
 
 ## Build and run
 
@@ -48,24 +57,29 @@ Open `RenderingEngine.sln` and build `Debug|x64` or `Release|x64`. The solution,
 this repository does not use CMake. From PowerShell:
 
 ~~~powershell
-& 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe' .\RenderingEngine.sln /m:1 /p:BuildInParallel=false /p:UseMultiToolTask=false /p:Configuration=Debug /p:Platform=x64
+& 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe' .\RenderingEngine.sln /m:1 /p:BuildInParallel=false /p:UseMultiToolTask=false /p:CL_MPCount=1 /p:Configuration=Debug /p:Platform=x64
 .\bin\x64\Debug\RenderingEngine.exe
 ~~~
+
+For the user-owned Release handoff, change `Debug` to `Release` in both the
+configuration and executable path. `/p:CL_MPCount=1` keeps compiler PDB writes
+deterministic on MSVC installations where `/FS` alone still races during a
+solution rebuild.
 
 Useful non-interactive selections:
 
 ~~~powershell
 .\bin\x64\Debug\RenderingEngine.exe --frames 120
-.\bin\x64\Debug\RenderingEngine.exe --integrator pbr --shadow physical --max-depth 8 --exposure 1.0
-.\bin\x64\Debug\RenderingEngine.exe --integrator whitted --frames 120
+.\bin\x64\Debug\RenderingEngine.exe --transport pbr --execution staged --shadow physical --max-depth 8 --exposure 1.0
+.\bin\x64\Debug\RenderingEngine.exe --transport whitted --execution staged --frames 120
 .\bin\x64\Debug\RenderingEngine.exe --shadow pcf
 .\bin\x64\Debug\RenderingEngine.exe --shadow pcss
 .\bin\x64\Debug\RenderingEngine.exe --debug-view normal --frames 8
 ~~~
 
 Run `RenderingEngine.exe --help` for the executable summary; the normative
-tokens, aliases, ranges, capability boundary, and exit codes are in
-`docs/contracts/cli-v0.md`.
+tokens, ranges, capability boundary, and exit codes are in
+`docs/contracts/cli-v2.md`.
 Run the repeatable build, ABI/shader, CLI/exit-code, runtime-mode, debug-view,
 seed/target-SPP, VSync/validation, no-I/O rejection, and resize suite:
 
@@ -73,37 +87,69 @@ seed/target-SPP, VSync/validation, no-I/O rejection, and resize suite:
 .\RenderingEngine\tools\Validate-Pbr.ps1
 ~~~
 
-Wave 0 deliberately supports only Baseline Gallery on the legacy analytic GPU
-backend, with Whitted/PBR, Raw reconstruction, the existing shadow methods,
-and existing material debug views. Future scenes, backends, estimators,
-reconstruction modes, production headless rendering, capture, benchmark, and
-reference comparison are named by the control-plane contract but return exit
-code 4 before window creation or file output. A recognized name is not an
-implementation claim.
+The Debug executable uses the RuntimeConfig v2 split-axis renderer. The nine
+provider-backed experiment scenes (`0`-`5`, `7`-`9`) expose traversal backend,
+transport model, execution architecture, direct estimator, discrete-light
+selection, environment-direction sampling, reconstruction, and shadow method
+independently. ReSTIR DI and all 100/1,000/10,000-light tiers use this same
+renderer. Removed mixed and legacy CLI spellings are rejected rather than
+translated.
 
-The 2026-08-24 Wave 0 handoff records passing Debug and Release solution builds,
-contract tests, shader/ABI validation, CLI 0/2/4, existing GPU runtime modes,
-controlled runtime exit 10, and Vulkan validation. It does not claim manual
-visual acceptance, numerical or performance comparison, image-level
-repeatability, or automated exit-10 failure injection.
+Digit `6` remains a fail-closed Sponza asset gate because the pinned licensed
+asset and texture-capable glTF provider are not in this repository. The separate
+L3 Cornell + CPU SAH + CPU-reference path remains deliberately headless and is
+not an interactive GPU algorithm axis.
 
-## Controls
+The Wave 5 Debug showcase attaches the provider-driven ImGui, action queue,
+finite Raw/AOV rendering, reconstruction, live capture, and capability display
+to the production GLFW/Vulkan loop. Visual Studio's Debug profile opens the
+configured renderer at 1280x720. This remains a Debug showcase, not a Release-quality
+or performance claim: see
+[`docs/handoffs/L10/wave5-debug-showcase.md`](docs/handoffs/L10/wave5-debug-showcase.md)
+for the exact evidence and unavailable-provider boundary.
 
-These are the current Win32 compatibility-host controls. The future GLFW
-algorithm-comparison ActionMap is specified in section 10 of
-`VULKAN_RT_PARALLEL_DEVELOPMENT_PLAN.md`; it is not a Wave 0 capability claim.
+## GLFW controls
 
-- W/A/S/D: move.
-- Space / Left Ctrl: move vertically.
-- Left Shift: sprint.
-- Mouse: look.
-- Mouse wheel: change field of view.
-- 1 / 2 / 3: PCF / PCSS / physical sphere-light shadows.
-- Tab: capture or release the mouse cursor.
-- Esc: exit.
+The no-argument executable retains the Baseline default. Visual Studio's Debug
+profile starts directly in the algorithm showcase. Every algorithm key
+changes exactly one axis; scene digits change only the scene and fixed camera.
+Invalid scalar values and genuinely missing providers are rejected atomically
+while the previous state stays live, but no Wave-domain tuple lock remains.
 
-Camera, FOV, window-size, and shadow-mode changes reset progressive
-accumulation.
+- `W/A/S/D`, `Q/E`: move; `Left Shift`/`Left Ctrl`: fast/fine; mouse: look;
+  wheel: movement speed; `Alt+Wheel`: vertical FOV.
+- `Tab`: capture/release the pointer; `Esc`: release only; `Alt+F4`: exit;
+  `Home`: fixed camera; `P`: pause; `O`: one paused step.
+- `B`: traversal backend; `I`: transport model; `Ctrl+I`: execution
+  architecture; `L`: direct-lighting estimator; `Ctrl+L`: discrete-light
+  selection; `Alt+L`: environment-direction sampler; `Ctrl+Alt+L`: shadow
+  method; `N`: reconstruction; `V`: final/AOV debug view. Hold `Shift` with
+  the same chord to cycle backward. Each command changes only that field.
+- main-row or keypad `0`-`9`: request a showcase scene and its fixed camera
+  only. `0`-`5` and `7`-`9` are attached; `6` reports the exact Sponza asset
+  gate while preserving the current scene and all algorithm selections.
+- `R`: reset accumulation/temporal/reservoir history; `K`: lock camera, base
+  seed, and animation origin; `[`/`]`: bounce; `-`/`=`: exposure;
+  `PageDown`/`PageUp`: request render scale (the current production attachment
+  remains fixed at 1.0 and rejects other values without changing the live state).
+- `F1`: help; `F2`: algorithm; `F3`: profiler; `F4`: linear EXR + PNG +
+  metadata; `F5`: transactional shader reload; `F6`: fixed-seed A/B; `F7`:
+  legend; `F8`: short benchmark; `F9`: reference comparison; `F10`: print the
+  current scene purpose plus current/recommended tuple and match state;
+  `F11`: atomically restore the current scene's teaching recommendation.
+
+`F11` is a convenience action, not an algorithm lock. It preserves the current
+scene, resolution, render scale, SPF/target SPP, exposure, seed, FOV, camera,
+validation/VSync, and output paths. Afterwards `B/I/L/N/V` and their modified
+chords still compare individual axes normally. The ten versioned profiles and
+their exact ownership/reset contract are published in
+[`docs/contracts/scene-recommendations-v2.md`](docs/contracts/scene-recommendations-v2.md).
+
+Discrete commands are press-only, enter one FIFO action queue, and commit at a
+fixed frame boundary. ImGui keyboard/mouse capture and window focus prevent
+input passthrough. Camera/FOV, scene, algorithm, sampling, and resize
+discontinuities apply their declared reset masks. A missing resource never
+silently substitutes a different implementation.
 
 ## Material inspection
 
@@ -123,11 +169,14 @@ material contract:
 ## Data flow
 
 ~~~text
-Camera + metallic/roughness GPU scene records
-        | per-frame UBO + packed device-local structured buffers
+RuntimeConfig v2 + camera + canonical experiment scene
+        | CapabilityTable: validate the complete tuple, no fallback
         v
-PbrPathTrace.hlsl (default) or WhittedTrace.hlsl (explicit comparison)
-        | RGBA32F progressive HDR image
+Wave2Runtime: Staged / Megakernel / Wavefront execution
+        | shared BSDF + independent light selection / environment direction
+        | Canonical Linear / Flattened SAH / Ray Query traversal
+        v
+Radiance signals + selected reconstruction + RGBA32F output
         v
 Present.hlsl (exposure + PBR Neutral + sRGB, fullscreen triangle)
         | Vulkan dynamic rendering
@@ -141,17 +190,29 @@ errors.
 
 ## Scope
 
-The selected integrator is wired end-to-end from scene records through Vulkan
-presentation, with PBR as the startup default. Geometry remains the
-analytic sphere/plane scene. Mesh loading, texture and normal-map sampling, BVH
-acceleration, rough dielectric transport, spectral rendering, denoising, and
-HDRI importance sampling remain outside this focused implementation.
+The active pipeline owns canonical experiment geometry, BVH/Ray Query,
+shared PBR BSDFs, environmental importance sampling, and the connected
+reconstruction/ReSTIR paths. Presence in the pipeline is not a correctness or
+quality certificate. Sponza, LBVH, RT Pipeline, and unconnected debug providers
+remain explicitly gated. CPU reference remains a restricted Cornell oracle.
 
-## Wave 0 contracts
+[PBR_IMPLEMENTATION.md](PBR_IMPLEMENTATION.md) records the actual transport,
+execution, termination, and AOV differences, including what is not yet proven
+equivalent. The renderer no longer contains the old RunOptions projection,
+duplicate Wave 0 scene upload, or old standalone PBR/Whitted compute entry.
 
-- `docs/contracts/runtime-config-v0.md`: canonical orthogonal configuration and
-  current capability boundary, amended by ADR 0005 for the PBR default.
-- `docs/contracts/cli-v0.md`: CLI grammar, aliases, and exit codes.
+## Active contracts
+
+- [RuntimeConfig v2](docs/contracts/runtime-config-v2.md): independent axes and capability boundary.
+- [CLI v2](docs/contracts/cli-v2.md): current algorithm arguments; old mixed-axis spellings are errors.
+- [Scene recommendations v2](docs/contracts/scene-recommendations-v2.md): F10/F11 behavior and all ten profiles.
+- [ABI v3](docs/contracts/abi-v3.md): independently versioned GPU records.
+
+## Historical Wave 0 records (not current startup instructions)
+
+- `docs/contracts/runtime-config-v0.md`: original configuration and historical
+  capability boundary, amended at that time by ADR 0005.
+- `docs/contracts/cli-v0.md`: historical CLI grammar, aliases, and exit codes.
 - `docs/contracts/artifact-layout-v0.md`: deterministic future output layout;
   Wave 0 performs path planning only.
 - `docs/contracts/abi-v0.md`: canonical C++/HLSL records and static layout proof

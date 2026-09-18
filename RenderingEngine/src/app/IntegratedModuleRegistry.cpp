@@ -11,47 +11,47 @@ namespace RenderingEngine
             IntegratedModuleStatus{
                 IntegratedModule::L0Foundation, "L0", "foundation / analytic Vulkan runtime",
                 ModuleCompositionStage::ProductionRuntime,
-                "attached to the production application" },
+                "the application owns one final mixed runtime; historical Wave boundaries remain ABI provenance only and no longer constrain interactive tuples" },
             IntegratedModuleStatus{
                 IntegratedModule::L1Platform, "L1", "GLFW / Vulkan Core",
-                ModuleCompositionStage::SourceOnly,
-                "Win32 platform seam is present; GLFW/Vulkan Core delivery is incomplete" },
+                ModuleCompositionStage::ProductionRuntime,
+                "GLFW window/input/Vulkan-surface host is the production platform factory; runtime validation remains separate" },
             IntegratedModuleStatus{
                 IntegratedModule::L2SceneAssets, "L2", "scene and asset pipeline",
-                ModuleCompositionStage::Missing,
-                "canonical mesh/scene/light providers were not delivered" },
+                ModuleCompositionStage::ProductionRuntime,
+                "nine canonical experiment spaces are production-selectable (Sponza remains asset-gated); every built scene feeds the same traversal/transport/execution/reconstruction graph" },
             IntegratedModuleStatus{
                 IntegratedModule::L3CpuReference, "L3", "CPU reference path tracer",
                 ModuleCompositionStage::ProductionRuntime,
                 "headless Cornell CPU reference and deterministic artifact output are attached" },
             IntegratedModuleStatus{
                 IntegratedModule::L4SoftwareGpu, "L4", "software GPU traversal",
-                ModuleCompositionStage::CentralBuild,
-                "library/tests/Vulkan smoke are composed; no production scene/upload adapter" },
+                ModuleCompositionStage::ProductionRuntime,
+                "canonical linear and CPU binned-SAH flattened traversal consume the shared triangle stream; GPU LBVH remains separately gated" },
             IntegratedModuleStatus{
                 IntegratedModule::L5HardwareRt, "L5", "Ray Query / RT Pipeline",
-                ModuleCompositionStage::CentralBuild,
-                "module/tests are composed; production AS build and dispatch are not attached" },
+                ModuleCompositionStage::ProductionRuntime,
+                "Ray Query owns production BLAS/TLAS traversal for every interactive execution architecture; RT Pipeline/SBT remains separately gated" },
             IntegratedModuleStatus{
                 IntegratedModule::L6Megakernel, "L6", "PBR megakernel path tracer",
-                ModuleCompositionStage::CentralBuild,
-                "shader/tests are composed; production Vulkan dispatch is not attached" },
+                ModuleCompositionStage::ProductionRuntime,
+                "the staged PBR/Whitted/Megakernel path owns conventional direct lighting and exports the shared primary surface; ReSTIR owns primary direct lighting when selected" },
             IntegratedModuleStatus{
                 IntegratedModule::L7Wavefront, "L7", "wavefront path tracer",
-                ModuleCompositionStage::CentralBuild,
-                "stages/tests are composed; production queues and dispatch are not attached" },
+                ModuleCompositionStage::ProductionRuntime,
+                "queue reset, ray generation, indirect intersect/shade/shadow/next-bounce, and resolve dispatch through the mixed runtime" },
             IntegratedModuleStatus{
                 IntegratedModule::L8Reconstruction, "L8", "temporal / SVGF reconstruction",
-                ModuleCompositionStage::CentralBuild,
-                "shader/tests are composed; production history/GBuffer adapter is not attached" },
+                ModuleCompositionStage::ProductionRuntime,
+                "one shared primary-surface/signal export drives Raw, Temporal, fixed A-Trous, and SVGF for every interactive transport/execution tuple" },
             IntegratedModuleStatus{
                 IntegratedModule::L9RestirDi, "L9", "ReSTIR DI",
-                ModuleCompositionStage::CentralBuild,
-                "library/tests/Vulkan smoke are composed; production light/GBuffer adapter is not attached" },
+                ModuleCompositionStage::ProductionRuntime,
+                "abi-v3 candidate, reservoir, temporal/spatial reuse, visibility, split-direct publication, history, and reconstruction are attached to the mixed runtime" },
             IntegratedModuleStatus{
                 IntegratedModule::L10Showcase, "L10", "showcase / QA",
-                ModuleCompositionStage::CentralBuild,
-                "library/tests are composed; production UI and renderer providers are not attached" }
+                ModuleCompositionStage::ProductionRuntime,
+                "the Debug ImGui composition exposes eight independent algorithm axes, current provider status, GPU timing, debug textures, capture, and transactional shader reload" }
         };
 
         [[nodiscard]] constexpr std::size_t ModuleIndex(
@@ -89,12 +89,13 @@ namespace RenderingEngine
     {
         std::ostringstream output;
         output << "RenderingEngine integration status\n";
+        output << "final mixed GPU runtime: abi-v1 traversal, abi-v2 reconstruction, and abi-v3 ReSTIR are stage contracts rather than tuple partitions\n";
         for (const IntegratedModuleStatus& module : kModules)
         {
             output << module.lane << "  " << ToString(module.stage) << "  "
                 << module.name << " -- " << module.boundary << '\n';
         }
-        output << "central-build means solution composition only; it is not GPU, numerical, visual, or production-runtime acceptance\n";
+        output << "central-build means solution composition only for explicitly tested configurations; it is not GPU runtime, Vulkan validation, numerical convergence, visual, performance, or production-runtime acceptance\n";
         return output.str();
     }
 
@@ -109,7 +110,7 @@ namespace RenderingEngine
     {
         switch (value)
         {
-        case TraversalBackend::LegacyAnalyticGpu: return IntegratedModule::L0Foundation;
+        case TraversalBackend::CanonicalLinearGpu: return IntegratedModule::L0Foundation;
         case TraversalBackend::CpuBruteForce:
         case TraversalBackend::CpuSahBvh: return IntegratedModule::L3CpuReference;
         case TraversalBackend::GpuFlattenedSahBvh:
@@ -120,15 +121,24 @@ namespace RenderingEngine
         }
     }
 
-    IntegratedModule ProviderOwner(const Integrator value) noexcept
+    IntegratedModule ProviderOwner(const TransportModel value) noexcept
     {
         switch (value)
         {
-        case Integrator::Pbr:
-        case Integrator::Whitted: return IntegratedModule::L0Foundation;
-        case Integrator::CpuReferencePathTracer: return IntegratedModule::L3CpuReference;
-        case Integrator::GpuMegakernelPathTracer: return IntegratedModule::L6Megakernel;
-        case Integrator::GpuWavefrontPathTracer: return IntegratedModule::L7Wavefront;
+        case TransportModel::Pbr: return IntegratedModule::L6Megakernel;
+        case TransportModel::Whitted: return IntegratedModule::L0Foundation;
+        default: return IntegratedModule::L0Foundation;
+        }
+    }
+
+    IntegratedModule ProviderOwner(const ExecutionArchitecture value) noexcept
+    {
+        switch (value)
+        {
+        case ExecutionArchitecture::Staged: return IntegratedModule::L6Megakernel;
+        case ExecutionArchitecture::CpuReference: return IntegratedModule::L3CpuReference;
+        case ExecutionArchitecture::Megakernel: return IntegratedModule::L6Megakernel;
+        case ExecutionArchitecture::Wavefront: return IntegratedModule::L7Wavefront;
         default: return IntegratedModule::L0Foundation;
         }
     }
@@ -137,7 +147,6 @@ namespace RenderingEngine
     {
         switch (value)
         {
-        case DirectLightingEstimator::LegacyAnalyticDirect: return IntegratedModule::L0Foundation;
         case DirectLightingEstimator::BsdfOnly:
         case DirectLightingEstimator::NextEventEstimation:
         case DirectLightingEstimator::MultipleImportanceSampling:
@@ -148,18 +157,19 @@ namespace RenderingEngine
         }
     }
 
-    IntegratedModule ProviderOwner(const LightProposalDistribution value) noexcept
+    IntegratedModule ProviderOwner(const LightSelectionStrategy) noexcept
     {
-        return value == LightProposalDistribution::LegacyAnalyticLights
-            ? IntegratedModule::L0Foundation
-            : IntegratedModule::L6Megakernel;
+        return IntegratedModule::L6Megakernel;
     }
 
-    IntegratedModule ProviderOwner(const ReconstructionMode value) noexcept
+    IntegratedModule ProviderOwner(const EnvironmentDirectionSampler) noexcept
     {
-        return value == ReconstructionMode::Raw
-            ? IntegratedModule::L0Foundation
-            : IntegratedModule::L8Reconstruction;
+        return IntegratedModule::L6Megakernel;
+    }
+
+    IntegratedModule ProviderOwner(const ReconstructionMode) noexcept
+    {
+        return IntegratedModule::L8Reconstruction;
     }
 
     std::string_view ProductionAttachmentReason(const IntegratedModule module) noexcept

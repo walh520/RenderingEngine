@@ -60,8 +60,17 @@ namespace RenderingEngine::Wavefront::Tests
 
         const QueueAllocation allocation = MakeQueueAllocation(1920, 1080);
         WF_REQUIRE(allocation.pathCapacity == 1920u * 1080u);
+        WF_REQUIRE(allocation.primarySurfaceV2Bytes
+            == 1920ull * 1080ull
+                * sizeof(Contracts::AbiV2::GpuPrimarySurfaceV2));
         WF_REQUIRE(!allocation.scanLevels.empty());
         WF_REQUIRE(MakeQueueAllocation(1, 1).scanLevels.size() == 1);
+
+        const QueueAllocation batched = MakeQueueAllocation(16u, 8u, 4u);
+        WF_REQUIRE(batched.pathCapacity == 16u * 8u * 4u);
+        WF_REQUIRE(batched.primarySurfaceV2Bytes
+            == 16ull * 8ull
+                * sizeof(Contracts::AbiV2::GpuPrimarySurfaceV2));
 
         for (const std::size_t count : { 127u, 128u, 129u, 4097u })
         {

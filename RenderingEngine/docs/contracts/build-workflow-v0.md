@@ -66,13 +66,18 @@ begins; empty projects are not completion evidence.
 
 ```powershell
 & <MSBuild.exe> RenderingEngine.sln /t:Rebuild /m:1 `
-    /p:BuildInParallel=false /p:UseMultiToolTask=false `
+    /p:BuildInParallel=false /p:UseMultiToolTask=false /p:CL_MPCount=1 `
     /p:Configuration=Debug /p:Platform=x64
 
 & <MSBuild.exe> RenderingEngine.sln /t:Rebuild /m:1 `
-    /p:BuildInParallel=false /p:UseMultiToolTask=false `
+    /p:BuildInParallel=false /p:UseMultiToolTask=false /p:CL_MPCount=1 `
     /p:Configuration=Release /p:Platform=x64
 ```
+
+`CL_MPCount=1` serializes translation units inside each project. This is part
+of the reproducible validation command because `/FS` did not prevent C2471 PDB
+update failures on one accepted MSVC v145 installation. Ordinary interactive
+development may still use the shared `/MP` project default.
 
 For isolated ABI diagnosis, replace the solution with
 `RenderingEngine/tests/contracts/RenderingEngine.Contracts.Tests.vcxproj`.

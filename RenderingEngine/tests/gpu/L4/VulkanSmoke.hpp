@@ -27,7 +27,10 @@ namespace RenderingEngine::Rt::SoftwareGpu::VulkanSmoke
         std::uint32_t maximumDepth{};
         std::uint64_t uploadBytes{};
         std::uint64_t readbackBytes{};
-        bool gpuTimestampsMeasured{};
+        double buildGpuMilliseconds{};
+        double traceGpuMilliseconds{};
+        bool buildGpuTimestampMeasured{};
+        bool traceGpuTimestampMeasured{};
     };
 
     struct Report

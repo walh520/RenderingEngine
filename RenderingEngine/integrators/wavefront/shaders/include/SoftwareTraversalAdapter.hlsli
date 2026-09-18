@@ -7,7 +7,7 @@ bool WfSoftwareTraceClosest(WfRayItem ray, uint rayIndex, out WfMaterialWorkItem
 bool WfSoftwareTraceAny(WfShadowWorkItem ray);
 
 #ifndef WF_SOFTWARE_TRAVERSAL_IMPLEMENTATION
-#error "WF_SOFTWARE_TRAVERSAL_IMPLEMENTATION must name the L4 implementation include"
+#define WF_SOFTWARE_TRAVERSAL_IMPLEMENTATION "PbrSoftwareTraversalImplementation.hlsli"
 #endif
 #include WF_SOFTWARE_TRAVERSAL_IMPLEMENTATION
 

@@ -39,7 +39,15 @@ void ScatterCS(
     {
         if (prefix.y < gWfQueueHeaders[kWfQueueShadow].capacity)
         {
-            gWfShadowQueue[prefix.y] = gWfDenseShadow[index];
+            WfShadowQueueItem sharedShadow;
+            WfShadowAovItem shadowAov;
+            WfPackShadowQueue(
+                prefix.y,
+                gWfDenseShadow[index],
+                sharedShadow,
+                shadowAov);
+            gWfShadowQueue[prefix.y] = sharedShadow;
+            gWfShadowAov[prefix.y] = shadowAov;
             uint ignored;
             InterlockedAdd(gWfBounceCounters[gWfPass.pass.x].work.z, 1u, ignored);
         }

@@ -48,15 +48,20 @@
   <ItemGroup>
     <ClCompile Include="..\src\restir\Benchmark.cpp" />
     <ClCompile Include="..\src\restir\CandidateGenerators.cpp" />
+    <ClCompile Include="..\src\restir\LightHistory.cpp" />
     <ClCompile Include="..\src\restir\Reservoir.cpp" />
     <ClCompile Include="..\src\restir\RestirDi.cpp" />
+    <ClCompile Include="..\src\restir\VulkanProductionAttachment.cpp" />
+    <ClCompile Include="..\src\restir\VulkanProductionRuntime.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\restir\Benchmark.hpp" />
     <ClInclude Include="..\include\restir\CandidateGenerators.hpp" />
+    <ClInclude Include="..\include\restir\LightHistory.hpp" />
     <ClInclude Include="..\include\restir\Reservoir.hpp" />
     <ClInclude Include="..\include\restir\RestirDi.hpp" />
     <ClInclude Include="..\include\restir\RestirTypes.hpp" />
+    <ClInclude Include="..\include\restir\VulkanProductionRuntime.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

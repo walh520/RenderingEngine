@@ -55,9 +55,12 @@ namespace RenderingEngine
 
     [[nodiscard]] IntegratedModule ProviderOwner(ScenePreset value) noexcept;
     [[nodiscard]] IntegratedModule ProviderOwner(TraversalBackend value) noexcept;
-    [[nodiscard]] IntegratedModule ProviderOwner(Integrator value) noexcept;
+    [[nodiscard]] IntegratedModule ProviderOwner(TransportModel value) noexcept;
+    [[nodiscard]] IntegratedModule ProviderOwner(ExecutionArchitecture value) noexcept;
     [[nodiscard]] IntegratedModule ProviderOwner(DirectLightingEstimator value) noexcept;
-    [[nodiscard]] IntegratedModule ProviderOwner(LightProposalDistribution value) noexcept;
+    [[nodiscard]] IntegratedModule ProviderOwner(LightSelectionStrategy value) noexcept;
+    [[nodiscard]] IntegratedModule ProviderOwner(
+        EnvironmentDirectionSampler value) noexcept;
     [[nodiscard]] IntegratedModule ProviderOwner(ReconstructionMode value) noexcept;
 
     [[nodiscard]] std::string_view ProductionAttachmentReason(

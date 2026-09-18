@@ -1,3 +1,4 @@
+#include "reconstruction/AbiV2Bridge.hpp"
 #include "reconstruction/History.hpp"
 #include "reconstruction/MotionVectors.hpp"
 #include "reconstruction/Svgf.hpp"
@@ -13,6 +14,10 @@
 #include <string_view>
 
 namespace rr = rendering::reconstruction;
+
+namespace rendering::reconstruction::tests {
+void RunVulkanReconstructionRecorderSelfTests();
+}
 
 namespace {
 
@@ -261,7 +266,7 @@ void TestTemporalMomentsMotionAndReset() {
         rr::ResetTrigger::Resolution,
         rr::ResetTrigger::Scene,
         rr::ResetTrigger::Backend,
-        rr::ResetTrigger::Integrator,
+        rr::ResetTrigger::Transport,
         rr::ResetTrigger::ReconstructionParameters,
         rr::ResetTrigger::ShaderReload,
     };
@@ -482,6 +487,58 @@ void TestAllOutputSurfaces() {
     }
 }
 
+void TestAbiV2Bridge() {
+    constexpr std::string_view test = "AbiV2Bridge";
+    rr::GBufferPixel gbuffer{};
+    gbuffer.linearDepth = 4.0F;
+    gbuffer.worldNormal = {0.0F, 1.0F, 0.0F};
+    gbuffer.diffuseAlbedo = {0.2F, 0.3F, 0.4F};
+    gbuffer.specularAlbedo = {0.7F, 0.8F, 0.9F};
+    gbuffer.expectedPreviousLinearDepth = 4.25F;
+    gbuffer.motion = {-0.125F, 0.25F};
+    gbuffer.materialId = 3U;
+    gbuffer.objectId = 5U;
+    gbuffer.valid = true;
+    gbuffer.motionValid = true;
+    rr::AbiV2SurfaceInputs surface{};
+    surface.worldPosition = {1.0F, 2.0F, 3.0F};
+    surface.geometricNormal = {0.0F, 2.0F, 0.0F};
+    surface.roughness = 0.4F;
+    surface.metallic = 0.6F;
+    surface.primitiveId = 7U;
+    rr::SplitSignalPixel signal{};
+    signal.directDiffuse = {1.0F, 2.0F, 3.0F};
+    signal.directSpecular = {4.0F, 5.0F, 6.0F};
+    signal.indirectDiffuse = {7.0F, 8.0F, 9.0F};
+    signal.indirectSpecular = {10.0F, 11.0F, 12.0F};
+
+    const auto packed = rr::PackGBufferV2(
+        gbuffer, surface, signal, rr::Float2{0.5F, 0.25F});
+    L8_CHECK(test, packed.primary.identity.x == 3U);
+    L8_CHECK(test, packed.primary.identity.y == 5U);
+    L8_CHECK(test, packed.primary.identity.z == 7U);
+    L8_CHECK(test, Near(packed.motion.currentPreviousUv.z, 0.375F));
+    L8_CHECK(test, Near(packed.motion.currentPreviousUv.w, 0.5F));
+    L8_CHECK(test, Near(packed.signal.indirectSpecular.z, 12.0F));
+
+    const rr::AbiV2UnpackedGBuffer unpacked = rr::UnpackGBufferV2(packed);
+    L8_CHECK(test, unpacked.gbuffer.valid && unpacked.gbuffer.motionValid);
+    L8_CHECK(test, unpacked.gbuffer.materialId == 3U);
+    L8_CHECK(test, unpacked.gbuffer.objectId == 5U);
+    L8_CHECK(test, unpacked.surface.primitiveId == 7U);
+    L8_CHECK(test, Near(unpacked.gbuffer.motion.x, -0.125F));
+    L8_CHECK(test, Near(unpacked.signal.directSpecular.y, 5.0F));
+
+    const auto history = rr::PackHistoryMetadataV2(
+        rr::Moments{2.0F, 5.0F}, 1.25F, 17U, gbuffer, surface,
+        0x0000000200000001ULL, 9U,
+        RenderingEngine::Contracts::AbiV2::HistoryFlagValid);
+    L8_CHECK(test, history.frameIdentity.x == 1U);
+    L8_CHECK(test, history.frameIdentity.y == 2U);
+    L8_CHECK(test, history.frameIdentity.z == 9U);
+    L8_CHECK(test, Near(history.momentsVarianceHistory.w, 17.0F));
+}
+
 } // namespace
 
 int main() {
@@ -497,6 +554,8 @@ int main() {
         TestVarianceBootstrapAndDenoisingMetric();
         TestFiniteProtectionAndConfigValidation();
         TestAllOutputSurfaces();
+        TestAbiV2Bridge();
+        rr::tests::RunVulkanReconstructionRecorderSelfTests();
     } catch (const std::exception& error) {
         std::cerr << "[UNCAUGHT] " << error.what() << '\n';
         ++gFailureCount;
@@ -506,6 +565,6 @@ int main() {
         std::cerr << "L8 reconstruction tests failed: " << gFailureCount << '\n';
         return 1;
     }
-    std::cout << "L8 reconstruction tests passed (11 suites).\n";
+    std::cout << "L8 reconstruction tests passed (12 CPU suites + Vulkan command-recorder suite).\n";
     return 0;
 }

@@ -1,6 +1,6 @@
 # RuntimeConfig v0
 
-Status: **frozen Wave 0 control-plane contract, amended by ADR 0005**
+Status: **frozen control-plane contract, Wave 1 providers attached without enum changes**
 Contract token: `runtime-config-v0`
 
 `RuntimeConfig` is the single canonical description of a requested run. The
@@ -110,7 +110,7 @@ The decision has three possible meanings:
 There is no fallback to another scene, backend, estimator, proposal,
 reconstruction, validation state, or run mode.
 
-## Wave 0 implemented capability
+## Implemented capability
 
 Wave 0 supports only this compatibility slice:
 
@@ -130,21 +130,24 @@ default physical sphere-light method and deterministic PCF/PCSS comparison
 methods remain a separate `shadowMethod`; none of them is mislabeled as an
 estimator or proposal.
 
-The compatibility renderer accepts frame limit, target SPP, resize test,
+The GLFW production renderer accepts frame limit, target SPP, resize test,
 resolution, maximum bounce, base seed, exposure, startup FOV,
 VSync/validation selection, shadow, integrator, and debug controls. Render scale
 is fixed at `1.0`, and samples per frame is fixed at one; any other syntactically
-valid value is recognized but unsupported. `headless`, capture, benchmark, and
-reference comparison are also recognized but unsupported.
+valid value is recognized but unsupported. Live capture is supported for the
+baseline GLFW renderer and writes the frozen EXR/PNG/metadata bundle. Headless
+execution is supported only by the exact L3 Cornell + CPU SAH + CPU reference
++ MIS + uniform + raw tuple. Benchmark and reference comparison remain
+recognized but unsupported.
 
 Target SPP is at most 4096. A non-zero target combined with any debug view other
 than `final` is invalid rather than silently ignored. Startup FOV is 25 through
 80 degrees. VSync and validation use the explicit three-state policy
 `renderer-default|on|off`.
 
-`MakeHeadlessMockRuntimeConfig()` is a deterministic construction helper for
-unit tests and future L10 harness work. Its existence does not advertise
-headless production rendering.
+`MakeHeadlessMockRuntimeConfig()` remains a deterministic construction helper.
+It does not advertise a general GPU headless path; only the fail-closed L3
+tuple above is a production headless capability.
 
 ## Mutation and reset rules
 

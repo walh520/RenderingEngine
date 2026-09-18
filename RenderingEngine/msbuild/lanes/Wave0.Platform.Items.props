@@ -6,10 +6,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\core\ExecutablePathWin32.cpp"><Filter>Source Files\Platform</Filter></ClCompile>
-    <ClCompile Include="src\platform\**\*.cpp"><Filter>Source Files\Platform</Filter></ClCompile>
+    <ClCompile Include="src\platform\win32\Win32PlatformHost.cpp"><Filter>Source Files\Platform</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\core\ExecutablePath.hpp"><Filter>Header Files\Platform</Filter></ClInclude>
-    <ClInclude Include="include\platform\**\*.hpp"><Filter>Header Files\Platform</Filter></ClInclude>
+    <ClInclude Include="include\platform\IPlatformHost.hpp"><Filter>Header Files\Platform</Filter></ClInclude>
+    <ClInclude Include="include\platform\win32\Win32PlatformHost.hpp"><Filter>Header Files\Platform</Filter></ClInclude>
   </ItemGroup>
 </Project>

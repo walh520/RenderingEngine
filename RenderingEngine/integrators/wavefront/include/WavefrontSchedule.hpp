@@ -32,6 +32,11 @@ namespace RenderingEngine::Wavefront
         std::uint64_t materialBytes;
         std::uint64_t nextBytes;
         std::uint64_t shadowBytes;
+        std::uint64_t shadowAovBytes;
+        // One compact ABI-v2 surface per pixel, independent of path/sample
+        // capacity. L9 consumes this buffer at set 3 binding 24.
+        std::uint64_t primarySurfaceV2Bytes;
+        std::uint64_t sharedPathStateBytes;
         std::uint64_t pathStateBytes;
         std::uint64_t flagBytes;
         std::uint64_t scanScratchBytes;

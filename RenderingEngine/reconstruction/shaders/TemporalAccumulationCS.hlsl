@@ -1,13 +1,13 @@
 #include "ReconstructionCommon.hlsli"
 
-[[vk::binding(0, 0)]] StructuredBuffer<L8GBufferRecord> gCurrentGBuffer : register(t0);
-[[vk::binding(1, 0)]] StructuredBuffer<L8SignalRecord> gCurrentDemodulated : register(t1);
-[[vk::binding(2, 0)]] StructuredBuffer<L8HistoryRecord> gPreviousHistory : register(t2);
-[[vk::binding(3, 0)]] RWStructuredBuffer<L8SignalRecord> gTemporalOutput : register(u0);
-[[vk::binding(4, 0)]] RWStructuredBuffer<L8HistoryRecord> gCurrentHistory : register(u1);
-[[vk::binding(5, 0)]] RWStructuredBuffer<L8TemporalDebugRecord> gTemporalDebug : register(u2);
+[[vk::binding(0, 4)]] StructuredBuffer<GpuGBufferRecordV2> gCurrentGBuffer;
+[[vk::binding(5, 4)]] StructuredBuffer<L8SignalRecord> gCurrentDemodulated;
+[[vk::binding(6, 4)]] StructuredBuffer<L8HistoryRecord> gPreviousHistory;
+[[vk::binding(8, 4)]] RWStructuredBuffer<L8SignalRecord> gTemporalOutput;
+[[vk::binding(7, 4)]] RWStructuredBuffer<L8HistoryRecord> gCurrentHistory;
+[[vk::binding(9, 4)]] RWStructuredBuffer<L8TemporalDebugRecord> gTemporalDebug;
 
-[[vk::binding(6, 0)]] cbuffer L8TemporalConstants : register(b0)
+[[vk::binding(18, 4)]] cbuffer L8TemporalConstants
 {
     uint2 gTemporalExtent;
     uint gHasPreviousHistory;
@@ -52,7 +52,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     const uint2 pixel = dispatchThreadId.xy;
     if (any(pixel >= gTemporalExtent)) return;
     const uint index = L8LinearIndex(pixel, gTemporalExtent);
-    const L8GBufferRecord currentGBuffer = gCurrentGBuffer[index];
+    const L8GBufferRecord currentGBuffer = L8LoadGBuffer(gCurrentGBuffer[index]);
     const L8SignalRecord currentSignal = gCurrentDemodulated[index];
     const float originalCurrentLuminance = L8Luminance(currentSignal.diffuse + currentSignal.specular);
     const float originalCurrentLuminanceSquared = originalCurrentLuminance * originalCurrentLuminance;

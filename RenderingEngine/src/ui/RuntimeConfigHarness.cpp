@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <exception>
 #include <optional>
 #include <utility>
 
@@ -12,74 +13,52 @@ namespace RenderingEngine::Ui
         constexpr ResetMask kManualHistoryReset = ResetResource::Accumulation
             | ResetResource::TemporalHistory
             | ResetResource::ReservoirHistory;
-
-        constexpr auto kLightSamplingPresets = std::to_array<LightSamplingPresetDescriptor>({
-            {
-                LightSamplingPreset::LegacyAnalytic,
-                DirectLightingEstimator::LegacyAnalyticDirect,
-                LightProposalDistribution::LegacyAnalyticLights,
-                "Legacy Analytic Direct + Legacy Analytic Lights",
-                "L0"
-            },
-            {
-                LightSamplingPreset::BsdfOnly,
-                DirectLightingEstimator::BsdfOnly,
-                LightProposalDistribution::UniformLights,
-                "BSDF Only + Uniform Lights",
-                "L6"
-            },
-            {
-                LightSamplingPreset::NeeUniform,
-                DirectLightingEstimator::NextEventEstimation,
-                LightProposalDistribution::UniformLights,
-                "NEE + Uniform Light Proposal",
-                "L6"
-            },
-            {
-                LightSamplingPreset::NeePowerWeighted,
-                DirectLightingEstimator::NextEventEstimation,
-                LightProposalDistribution::PowerWeightedLights,
-                "NEE + Power-weighted Light Proposal",
-                "L6"
-            },
-            {
-                LightSamplingPreset::MisPowerWeighted,
-                DirectLightingEstimator::MultipleImportanceSampling,
-                LightProposalDistribution::PowerWeightedLights,
-                "NEE + MIS + Power-weighted Proposal",
-                "L6"
-            },
-            {
-                LightSamplingPreset::RestirDirectIllumination,
-                DirectLightingEstimator::RestirDirectIllumination,
-                LightProposalDistribution::PowerWeightedLights,
-                "ReSTIR DI + Power-weighted Proposal",
-                "L9"
-            }
-        });
+        constexpr std::string_view kScene6UnavailableReason =
+            "Scene 6 unavailable: Sponza asset/provider gate";
+        constexpr std::string_view kAlreadyRecommendedReason =
+            "current scene already uses its recommended teaching profile";
+        constexpr std::string_view kMissingRecommendedReason =
+            "current scene has no registered recommended teaching profile";
 
         constexpr auto kBackends = std::to_array({
-            TraversalBackend::LegacyAnalyticGpu,
-            TraversalBackend::CpuBruteForce,
-            TraversalBackend::CpuSahBvh,
+            TraversalBackend::CanonicalLinearGpu,
             TraversalBackend::GpuFlattenedSahBvh,
-            TraversalBackend::GpuLbvh,
-            TraversalBackend::VulkanRayQuery,
-            TraversalBackend::VulkanRayTracingPipeline
+            TraversalBackend::VulkanRayQuery
         });
 
-        constexpr auto kIntegrators = std::to_array({
-            Integrator::Whitted,
-            Integrator::Pbr,
-            Integrator::CpuReferencePathTracer,
-            Integrator::GpuMegakernelPathTracer,
-            Integrator::GpuWavefrontPathTracer
+        constexpr auto kTransportModels = std::to_array({
+            TransportModel::Pbr,
+            TransportModel::Whitted
+        });
+
+        constexpr auto kExecutionArchitectures = std::to_array({
+            ExecutionArchitecture::Staged,
+            ExecutionArchitecture::Megakernel,
+            ExecutionArchitecture::Wavefront
+        });
+
+        constexpr auto kDirectEstimators = std::to_array({
+            DirectLightingEstimator::BsdfOnly,
+            DirectLightingEstimator::NextEventEstimation,
+            DirectLightingEstimator::MultipleImportanceSampling,
+            DirectLightingEstimator::RestirDirectIllumination
+        });
+
+        constexpr auto kLightSelections = std::to_array({
+            LightSelectionStrategy::Uniform,
+            LightSelectionStrategy::PowerWeighted
+        });
+
+        constexpr auto kEnvironmentSamplers = std::to_array({
+            EnvironmentDirectionSampler::UniformSphere,
+            EnvironmentDirectionSampler::ImportanceMap
         });
 
         constexpr auto kReconstructions = std::to_array({
-            ReconstructionMode::Raw,
+            ReconstructionMode::CurrentFrame,
+            ReconstructionMode::ProgressiveMean,
             ReconstructionMode::TemporalAccumulation,
-            ReconstructionMode::TemporalFixedAtrous,
+            ReconstructionMode::SpatialFixedAtrous,
             ReconstructionMode::Svgf
         });
 
@@ -89,7 +68,26 @@ namespace RenderingEngine::Ui
             DebugView::Normal,
             DebugView::Roughness,
             DebugView::Metallic,
-            DebugView::Emissive
+            DebugView::Emissive,
+            DebugView::Motion,
+            DebugView::HistoryLength,
+            DebugView::Moments,
+            DebugView::Variance,
+            DebugView::TemporalAcceptance,
+            DebugView::TemporalRejectReasons,
+            DebugView::ReservoirM,
+            DebugView::ReservoirWeight,
+            DebugView::ReservoirLightId,
+            DebugView::ReservoirSource,
+            DebugView::ReservoirReuse,
+            DebugView::ReservoirRejection,
+            DebugView::WinnerVisibility
+        });
+
+        constexpr auto kShadowMethods = std::to_array({
+            ShadowMethod::Pcf,
+            ShadowMethod::Pcss,
+            ShadowMethod::Physical
         });
 
         constexpr auto kRenderScales = std::to_array({
@@ -103,6 +101,79 @@ namespace RenderingEngine::Ui
 
         constexpr float kExposureQuarterStop = 1.189207115f;
         constexpr float kFovDegreesPerWheelStep = 2.0f;
+
+        [[nodiscard]] bool RestirSettingsDiffer(
+            const RestirSettings& left,
+            const RestirSettings& right) noexcept
+        {
+            return left.manyLightsTier != right.manyLightsTier
+                || left.reuseStage != right.reuseStage
+                || left.biasMode != right.biasMode
+                || left.initialCandidatesPerPixel != right.initialCandidatesPerPixel
+                || left.spatialNeighbors != right.spatialNeighbors
+                || left.maximumReservoirM != right.maximumReservoirM
+                || left.maximumHistoryAge != right.maximumHistoryAge
+                || left.comparisonCandidateBudgetPerPixel
+                    != right.comparisonCandidateBudgetPerPixel
+                || left.comparisonVisibilityBudgetPerPixel
+                    != right.comparisonVisibilityBudgetPerPixel
+                || left.animateLights != right.animateLights
+                || left.animateRigidOccluders != right.animateRigidOccluders;
+        }
+
+        [[nodiscard]] ResetMask RecommendedProfileResetMask(
+            const RuntimeConfig& current,
+            const RuntimeConfig& candidate,
+            const SceneRecommendedProfile& profile) noexcept
+        {
+            ResetMask resets = ResetResource::None;
+            if (current.backend != candidate.backend)
+            {
+                resets |= ResetMaskFor(ResetCause::BackendChanged);
+            }
+            if (current.transportModel != candidate.transportModel
+                || current.executionArchitecture
+                    != candidate.executionArchitecture
+                || current.directLightingEstimator
+                    != candidate.directLightingEstimator
+                || current.lightSelection != candidate.lightSelection
+                || current.environmentSampler != candidate.environmentSampler)
+            {
+                resets |= ResetMaskFor(
+                    ResetCause::TransportExecutionOrSamplingChanged);
+            }
+            if (current.reconstruction != candidate.reconstruction)
+            {
+                resets |= ResetMaskFor(ResetCause::ReconstructionChanged);
+            }
+            if (current.shadowMethod != candidate.shadowMethod)
+            {
+                resets |= ResetMaskFor(ResetCause::ShadingParameterChanged);
+            }
+            if (current.render.maximumBounce
+                != candidate.render.maximumBounce)
+            {
+                resets |= ResetMaskFor(ResetCause::SamplingParameterChanged);
+            }
+
+            // DebugView is display-only. Scene identity is never changed by
+            // F11. Only scene 9 owns ReSTIR fields in the recommendation.
+            if (profile.restir.has_value()
+                && RestirSettingsDiffer(current.restir, candidate.restir))
+            {
+                resets |= ResetMaskFor(ResetCause::SamplingParameterChanged);
+                if (current.restir.manyLightsTier
+                        != candidate.restir.manyLightsTier
+                    || current.restir.animateLights
+                        != candidate.restir.animateLights
+                    || current.restir.animateRigidOccluders
+                        != candidate.restir.animateRigidOccluders)
+                {
+                    resets |= ResetMaskFor(ResetCause::TopologyOrStableIdChanged);
+                }
+            }
+            return resets;
+        }
 
         [[nodiscard]] bool RequiresPressedPhase(SemanticAction action) noexcept
         {
@@ -156,6 +227,16 @@ namespace RenderingEngine::Ui
             const CapabilityDecision decision = CapabilityTable::Evaluate(candidate);
             if (!decision.IsSupported())
             {
+                if ((queued.event.action == SemanticAction::SelectScene6
+                        || queued.event.action
+                            == SemanticAction::RestoreCurrentSceneRecommendedProfile)
+                    && candidate.scene == ScenePreset::SponzaTraversalHall)
+                {
+                    return Reject(queued, {
+                        decision.status,
+                        kScene6UnavailableReason
+                    });
+                }
                 return Reject(queued, decision);
             }
 
@@ -229,61 +310,6 @@ namespace RenderingEngine::Ui
             return Reject(queued, CapabilityTable::Evaluate(liveConfig));
         }
 
-        [[nodiscard]] ActionApplyResult ApplyLightSamplingCycle(
-            const QueuedAction& queued,
-            RuntimeConfig& liveConfig,
-            bool forward)
-        {
-            const auto matchesCurrent = [&liveConfig](const LightSamplingPresetDescriptor& preset)
-            {
-                return preset.estimator == liveConfig.directLightingEstimator
-                    && preset.proposal == liveConfig.lightProposalDistribution;
-            };
-
-            std::size_t currentIndex = forward ? kLightSamplingPresets.size() - 1u : 0u;
-            for (std::size_t index = 0; index < kLightSamplingPresets.size(); ++index)
-            {
-                if (matchesCurrent(kLightSamplingPresets[index]))
-                {
-                    currentIndex = index;
-                    break;
-                }
-            }
-
-            for (std::size_t step = 1; step <= kLightSamplingPresets.size(); ++step)
-            {
-                const std::size_t offset = step % kLightSamplingPresets.size();
-                const std::size_t index = forward
-                    ? (currentIndex + offset) % kLightSamplingPresets.size()
-                    : (currentIndex + kLightSamplingPresets.size() - offset)
-                        % kLightSamplingPresets.size();
-                const LightSamplingPresetDescriptor& preset = kLightSamplingPresets[index];
-                if (!CapabilityTable::IsBuilt(preset.estimator)
-                    || !CapabilityTable::IsBuilt(preset.proposal))
-                {
-                    continue;
-                }
-
-                RuntimeConfig candidate = liveConfig;
-                candidate.directLightingEstimator = preset.estimator;
-                candidate.lightProposalDistribution = preset.proposal;
-                if (!CapabilityTable::Evaluate(candidate).IsSupported())
-                {
-                    continue;
-                }
-
-                const bool changed = !matchesCurrent(preset);
-                return CommitCandidate(
-                    queued,
-                    liveConfig,
-                    std::move(candidate),
-                    changed,
-                    ResetMaskFor(ResetCause::IntegratorOrLightSamplingChanged));
-            }
-
-            return Reject(queued, CapabilityTable::Evaluate(liveConfig));
-        }
-
         [[nodiscard]] std::optional<ScenePreset> SceneForAction(SemanticAction action) noexcept
         {
             if (action < SemanticAction::SelectScene0 || action > SemanticAction::SelectScene9)
@@ -344,6 +370,7 @@ namespace RenderingEngine::Ui
             case SemanticAction::ToggleDebugLegend: return RoutedCommand::ToggleDebugLegend;
             case SemanticAction::RequestBenchmark: return RoutedCommand::RequestBenchmark;
             case SemanticAction::RequestReferenceComparison: return RoutedCommand::RequestReferenceComparison;
+            case SemanticAction::PrintCurrentReview: return RoutedCommand::PrintCurrentReview;
             default: return RoutedCommand::None;
             }
         }
@@ -367,7 +394,8 @@ namespace RenderingEngine::Ui
 
         [[nodiscard]] ActionApplyResult ApplyOne(
             const QueuedAction& queued,
-            RuntimeConfig& liveConfig)
+            RuntimeConfig& liveConfig,
+            const SceneVariantCatalog& sceneVariants)
         {
             const SemanticAction action = queued.event.action;
             if (queued.event.phase == ActionPhase::Repeated
@@ -376,14 +404,78 @@ namespace RenderingEngine::Ui
                 return IgnoredPhase(queued);
             }
 
+            if (action == SemanticAction::CycleSceneVariantForward
+                || action == SemanticAction::CycleSceneVariantBackward)
+            {
+                if (!sceneVariants)
+                    return Reject(queued, { CapabilityStatus::Unsupported, "scene variant provider is unavailable" });
+                std::vector<std::string> variants;
+                try { variants = sceneVariants(liveConfig); }
+                catch (const std::exception&)
+                {
+                    return Reject(queued, { CapabilityStatus::Unsupported, "scene variant provider failed; configuration unchanged" });
+                }
+                if (variants.empty())
+                    return Reject(queued, { CapabilityStatus::Unsupported, "current scene has no available variants" });
+                const auto found = std::find(variants.begin(), variants.end(), liveConfig.sceneVariant);
+                if (!liveConfig.sceneVariant.empty() && found == variants.end())
+                    return Reject(queued, { CapabilityStatus::InvalidConfiguration, "current scene variant is not registered" });
+                const std::size_t current = liveConfig.sceneVariant.empty() ? 0u
+                    : static_cast<std::size_t>(found - variants.begin());
+                const std::size_t selected = action == SemanticAction::CycleSceneVariantForward
+                    ? (current + 1u) % variants.size()
+                    : (current + variants.size() - 1u) % variants.size();
+                RuntimeConfig candidate = liveConfig;
+                candidate.sceneVariant = variants[selected];
+                return CommitCandidate(queued, liveConfig, std::move(candidate),
+                    selected != current, ResetMaskFor(ResetCause::SceneChanged));
+            }
             const bool forward = action == SemanticAction::CycleBackendForward
-                || action == SemanticAction::CycleIntegratorForward
-                || action == SemanticAction::CycleLightSamplingForward
+                || action == SemanticAction::CycleTransportModelForward
+                || action == SemanticAction::CycleExecutionArchitectureForward
+                || action == SemanticAction::CycleDirectLightingForward
+                || action == SemanticAction::CycleLightSelectionForward
+                || action == SemanticAction::CycleEnvironmentSamplerForward
+                || action == SemanticAction::CycleShadowForward
                 || action == SemanticAction::CycleReconstructionForward
                 || action == SemanticAction::CycleDebugViewForward;
 
             switch (action)
             {
+            case SemanticAction::RestoreCurrentSceneRecommendedProfile:
+            {
+                const SceneRecommendedProfile* const profile =
+                    FindSceneRecommendedProfile(liveConfig.scene);
+                if (profile == nullptr)
+                {
+                    return Reject(queued, {
+                        CapabilityStatus::InvalidConfiguration,
+                        kMissingRecommendedReason
+                    });
+                }
+
+                RuntimeConfig candidate = MakeSceneRecommendedConfig(
+                    liveConfig,
+                    *profile);
+                const bool changed = !MatchesSceneRecommendedProfile(
+                    liveConfig,
+                    *profile);
+                const ResetMask resets = RecommendedProfileResetMask(
+                    liveConfig,
+                    candidate,
+                    *profile);
+                ActionApplyResult result = CommitCandidate(
+                    queued,
+                    liveConfig,
+                    std::move(candidate),
+                    changed,
+                    resets);
+                if (result.status == ActionApplyStatus::AcceptedNoConfigChange)
+                {
+                    result.reason = kAlreadyRecommendedReason;
+                }
+                return result;
+            }
             case SemanticAction::CycleBackendForward:
             case SemanticAction::CycleBackendBackward:
                 return ApplyBuiltCycle(
@@ -395,20 +487,111 @@ namespace RenderingEngine::Ui
                     [](RuntimeConfig& config, TraversalBackend value) { config.backend = value; },
                     [](TraversalBackend value) { return CapabilityTable::IsBuilt(value); },
                     ResetMaskFor(ResetCause::BackendChanged));
-            case SemanticAction::CycleIntegratorForward:
-            case SemanticAction::CycleIntegratorBackward:
+            case SemanticAction::CycleTransportModelForward:
+            case SemanticAction::CycleTransportModelBackward:
                 return ApplyBuiltCycle(
                     queued,
                     liveConfig,
-                    kIntegrators,
+                    kTransportModels,
                     forward,
-                    [](const RuntimeConfig& config) { return config.integrator; },
-                    [](RuntimeConfig& config, Integrator value) { config.integrator = value; },
-                    [](Integrator value) { return CapabilityTable::IsBuilt(value); },
-                    ResetMaskFor(ResetCause::IntegratorOrLightSamplingChanged));
-            case SemanticAction::CycleLightSamplingForward:
-            case SemanticAction::CycleLightSamplingBackward:
-                return ApplyLightSamplingCycle(queued, liveConfig, forward);
+                    [](const RuntimeConfig& config) { return config.transportModel; },
+                    [](RuntimeConfig& config, TransportModel value)
+                    {
+                        config.transportModel = value;
+                    },
+                    [](TransportModel value) { return CapabilityTable::IsBuilt(value); },
+                    ResetMaskFor(ResetCause::TransportExecutionOrSamplingChanged));
+            case SemanticAction::CycleExecutionArchitectureForward:
+            case SemanticAction::CycleExecutionArchitectureBackward:
+                return ApplyBuiltCycle(
+                    queued,
+                    liveConfig,
+                    kExecutionArchitectures,
+                    forward,
+                    [](const RuntimeConfig& config)
+                    {
+                        return config.executionArchitecture;
+                    },
+                    [](RuntimeConfig& config, ExecutionArchitecture value)
+                    {
+                        config.executionArchitecture = value;
+                    },
+                    [](ExecutionArchitecture value)
+                    {
+                        return CapabilityTable::IsBuilt(value);
+                    },
+                    ResetMaskFor(ResetCause::TransportExecutionOrSamplingChanged));
+            case SemanticAction::CycleDirectLightingForward:
+            case SemanticAction::CycleDirectLightingBackward:
+                return ApplyBuiltCycle(
+                    queued,
+                    liveConfig,
+                    kDirectEstimators,
+                    forward,
+                    [](const RuntimeConfig& config)
+                    {
+                        return config.directLightingEstimator;
+                    },
+                    [](RuntimeConfig& config, DirectLightingEstimator value)
+                    {
+                        config.directLightingEstimator = value;
+                    },
+                    [](DirectLightingEstimator value)
+                    {
+                        return CapabilityTable::IsBuilt(value);
+                    },
+                    ResetMaskFor(ResetCause::TransportExecutionOrSamplingChanged));
+            case SemanticAction::CycleLightSelectionForward:
+            case SemanticAction::CycleLightSelectionBackward:
+                return ApplyBuiltCycle(
+                    queued,
+                    liveConfig,
+                    kLightSelections,
+                    forward,
+                    [](const RuntimeConfig& config)
+                    {
+                        return config.lightSelection;
+                    },
+                    [](RuntimeConfig& config, LightSelectionStrategy value)
+                    {
+                        config.lightSelection = value;
+                    },
+                    [](LightSelectionStrategy value)
+                    {
+                        return CapabilityTable::IsBuilt(value);
+                    },
+                    ResetMaskFor(ResetCause::TransportExecutionOrSamplingChanged));
+            case SemanticAction::CycleEnvironmentSamplerForward:
+            case SemanticAction::CycleEnvironmentSamplerBackward:
+                return ApplyBuiltCycle(
+                    queued,
+                    liveConfig,
+                    kEnvironmentSamplers,
+                    forward,
+                    [](const RuntimeConfig& config)
+                    {
+                        return config.environmentSampler;
+                    },
+                    [](RuntimeConfig& config, EnvironmentDirectionSampler value)
+                    {
+                        config.environmentSampler = value;
+                    },
+                    [](EnvironmentDirectionSampler value)
+                    {
+                        return CapabilityTable::IsBuilt(value);
+                    },
+                    ResetMaskFor(ResetCause::TransportExecutionOrSamplingChanged));
+            case SemanticAction::CycleShadowForward:
+            case SemanticAction::CycleShadowBackward:
+                return ApplyBuiltCycle(
+                    queued,
+                    liveConfig,
+                    kShadowMethods,
+                    forward,
+                    [](const RuntimeConfig& config) { return config.shadowMethod; },
+                    [](RuntimeConfig& config, ShadowMethod value) { config.shadowMethod = value; },
+                    [](ShadowMethod value) { return CapabilityTable::IsBuilt(value); },
+                    ResetMaskFor(ResetCause::ShadingParameterChanged));
             case SemanticAction::CycleReconstructionForward:
             case SemanticAction::CycleReconstructionBackward:
                 return ApplyBuiltCycle(
@@ -509,8 +692,13 @@ namespace RenderingEngine::Ui
             if (const std::optional<ScenePreset> scene = SceneForAction(action); scene.has_value())
             {
                 RuntimeConfig candidate = liveConfig;
+                // Scene digits never mutate the algorithm tuple. If the
+                // current backend/transport/execution tuple cannot consume the selected
+                // scene, CommitCandidate rejects the complete candidate and
+                // preserves the old scene and algorithms.
                 candidate.scene = *scene;
                 const bool changed = *scene != liveConfig.scene;
+                if (changed) candidate.sceneVariant.clear();
                 return CommitCandidate(
                     queued,
                     liveConfig,
@@ -544,11 +732,6 @@ namespace RenderingEngine::Ui
         }
     };
 
-    std::span<const LightSamplingPresetDescriptor> GetLightSamplingPresetCatalog() noexcept
-    {
-        return kLightSamplingPresets;
-    }
-
     std::uint64_t ActionQueue::Push(ActionEvent event)
     {
         const std::uint64_t sequence = nextSequence_++;
@@ -575,13 +758,14 @@ namespace RenderingEngine::Ui
         return actions_.size();
     }
 
-    ActionBatchResult ApplyQueuedActions(ActionQueue& queue, RuntimeConfig& liveConfig)
+    ActionBatchResult ApplyQueuedActions(ActionQueue& queue, RuntimeConfig& liveConfig,
+        const SceneVariantCatalog& sceneVariants)
     {
         ActionBatchResult batch;
         batch.actions.reserve(queue.Size());
         while (!queue.Empty())
         {
-            ActionApplyResult result = ApplyOne(ActionQueueAccess::PopFront(queue), liveConfig);
+            ActionApplyResult result = ApplyOne(ActionQueueAccess::PopFront(queue), liveConfig, sceneVariants);
             result.effectiveRuntimeConfig = liveConfig;
             batch.requestedResets |= result.requestedResets;
             batch.actions.push_back(result);

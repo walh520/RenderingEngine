@@ -69,7 +69,7 @@ namespace RenderingEngine::Ui
             case MetricDomain::Cpu:
             case MetricDomain::Gpu:
             case MetricDomain::Traversal:
-            case MetricDomain::Integrator:
+            case MetricDomain::PathTransport:
             case MetricDomain::Reconstruction:
             case MetricDomain::Memory:
             case MetricDomain::Quality:

@@ -6,6 +6,29 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\integrators\reference_cpu\CornellReference.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="src\rt\cpu\ImageOutput.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="src\renderers\Wave2Runtime.cpp"><Filter>Source Files\Renderers</Filter></ClCompile>
+    <ClCompile Include="src\renderers\Wave3DebugRuntime.cpp"><Filter>Source Files\Renderers</Filter></ClCompile>
+    <ClCompile Include="integrators\wavefront\src\WavefrontSchedule.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="integrators\wavefront\src\VulkanWavefrontRecorder.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="reconstruction\src\VulkanReconstructionRecorder.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="rt\hardware\src\AccelerationStructures.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="rt\hardware\src\DeviceBuffer.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="rt\hardware\src\DeviceDispatch.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="rt\hardware\src\HardwareRtCapabilities.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="rt\hardware\src\RayQueryBackend.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="integrators\megakernel\MegakernelBridge.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="src\renderers\Wave3FrameGraph.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="src\renderers\Wave3Acceptance.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="src\renderers\Wave3Execution.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="src\renderers\ReSTIRDIRuntime.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="src\renderers\ReSTIRFrameParameters.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="src\renderers\VulkanReSTIRRecorder.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="src\restir\VulkanProductionRuntime.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="src\restir\VulkanProductionAttachment.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="src\renderers\Wave4FrameGraph.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="src\renderers\Wave4Acceptance.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
+    <ClCompile Include="src\renderers\Wave5ShowcaseRuntime.cpp"><Filter>Source Files\Integration</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\integrators\reference_cpu\CornellReference.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
@@ -14,5 +37,23 @@
     <ClInclude Include="include\rt\cpu\Geometry.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
     <ClInclude Include="include\rt\cpu\Math.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
     <ClInclude Include="include\rt\cpu\Random.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\rt\gpu\IGpuTraversalBackend.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\rt\gpu\TraversalFixtures.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\renderers\Wave2Runtime.hpp"><Filter>Header Files\Renderers</Filter></ClInclude>
+    <ClInclude Include="include\renderers\Wave3DebugRuntime.hpp"><Filter>Header Files\Renderers</Filter></ClInclude>
+    <ClInclude Include="integrators\wavefront\include\WavefrontSchedule.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="integrators\wavefront\include\VulkanWavefrontRecorder.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="reconstruction\include\reconstruction\VulkanReconstructionRecorder.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="integrators\megakernel\MegakernelBridge.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\renderers\Wave3FrameGraph.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\renderers\Wave3Acceptance.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\renderers\Wave3Execution.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\renderers\ReSTIRDIRuntime.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\renderers\ReSTIRFrameParameters.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\renderers\VulkanReSTIRRecorder.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\restir\VulkanProductionRuntime.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\renderers\Wave4FrameGraph.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\renderers\Wave4Acceptance.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
+    <ClInclude Include="include\renderers\Wave5ShowcaseRuntime.hpp"><Filter>Header Files\Integration</Filter></ClInclude>
   </ItemGroup>
 </Project>

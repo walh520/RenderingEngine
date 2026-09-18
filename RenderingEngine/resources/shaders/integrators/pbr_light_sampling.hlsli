@@ -1,7 +1,7 @@
 #ifndef RENDERING_ENGINE_PBR_LIGHT_SAMPLING_HLSLI
 #define RENDERING_ENGINE_PBR_LIGHT_SAMPLING_HLSLI
 
-#include "pbr_fixture_traversal.hlsli"
+#include "pbr_traversal_select.hlsli"
 
 [[vk::binding(2, 0)]] StructuredBuffer<PbrLightGpuL6> gPbrLightsL6;
 [[vk::binding(3, 0)]] StructuredBuffer<PbrAliasEntryGpuL6> gPbrLightAliasL6;
@@ -21,9 +21,10 @@ PbrLightSampleL6 PbrInvalidLightSampleL6()
     sample.conditionalPdf = 0.0f;
     sample.combinedPdfW = 0.0f;
     sample.lightIndex = PBR_L6_INVALID_INDEX;
+    sample.instanceId = PBR_L6_INVALID_INDEX;
     sample.primitiveId = PBR_L6_INVALID_INDEX;
     sample.position = 0.0f;
-    sample.measure = PBR_L6_MEASURE_SOLID_ANGLE;
+    sample.measure = PBR_L6_MEASURE_INVALID;
     sample.normal = 0.0f;
     sample.flags = 0u;
     return sample;
@@ -97,6 +98,14 @@ float2 PbrEnvironmentUvFromLocalDirectionL6(float3 localDirection)
 
 float3 PbrEnvironmentRadianceL6(float3 worldDirection)
 {
+#if defined(PBR_L6_CANONICAL_LIGHTS_ONLY)
+    // The deterministic Wave 2 canonical render corpus contains only a
+    // directional light or emissive triangles and publishes no environment.
+    // This scene-domain specialization avoids asking current drivers to JIT
+    // unrelated light models into the already large Megakernel module.
+    (void)worldDirection;
+    return 0.0f;
+#else
     const uint lightIndex = gPbrFrameL6.environment.x;
     if (lightIndex == PBR_L6_INVALID_INDEX || lightIndex >= gPbrFrameL6.trace.w)
     {
@@ -116,6 +125,7 @@ float3 PbrEnvironmentRadianceL6(float3 worldDirection)
     const float2 uv = PbrEnvironmentUvFromLocalDirectionL6(localDirection);
     return gPbrEnvironmentTextureL6.SampleLevel(gPbrEnvironmentSamplerL6, uv, 0.0f).rgb
         * PbrLightRadianceScaleL6(light);
+#endif
 }
 
 float PbrEnvironmentPdfL6(float3 worldDirection)
@@ -127,6 +137,11 @@ float PbrEnvironmentPdfL6(float3 worldDirection)
         || gPbrFrameL6.distribution.z != width * height)
     {
         return 0.0f;
+    }
+    if (gPbrFrameL6.environment.w
+        == PBR_L6_ENVIRONMENT_SAMPLER_UNIFORM_SPHERE)
+    {
+        return 1.0f / (4.0f * PBR_L6_PI);
     }
     const float3 localDirection = normalize(PbrTransformDirectionRowsL6(
         worldDirection,
@@ -222,6 +237,7 @@ PbrLightSampleL6 PbrSampleDirectionalLightL6(
     return sample;
 }
 
+[noinline]
 PbrLightSampleL6 PbrSampleTriangleLightL6(
     PbrLightContextL6 context,
     PbrLightGpuL6 light,
@@ -235,6 +251,11 @@ PbrLightSampleL6 PbrSampleTriangleLightL6(
         return sample;
     }
     const PbrFixtureTriangleGpuL6 fixtureTriangle = gPbrFixtureTrianglesL6[light.payload.x];
+    if (fixtureTriangle.metadata.z != light.payload.w ||
+        fixtureTriangle.metadata.y != light.identity.w)
+    {
+        return sample;
+    }
     const float3 edge1 = fixtureTriangle.p1.xyz - fixtureTriangle.p0.xyz;
     const float3 edge2 = fixtureTriangle.p2.xyz - fixtureTriangle.p0.xyz;
     const float3 normalUnnormalized = cross(edge1, edge2);
@@ -276,6 +297,7 @@ PbrLightSampleL6 PbrSampleTriangleLightL6(
     sample.conditionalPdf = pdfArea;
     sample.combinedPdfW = selectionPmf * pdfSolidAngle;
     sample.lightIndex = lightIndex;
+    sample.instanceId = light.payload.w;
     sample.primitiveId = fixtureTriangle.metadata.y;
     sample.position = lightPosition;
     sample.measure = PBR_L6_MEASURE_AREA;
@@ -284,6 +306,7 @@ PbrLightSampleL6 PbrSampleTriangleLightL6(
     return sample;
 }
 
+[noinline]
 PbrLightSampleL6 PbrSampleSphereLightL6(
     PbrLightContextL6 context,
     PbrLightGpuL6 light,
@@ -386,6 +409,7 @@ PbrLightSampleL6 PbrSampleSphereLightL6(
         sample.combinedPdfW = selectionPmf * conditionalPdf;
     }
     sample.lightIndex = lightIndex;
+    sample.instanceId = light.payload.w;
     sample.primitiveId = light.identity.w;
     sample.position = lightPosition;
     sample.measure = measure;
@@ -394,6 +418,7 @@ PbrLightSampleL6 PbrSampleSphereLightL6(
     return sample;
 }
 
+[noinline]
 PbrLightSampleL6 PbrSampleEnvironmentLightL6(
     PbrLightGpuL6 light,
     uint lightIndex,
@@ -409,46 +434,64 @@ PbrLightSampleL6 PbrSampleEnvironmentLightL6(
     {
         return sample;
     }
-    const PbrAliasEntryGpuL6 rowEntry = PbrSampleAliasL6(
-        gPbrEnvironmentRowAliasL6,
-        0u,
-        height,
-        randomSample.x);
-    if (rowEntry.item >= height || !(rowEntry.pmf > 0.0f))
+    float3 localDirection;
+    float2 uv;
+    float pdfSolidAngle;
+    if (gPbrFrameL6.environment.w
+        == PBR_L6_ENVIRONMENT_SAMPLER_UNIFORM_SPHERE)
     {
-        return sample;
+        const float cosTheta = 1.0f - 2.0f * randomSample.x;
+        const float sinTheta = sqrt(max(0.0f, 1.0f - cosTheta * cosTheta));
+        const float phi = PBR_L6_TWO_PI * randomSample.y;
+        localDirection = float3(
+            sinTheta * cos(phi), cosTheta, sinTheta * sin(phi));
+        uv = PbrEnvironmentUvFromLocalDirectionL6(localDirection);
+        pdfSolidAngle = 1.0f / (4.0f * PBR_L6_PI);
     }
-    const PbrAliasEntryGpuL6 columnEntry = PbrSampleAliasL6(
-        gPbrEnvironmentColumnAliasL6,
-        rowEntry.item * width,
-        width,
-        randomSample.y);
-    if (columnEntry.item >= width || !(columnEntry.pmf > 0.0f))
+    else
     {
-        return sample;
+        const PbrAliasEntryGpuL6 rowEntry = PbrSampleAliasL6(
+            gPbrEnvironmentRowAliasL6,
+            0u,
+            height,
+            randomSample.x);
+        if (rowEntry.item >= height || !(rowEntry.pmf > 0.0f))
+        {
+            return sample;
+        }
+        const PbrAliasEntryGpuL6 columnEntry = PbrSampleAliasL6(
+            gPbrEnvironmentColumnAliasL6,
+            rowEntry.item * width,
+            width,
+            randomSample.y);
+        if (columnEntry.item >= width || !(columnEntry.pmf > 0.0f))
+        {
+            return sample;
+        }
+        const float theta0 = PBR_L6_PI * float(rowEntry.item) / float(height);
+        const float theta1 = PBR_L6_PI * float(rowEntry.item + 1u) / float(height);
+        const float cosTheta = lerp(cos(theta0), cos(theta1), randomSample.w);
+        const float sinTheta = sqrt(max(0.0f, 1.0f - cosTheta * cosTheta));
+        const float phi = PBR_L6_TWO_PI
+            * (float(columnEntry.item) + randomSample.z)
+            / float(width);
+        localDirection = float3(
+            sinTheta * cos(phi), cosTheta, sinTheta * sin(phi));
+        const float solidAngle = PbrEnvironmentTexelSolidAngleL6(rowEntry.item);
+        if (!(solidAngle > 0.0f))
+        {
+            return sample;
+        }
+        uv = float2(
+            (float(columnEntry.item) + randomSample.z) / float(width),
+            acos(clamp(cosTheta, -1.0f, 1.0f)) / PBR_L6_PI);
+        pdfSolidAngle = rowEntry.pmf * columnEntry.pmf / solidAngle;
     }
-    const float theta0 = PBR_L6_PI * float(rowEntry.item) / float(height);
-    const float theta1 = PBR_L6_PI * float(rowEntry.item + 1u) / float(height);
-    const float cosTheta = lerp(cos(theta0), cos(theta1), randomSample.w);
-    const float sinTheta = sqrt(max(0.0f, 1.0f - cosTheta * cosTheta));
-    const float phi = PBR_L6_TWO_PI
-        * (float(columnEntry.item) + randomSample.z)
-        / float(width);
-    const float3 localDirection = float3(sinTheta * cos(phi), cosTheta, sinTheta * sin(phi));
     const float3 worldDirection = normalize(PbrTransformDirectionRowsL6(
         localDirection,
         gPbrFrameL6.environmentToWorld0,
         gPbrFrameL6.environmentToWorld1,
         gPbrFrameL6.environmentToWorld2));
-    const float solidAngle = PbrEnvironmentTexelSolidAngleL6(rowEntry.item);
-    if (!(solidAngle > 0.0f))
-    {
-        return sample;
-    }
-    const float2 uv = float2(
-        (float(columnEntry.item) + randomSample.z) / float(width),
-        acos(clamp(cosTheta, -1.0f, 1.0f)) / PBR_L6_PI);
-    const float pdfSolidAngle = rowEntry.pmf * columnEntry.pmf / solidAngle;
     sample.wi = worldDirection;
     sample.distance = 1.0e30f;
     sample.Li = gPbrEnvironmentTextureL6.SampleLevel(
@@ -465,6 +508,7 @@ PbrLightSampleL6 PbrSampleEnvironmentLightL6(
     return sample;
 }
 
+[noinline]
 PbrLightSampleL6 PbrSampleOneLightL6(PbrLightContextL6 context, PbrLightRandomL6 randomSample)
 {
     PbrLightSampleL6 invalidSample = PbrInvalidLightSampleL6();
@@ -486,6 +530,22 @@ PbrLightSampleL6 PbrSampleOneLightL6(PbrLightContextL6 context, PbrLightRandomL6
     {
         return invalidSample;
     }
+#if defined(PBR_L6_CANONICAL_LIGHTS_ONLY)
+    if (light.identity.x == PBR_L6_LIGHT_DIRECTIONAL)
+    {
+        return PbrSampleDirectionalLightL6(light, selected.item, selected.pmf);
+    }
+    if (light.identity.x == PBR_L6_LIGHT_EMISSIVE_TRIANGLE)
+    {
+        return PbrSampleTriangleLightL6(
+            context,
+            light,
+            selected.item,
+            selected.pmf,
+            float2(randomSample.shape0, randomSample.shape1));
+    }
+    return invalidSample;
+#else
     if (light.identity.x == PBR_L6_LIGHT_POINT || light.identity.x == PBR_L6_LIGHT_SPOT)
     {
         return PbrSamplePointOrSpotLightL6(context, light, selected.item, selected.pmf);
@@ -525,6 +585,7 @@ PbrLightSampleL6 PbrSampleOneLightL6(PbrLightContextL6 context, PbrLightRandomL6
                 randomSample.shape3));
     }
     return invalidSample;
+#endif
 }
 
 float PbrLightPdfLiL6(
@@ -543,6 +604,36 @@ float PbrLightPdfLiL6(
     {
         return 0.0f;
     }
+#if defined(PBR_L6_CANONICAL_LIGHTS_ONLY)
+    if (light.identity.x == PBR_L6_LIGHT_DIRECTIONAL)
+    {
+        return 0.0f;
+    }
+    if (light.identity.x == PBR_L6_LIGHT_EMISSIVE_TRIANGLE)
+    {
+        if (light.payload.x >= gPbrFrameL6.trace.x || !(distanceToEmitter > 0.0f))
+        {
+            return 0.0f;
+        }
+        const PbrFixtureTriangleGpuL6 fixtureTriangle = gPbrFixtureTrianglesL6[light.payload.x];
+        if (fixtureTriangle.metadata.z != light.payload.w ||
+            fixtureTriangle.metadata.y != light.identity.w)
+        {
+            return 0.0f;
+        }
+        const float area = 0.5f * length(cross(
+            fixtureTriangle.p1.xyz - fixtureTriangle.p0.xyz,
+            fixtureTriangle.p2.xyz - fixtureTriangle.p0.xyz));
+        const float lightCosine = dot(emitterNormal, -wi);
+        const float cosine = (light.identity.y & PBR_L6_LIGHT_TWO_SIDED) != 0u
+            ? abs(lightCosine)
+            : lightCosine;
+        return area > 0.0f && cosine > 0.0f
+            ? distanceToEmitter * distanceToEmitter / (area * cosine)
+            : 0.0f;
+    }
+    return 0.0f;
+#else
     if (light.identity.x == PBR_L6_LIGHT_POINT
         || light.identity.x == PBR_L6_LIGHT_DIRECTIONAL
         || light.identity.x == PBR_L6_LIGHT_SPOT)
@@ -560,6 +651,11 @@ float PbrLightPdfLiL6(
             return 0.0f;
         }
         const PbrFixtureTriangleGpuL6 fixtureTriangle = gPbrFixtureTrianglesL6[light.payload.x];
+        if (fixtureTriangle.metadata.z != light.payload.w ||
+            fixtureTriangle.metadata.y != light.identity.w)
+        {
+            return 0.0f;
+        }
         const float area = 0.5f * length(cross(
             fixtureTriangle.p1.xyz - fixtureTriangle.p0.xyz,
             fixtureTriangle.p2.xyz - fixtureTriangle.p0.xyz));
@@ -602,8 +698,10 @@ float PbrLightPdfLiL6(
             : 0.0f;
     }
     return 0.0f;
+#endif
 }
 
+[noinline]
 float PbrSelectedLightPdfL6(
     uint lightIndex,
     PbrLightContextL6 context,

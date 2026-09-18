@@ -1,6 +1,8 @@
 #ifndef RENDERING_ENGINE_PBR_L6_TYPES_HLSLI
 #define RENDERING_ENGINE_PBR_L6_TYPES_HLSLI
 
+#include "../include/contracts/GpuRecordsAbiV1.hlsli"
+
 static const float PBR_L6_PI = 3.14159265358979323846f;
 static const float PBR_L6_TWO_PI = 6.28318530717958647692f;
 static const float PBR_L6_INV_PI = 0.31830988618379067154f;
@@ -18,12 +20,38 @@ static const uint PBR_L6_LIGHT_TWO_SIDED = 1u << 1u;
 static const uint PBR_L6_LIGHT_ANIMATED = 1u << 2u;
 static const uint PBR_L6_LIGHT_DELTA = 1u << 3u;
 
+static const uint PBR_L6_LIGHT_SELECTION_UNIFORM = 0u;
+static const uint PBR_L6_LIGHT_SELECTION_POWER_WEIGHTED = 1u;
+static const uint PBR_L6_ENVIRONMENT_SAMPLER_UNIFORM_SPHERE = 0u;
+static const uint PBR_L6_ENVIRONMENT_SAMPLER_IMPORTANCE_MAP = 1u;
+
 static const uint PBR_L6_MATERIAL_PURE_EMITTER = 1u << 0u;
 static const uint PBR_L6_MATERIAL_THIN_WALLED = 1u << 1u;
 
 static const uint PBR_L6_MEASURE_DISCRETE = 0u;
 static const uint PBR_L6_MEASURE_AREA = 1u;
 static const uint PBR_L6_MEASURE_SOLID_ANGLE = 2u;
+static const uint PBR_L6_MEASURE_INVALID = 0xffffffffu;
+
+// Direct-light estimator values are private to the L6 frame payload. They are
+// deliberately a dense 0..3 range and are independent from the public
+// RuntimeConfig enum, whose zero value is reserved for the legacy estimator.
+static const uint PBR_L6_ESTIMATOR_BSDF_ONLY = 0u;
+static const uint PBR_L6_ESTIMATOR_NEE = 1u;
+static const uint PBR_L6_ESTIMATOR_MIS = 2u;
+static const uint PBR_L6_ESTIMATOR_RESTIR_PRIMARY = 3u;
+
+static const uint PBR_L6_TRAVERSAL_FIXTURE = 0u;
+static const uint PBR_L6_TRAVERSAL_FLATTENED_SAH = 1u;
+static const uint PBR_L6_TRAVERSAL_HARDWARE_RAY_QUERY = 2u;
+static const uint PBR_L6_TRAVERSAL_CANONICAL_LINEAR = 3u;
+
+static const uint PBR_L6_TRANSPORT_PBR = 0u;
+static const uint PBR_L6_TRANSPORT_WHITTED = 1u;
+
+static const uint PBR_L6_SHADOW_PCF = 0u;
+static const uint PBR_L6_SHADOW_PCSS = 1u;
+static const uint PBR_L6_SHADOW_PHYSICAL = 2u;
 
 static const uint PBR_L6_SAMPLE_VALID = 1u << 0u;
 static const uint PBR_L6_SAMPLE_DELTA = 1u << 1u;
@@ -102,6 +130,14 @@ struct PbrAliasEntryGpuL6
     uint item;
 };
 
+struct PbrEmitterMapEntryGpuL6
+{
+    uint instanceId;
+    uint primitiveId;
+    uint lightIndex;
+    uint reserved;
+};
+
 struct PbrFixtureTriangleGpuL6
 {
     float4 p0;
@@ -124,8 +160,8 @@ struct PbrFrameConstantsGpuL6
     float4 cameraUpExposure;
     uint4 image;
     uint4 trace;
-    uint4 sampling;
-    uint4 environment;
+    uint4 sampling;    // seed low/high, light selection, direct estimator.
+    uint4 environment; // light index, width, height, environment sampler.
     uint4 distribution;
     float4 russianRoulette;
     float4 sceneCenterRadius;
@@ -135,7 +171,8 @@ struct PbrFrameConstantsGpuL6
     float4 worldToEnvironment0;
     float4 worldToEnvironment1;
     float4 worldToEnvironment2;
-    uint4 output;
+    uint4 traversal; // mode, flattened node count, triangle count, alpha-atlas layers.
+    uint4 output;    // stream tag, alpha sampler ID, transport model, shadow method.
 };
 
 struct PbrRayL6
@@ -151,6 +188,7 @@ struct PbrHitL6
     float3 geometricNormal;
     float3 shadingNormal;
     uint materialIndex;
+    uint instanceId;
     uint primitiveId;
     uint emitterLightIndex;
     uint frontFace;
@@ -172,6 +210,7 @@ struct PbrLightSampleL6
     float conditionalPdf;
     float combinedPdfW;
     uint lightIndex;
+    uint instanceId;
     uint primitiveId;
     float3 position;
     uint measure;
@@ -198,6 +237,40 @@ struct PbrPathSignalsL6
     float3 indirectSpecular;
 };
 
+uint PbrPrivateLightMeasureToAbiV1L6(uint privateMeasure)
+{
+    if (privateMeasure == PBR_L6_MEASURE_DISCRETE)
+    {
+        return kSampleMeasureDiscreteV1;
+    }
+    if (privateMeasure == PBR_L6_MEASURE_AREA)
+    {
+        return kSampleMeasureAreaV1;
+    }
+    if (privateMeasure == PBR_L6_MEASURE_SOLID_ANGLE)
+    {
+        return kSampleMeasureSolidAngleV1;
+    }
+    return kSampleMeasureInvalidV1;
+}
+
+uint PbrAbiV1MeasureToPrivateLightMeasureL6(uint abiMeasure)
+{
+    if (abiMeasure == kSampleMeasureDiscreteV1)
+    {
+        return PBR_L6_MEASURE_DISCRETE;
+    }
+    if (abiMeasure == kSampleMeasureAreaV1)
+    {
+        return PBR_L6_MEASURE_AREA;
+    }
+    if (abiMeasure == kSampleMeasureSolidAngleV1)
+    {
+        return PBR_L6_MEASURE_SOLID_ANGLE;
+    }
+    return PBR_L6_MEASURE_INVALID;
+}
+
 bool PbrIsFiniteFloatL6(float value)
 {
     return isfinite(value);
@@ -214,17 +287,46 @@ bool PbrFrameSamplingIsValidL6(PbrFrameConstantsGpuL6 frame)
     const float rouletteMinimum = frame.russianRoulette.y;
     const float rouletteMaximum = frame.russianRoulette.z;
     const float rayEpsilon = frame.russianRoulette.w;
-    const bool pixelCountOverflows = frame.image.y != 0u &&
-        frame.image.x > 0xffffffffu / frame.image.y;
-    return frame.image.x != 0u && frame.image.y != 0u && frame.image.w != 0u &&
-        !pixelCountOverflows && frame.sampling.z <= 1u && frame.sampling.w <= 1u &&
+    // RuntimeConfig constrains production dimensions to 16384. Express that
+    // invariant directly: the former dynamic uint division is rejected by
+    // NVIDIA's NVVM compiler in Wavefront kernels that also use atomics.
+    const bool pixelCountOverflows =
+        frame.image.x > 16384u || frame.image.y > 16384u;
+    bool traversalValid =
+        frame.traversal.x <= PBR_L6_TRAVERSAL_CANONICAL_LINEAR;
+#if defined(PBR_L6_TRAVERSAL_SOFTWARE)
+    traversalValid = traversalValid &&
+        ((frame.traversal.x == PBR_L6_TRAVERSAL_FLATTENED_SAH &&
+                frame.traversal.y > 0u && frame.traversal.z > 0u) ||
+            (frame.traversal.x == PBR_L6_TRAVERSAL_CANONICAL_LINEAR &&
+                frame.traversal.z > 0u));
+#elif defined(PBR_L6_TRAVERSAL_RAY_QUERY)
+    traversalValid = traversalValid &&
+        frame.traversal.x == PBR_L6_TRAVERSAL_HARDWARE_RAY_QUERY;
+#elif defined(PBR_L6_TRAVERSAL_WAVEFRONT)
+    traversalValid = traversalValid &&
+        ((frame.traversal.x == PBR_L6_TRAVERSAL_FLATTENED_SAH
+                && frame.traversal.y > 0u && frame.traversal.z > 0u)
+            || frame.traversal.x == PBR_L6_TRAVERSAL_HARDWARE_RAY_QUERY
+            || (frame.traversal.x == PBR_L6_TRAVERSAL_CANONICAL_LINEAR
+                && frame.traversal.z > 0u));
+#else
+    traversalValid = traversalValid && frame.traversal.x == PBR_L6_TRAVERSAL_FIXTURE;
+#endif
+    return frame.image.x != 0u && frame.image.y != 0u &&
+        frame.image.z != 0xffffffffu && frame.image.w != 0u &&
+        !pixelCountOverflows
+        && frame.sampling.z <= PBR_L6_LIGHT_SELECTION_POWER_WEIGHTED &&
+        frame.sampling.w <= PBR_L6_ESTIMATOR_RESTIR_PRIMARY &&
+        frame.environment.w <= PBR_L6_ENVIRONMENT_SAMPLER_IMPORTANCE_MAP &&
         PbrIsFiniteFloatL6(rouletteStart) && rouletteStart >= 0.0f &&
         floor(rouletteStart) == rouletteStart &&
         PbrIsFiniteFloatL6(rouletteMinimum) &&
         PbrIsFiniteFloatL6(rouletteMaximum) &&
         rouletteMinimum > 0.0f && rouletteMinimum <= rouletteMaximum &&
         rouletteMaximum <= 1.0f &&
-        PbrIsFiniteFloatL6(rayEpsilon) && rayEpsilon > 0.0f;
+        PbrIsFiniteFloatL6(rayEpsilon) && rayEpsilon > 0.0f &&
+        traversalValid;
 }
 
 float PbrMaxComponentL6(float3 value)
@@ -302,6 +404,7 @@ uint4 PbrPhilox4x32TenRoundsL6(uint4 counter, uint2 key)
     return counter;
 }
 
+[noinline]
 float PbrCounterRandomL6(
     uint pixelIndex,
     uint sampleIndex,
@@ -319,6 +422,11 @@ float PbrCounterRandomL6(
 
 float PbrPowerHeuristicL6(float pdfA, float pdfB)
 {
+    if (!PbrIsFiniteFloatL6(pdfA) || !PbrIsFiniteFloatL6(pdfB)
+        || pdfA < 0.0f || pdfB < 0.0f)
+    {
+        return 0.0f;
+    }
     const float maximumPdf = max(pdfA, pdfB);
     if (!(maximumPdf > 0.0f) || !PbrIsFiniteFloatL6(maximumPdf))
     {

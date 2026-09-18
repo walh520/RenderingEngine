@@ -7,7 +7,7 @@ bool WfRayQueryTraceClosest(WfRayItem ray, uint rayIndex, out WfMaterialWorkItem
 bool WfRayQueryTraceAny(WfShadowWorkItem ray);
 
 #ifndef WF_RAY_QUERY_TRAVERSAL_IMPLEMENTATION
-#error "WF_RAY_QUERY_TRAVERSAL_IMPLEMENTATION must name the L5 implementation include"
+#define WF_RAY_QUERY_TRAVERSAL_IMPLEMENTATION "PbrRayQueryTraversalImplementation.hlsli"
 #endif
 #include WF_RAY_QUERY_TRAVERSAL_IMPLEMENTATION
 

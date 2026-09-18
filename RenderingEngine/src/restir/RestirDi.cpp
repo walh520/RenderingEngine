@@ -337,7 +337,7 @@ namespace RenderingEngine::Restir
 
         ClampReservoirM(result, config.maxM, statistics);
         FinalizeReservoir(result);
-        if (mode == EstimatorMode::UnbiasedReference)
+        if (mode == EstimatorMode::ReferenceCorrection)
         {
             ApplyBasicReferenceCorrection(
                 result, input.currentSurface, sources, config, reevaluate, referenceVisibility, statistics);
@@ -409,7 +409,7 @@ namespace RenderingEngine::Restir
 
         ClampReservoirM(result, config.maxM, statistics);
         FinalizeReservoir(result);
-        if (mode == EstimatorMode::UnbiasedReference)
+        if (mode == EstimatorMode::ReferenceCorrection)
         {
             ApplyBasicReferenceCorrection(
                 result, centerSurface, sources, config, reevaluate, referenceVisibility, statistics);

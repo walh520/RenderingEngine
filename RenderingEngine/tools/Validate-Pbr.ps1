@@ -71,21 +71,33 @@ if (-not (Test-Path -LiteralPath $executablePath))
     throw ('Renderer executable was not found: ' + $executablePath)
 }
 
-$unsupportedCaptureRoot = Join-Path $repositoryRoot '.wave0-unsupported-capture-must-not-exist'
-if (Test-Path -LiteralPath $unsupportedCaptureRoot)
+$captureRoot = Join-Path $repositoryRoot '.artifacts'
+$captureRunIdentifier = 'validate-pbr-' + [guid]::NewGuid().ToString('N')
+$captureRunDirectory = Join-Path $captureRoot $captureRunIdentifier
+$conflictingCaptureRoot = Join-Path $repositoryRoot '.wave1-conflicting-capture-must-not-exist'
+if (Test-Path -LiteralPath $captureRunDirectory)
 {
-    throw ('Wave 0 no-I/O probe path already exists: ' + $unsupportedCaptureRoot)
+    throw ('Wave 1 capture probe run already exists: ' + $captureRunDirectory)
+}
+if (Test-Path -LiteralPath $conflictingCaptureRoot)
+{
+    throw ('Wave 1 conflicting-root probe path already exists: ' + $conflictingCaptureRoot)
 }
 
 $commandLineCases = @(
-    @{ Name = 'help without platform creation'; Arguments = @('--help'); ExitCode = 0; ExpectedText = 'Wave 0 control contract' },
-    @{ Name = 'version without platform creation'; Arguments = @('--version'); ExitCode = 0; ExpectedText = 'runtime-config-v0' },
+    @{ Name = 'help without platform creation'; Arguments = @('--help'); ExitCode = 0; ExpectedText = 'RuntimeConfig v2' },
+    @{ Name = 'version without platform creation'; Arguments = @('--version'); ExitCode = 0; ExpectedText = 'runtime-config-v2' },
     @{ Name = 'invalid CLI exit contract'; Arguments = @('--frames', 'not-a-number'); ExitCode = 2; ExpectedText = 'Invalid command line' },
     @{ Name = 'invalid target-SPP debug tuple'; Arguments = @('--spp', '2', '--debug-view', 'normal'); ExitCode = 2; ExpectedText = 'Invalid configuration' },
-    @{ Name = 'conflicting capture roots'; Arguments = @('--capture', $unsupportedCaptureRoot, '--artifact-root', (Join-Path $repositoryRoot '.different-root')); ExitCode = 2; ExpectedText = 'Invalid command line' },
-    @{ Name = 'unsupported capability exit contract'; Arguments = @('--backend', 'ray-query'); ExitCode = 4; ExpectedText = 'Unsupported configuration' },
+    @{ Name = 'conflicting capture roots'; Arguments = @('--capture', $conflictingCaptureRoot, '--artifact-root', (Join-Path $repositoryRoot '.different-root')); ExitCode = 2; ExpectedText = 'Invalid command line' },
+    @{ Name = 'unsupported capability exit contract'; Arguments = @('--backend', 'rt-pipeline'); ExitCode = 4; ExpectedText = 'Unsupported configuration' },
+    @{ Name = 'unsupported Whitted architecture'; Arguments = @('--transport', 'whitted', '--execution', 'wavefront'); ExitCode = 4; ExpectedText = 'Whitted transport is implemented only' },
+    @{ Name = 'Sponza remains asset-gated'; Arguments = @('--scene', 'sponza'); ExitCode = 4; ExpectedText = 'Sponza remains fail-closed' },
+    @{ Name = 'removed mixed integrator option'; Arguments = @('--integrator', 'megakernel'); ExitCode = 2; ExpectedText = 'Invalid command line' },
+    @{ Name = 'removed mixed light proposal option'; Arguments = @('--light-proposal', 'power'); ExitCode = 2; ExpectedText = 'Invalid command line' },
+    @{ Name = 'removed light sampler alias'; Arguments = @('--light-sampler', 'nee'); ExitCode = 2; ExpectedText = 'Invalid command line' },
     @{ Name = 'unsupported headless execution'; Arguments = @('--headless'); ExitCode = 4; ExpectedText = 'Unsupported configuration' },
-    @{ Name = 'unsupported capture performs no I/O'; Arguments = @('--capture', $unsupportedCaptureRoot); ExitCode = 4; ExpectedText = 'Unsupported configuration' }
+    @{ Name = 'Wave 1 live capture'; Arguments = @('--capture', $captureRoot, '--run-id', $captureRunIdentifier, '--frames', '1', '--validation', 'on'); ExitCode = 0; ExpectedText = 'Capture written'; ForbiddenPattern = '\[Vulkan\]' }
 )
 
 foreach ($commandLineCase in $commandLineCases)
@@ -105,28 +117,66 @@ foreach ($commandLineCase in $commandLineCases)
         throw ($commandLineCase.Name + ' did not report expected text: ' +
             $commandLineCase.ExpectedText)
     }
+    if ($commandLineCase.ContainsKey('ForbiddenPattern') -and
+        $commandLineText -match $commandLineCase.ForbiddenPattern)
+    {
+        throw ($commandLineCase.Name + ' emitted a forbidden diagnostic pattern: ' +
+            $commandLineCase.ForbiddenPattern)
+    }
 }
 
-if (Test-Path -LiteralPath $unsupportedCaptureRoot)
+if (Test-Path -LiteralPath $conflictingCaptureRoot)
 {
-    throw ('Unsupported capture created an artifact path: ' + $unsupportedCaptureRoot)
+    throw ('Conflicting capture roots created an artifact path: ' + $conflictingCaptureRoot)
 }
+
+$captureFiles = @(
+    (Join-Path $captureRunDirectory 'captures\image.exr'),
+    (Join-Path $captureRunDirectory 'captures\preview.png'),
+    (Join-Path $captureRunDirectory 'metadata.json')
+)
+foreach ($captureFile in $captureFiles)
+{
+    if (-not (Test-Path -LiteralPath $captureFile -PathType Leaf))
+    {
+        throw ('Wave 1 capture did not produce the required file: ' + $captureFile)
+    }
+    if ((Get-Item -LiteralPath $captureFile).Length -le 0)
+    {
+        throw ('Wave 1 capture produced an empty file: ' + $captureFile)
+    }
+}
+
+$captureMetadata = Get-Content -Raw -LiteralPath (Join-Path $captureRunDirectory 'metadata.json') |
+    ConvertFrom-Json
+if ($captureMetadata.evidence_identity.provider_id -ne 'capture:renderer-readback:raw' -or
+    $captureMetadata.evidence_identity.origin -ne 'live-runtime' -or
+    $captureMetadata.evidence_identity.availability -ne 'fresh' -or
+    $captureMetadata.evidence_identity.sample_index -ne 0)
+{
+    throw 'Wave 1 capture metadata does not identify the fresh first-sample renderer readback.'
+}
+Write-Host ('Wave 1 capture evidence retained at: ' + $captureRunDirectory)
 
 $runtimeCases = @(
-    @{ Name = 'default integrator contract (must report PBR)'; Arguments = @('--frames', '2', '--shadow', 'physical'); ExpectedPattern = 'Rendered 2 frames.*2 spp.*PBR path tracer' },
-    @{ Name = 'PBR physical area light'; Arguments = @('--integrator', 'pbr', '--frames', [string]$Frames, '--shadow', 'physical') },
-    @{ Name = 'PBR PCF comparison'; Arguments = @('--integrator', 'pbr', '--frames', '2', '--shadow', 'pcf') },
-    @{ Name = 'PBR PCSS comparison'; Arguments = @('--integrator', 'pbr', '--frames', '2', '--shadow', 'pcss') },
-    @{ Name = 'PBR base-color view'; Arguments = @('--integrator', 'pbr', '--frames', '1', '--debug-view', 'base-color') },
-    @{ Name = 'PBR normal view'; Arguments = @('--integrator', 'pbr', '--frames', '1', '--debug-view', 'normal') },
-    @{ Name = 'PBR roughness view'; Arguments = @('--integrator', 'pbr', '--frames', '1', '--debug-view', 'roughness') },
-    @{ Name = 'PBR metallic view'; Arguments = @('--integrator', 'pbr', '--frames', '1', '--debug-view', 'metallic') },
-    @{ Name = 'PBR emissive view'; Arguments = @('--integrator', 'pbr', '--frames', '1', '--debug-view', 'emissive') },
-    @{ Name = 'PBR fixed seed and target SPP'; Arguments = @('--integrator', 'pbr', '--spp', '2', '--seed', '123', '--shadow', 'physical'); ExpectedPattern = 'Rendered 2 frames.*2 spp.*seed 123' },
-    @{ Name = 'PBR configured FOV and FIFO VSync'; Arguments = @('--integrator', 'pbr', '--frames', '1', '--fov', '60', '--vsync', 'on') },
-    @{ Name = 'PBR configured non-VSync present mode'; Arguments = @('--integrator', 'pbr', '--frames', '1', '--vsync', 'off') },
-    @{ Name = 'PBR swapchain resize'; Arguments = @('--integrator', 'pbr', '--resolution', '800x600', '--frames', '90', '--resize-test', '--shadow', 'physical') },
-    @{ Name = 'Whitted compatibility smoke test'; Arguments = @('--integrator', 'whitted', '--frames', '2', '--shadow', 'physical'); ExpectedText = 'Whitted ray tracer' }
+    @{ Name = 'default transport contract (must report PBR)'; Arguments = @('--frames', '2', '--shadow', 'physical'); ExpectedPattern = 'Rendered 2 frames.*2 spp.*PBR path transport' },
+    @{ Name = 'PBR physical area light'; Arguments = @('--transport', 'pbr', '--execution', 'staged', '--frames', [string]$Frames, '--shadow', 'physical') },
+    @{ Name = 'PBR PCF comparison'; Arguments = @('--transport', 'pbr', '--execution', 'staged', '--frames', '2', '--shadow', 'pcf') },
+    @{ Name = 'PBR PCSS comparison'; Arguments = @('--transport', 'pbr', '--execution', 'staged', '--frames', '2', '--shadow', 'pcss') },
+    @{ Name = 'PBR base-color view'; Arguments = @('--transport', 'pbr', '--execution', 'staged', '--frames', '1', '--debug-view', 'base-color') },
+    @{ Name = 'PBR normal view'; Arguments = @('--transport', 'pbr', '--execution', 'staged', '--frames', '1', '--debug-view', 'normal') },
+    @{ Name = 'PBR roughness view'; Arguments = @('--transport', 'pbr', '--execution', 'staged', '--frames', '1', '--debug-view', 'roughness') },
+    @{ Name = 'PBR metallic view'; Arguments = @('--transport', 'pbr', '--execution', 'staged', '--frames', '1', '--debug-view', 'metallic') },
+    @{ Name = 'PBR emissive view'; Arguments = @('--transport', 'pbr', '--execution', 'staged', '--frames', '1', '--debug-view', 'emissive') },
+    @{ Name = 'PBR fixed seed and target SPP'; Arguments = @('--transport', 'pbr', '--execution', 'staged', '--spp', '2', '--seed', '123', '--shadow', 'physical'); ExpectedPattern = 'Rendered 2 frames.*2 spp.*seed 123' },
+    @{ Name = 'PBR configured FOV and FIFO VSync'; Arguments = @('--transport', 'pbr', '--execution', 'staged', '--frames', '1', '--fov', '60', '--vsync', 'on') },
+    @{ Name = 'PBR configured non-VSync present mode'; Arguments = @('--transport', 'pbr', '--execution', 'staged', '--frames', '1', '--vsync', 'off') },
+    @{ Name = 'PBR Megakernel with flattened SAH'; Arguments = @('--scene', 'cornell', '--backend', 'gpu-flattened-sah', '--transport', 'pbr', '--execution', 'megakernel', '--direct-lighting', 'mis', '--light-selection', 'power', '--reconstruction', 'progressive-mean', '--frames', '2') },
+    @{ Name = 'PBR Wavefront with Ray Query'; Arguments = @('--scene', 'cornell', '--backend', 'ray-query', '--transport', 'pbr', '--execution', 'wavefront', '--direct-lighting', 'mis', '--light-selection', 'power', '--reconstruction', 'progressive-mean', '--frames', '2') },
+    @{ Name = 'Environment independent uniform-sphere axis'; Arguments = @('--scene', 'environment-dome', '--backend', 'ray-query', '--execution', 'staged', '--direct-lighting', 'mis', '--light-selection', 'power', '--environment-sampler', 'uniform-sphere', '--frames', '2') },
+    @{ Name = 'Environment independent importance-map axis'; Arguments = @('--scene', 'environment-dome', '--backend', 'ray-query', '--execution', 'staged', '--direct-lighting', 'mis', '--light-selection', 'power', '--environment-sampler', 'importance-map', '--frames', '2') },
+    @{ Name = 'PBR swapchain resize'; Arguments = @('--transport', 'pbr', '--execution', 'staged', '--resolution', '800x600', '--frames', '90', '--resize-test', '--shadow', 'physical') },
+    @{ Name = 'Whitted transport smoke test'; Arguments = @('--transport', 'whitted', '--execution', 'staged', '--frames', '2', '--shadow', 'physical'); ExpectedText = 'Whitted specular transport' }
 )
 
 foreach ($runtimeCase in $runtimeCases)
@@ -141,9 +191,9 @@ foreach ($runtimeCase in $runtimeCases)
         throw ($runtimeCase.Name + ' failed with exit code ' + $runtimeExitCode + '.')
     }
     $runtimeText = $runtimeOutput -join [Environment]::NewLine
-    if ($runtimeText -match '\[Vulkan\]')
+    if ($runtimeText -match '\[Vulkan\]|\[Profiler 拒绝\]|Runtime failure')
     {
-        throw ($runtimeCase.Name + ' emitted a Vulkan validation/layer diagnostic.')
+        throw ($runtimeCase.Name + ' emitted a Vulkan, profiler, or runtime failure diagnostic.')
     }
     if ($runtimeCase.ContainsKey('ExpectedText') -and ($runtimeText -notmatch [regex]::Escape($runtimeCase.ExpectedText)))
     {

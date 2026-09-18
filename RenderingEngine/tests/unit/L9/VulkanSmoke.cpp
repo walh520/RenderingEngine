@@ -1,5 +1,10 @@
 #include "VulkanSmoke.hpp"
 
+#include "contracts/GpuRecordsAbiV1.hpp"
+#include "contracts/RayHitAbiV0.hpp"
+#include "contracts/ReconstructionAbiV2.hpp"
+#include "contracts/RestirAbiV3.hpp"
+
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <Windows.h>
@@ -187,6 +192,14 @@ namespace RenderingEngine::Restir::Tests
             VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
         };
 
+        struct ProductionStage
+        {
+            std::array<VkDescriptorSetLayout, 6u> descriptorSetLayouts{};
+            std::array<VkDescriptorSet, 6u> descriptorSets{};
+            VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+            VkPipeline pipeline = VK_NULL_HANDLE;
+        };
+
         struct BindingSpec
         {
             std::uint32_t binding;
@@ -197,6 +210,21 @@ namespace RenderingEngine::Restir::Tests
         {
             std::uint32_t binding;
             std::size_t buffer;
+        };
+
+        struct ProductionBindingSpec
+        {
+            std::uint32_t set;
+            std::uint32_t binding;
+            VkDescriptorType type;
+        };
+
+        struct ProductionBufferWrite
+        {
+            std::uint32_t set;
+            std::uint32_t binding;
+            std::size_t buffer;
+            VkDescriptorType type;
         };
 
         class VulkanHarness final
@@ -220,7 +248,12 @@ namespace RenderingEngine::Restir::Tests
                 CreateResources();
                 CreatePipelinesAndDescriptors();
                 RecordAndSubmit();
-                return ReadBack();
+                VulkanSmokeReport report = ReadBack();
+                Cleanup();
+                // Device lifetime errors are part of the test, not messages
+                // arriving after an already-successful report was returned.
+                report.validationErrorCount = validation_.errors.load(std::memory_order_relaxed);
+                return report;
             }
 
         private:
@@ -242,6 +275,7 @@ namespace RenderingEngine::Restir::Tests
             std::vector<Buffer> buffers_{};
             Image debugImage_{};
             std::vector<Stage> stages_{};
+            std::vector<ProductionStage> productionStages_{};
 
             std::size_t initialParams_ = 0u;
             std::size_t temporalParams_ = 0u;
@@ -270,6 +304,24 @@ namespace RenderingEngine::Restir::Tests
             std::size_t statsBuffer_ = 0u;
             std::size_t directLighting_ = 0u;
             std::size_t imageReadback_ = 0u;
+
+            std::size_t productionParams_ = 0u;
+            std::size_t productionSurfaces_ = 0u;
+            std::size_t productionMotion_ = 0u;
+            std::size_t productionHistorySurfaces_ = 0u;
+            std::size_t productionCandidates_ = 0u;
+            std::size_t productionInitial_ = 0u;
+            std::size_t productionTemporal_ = 0u;
+            std::size_t productionSpatial_ = 0u;
+            std::size_t productionSpatialSnapshot_ = 0u;
+            std::size_t productionHistory_ = 0u;
+            std::size_t productionLightMap_ = 0u;
+            std::size_t productionNeighbors_ = 0u;
+            std::size_t productionReasons_ = 0u;
+            std::size_t productionStats_ = 0u;
+            std::size_t productionVisibility_ = 0u;
+            std::size_t productionDebug_ = 0u;
+            std::size_t productionImageReadback_ = 0u;
 
             PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr_ = nullptr;
             PFN_vkEnumerateInstanceVersion vkEnumerateInstanceVersion_ = nullptr;
@@ -326,6 +378,7 @@ namespace RenderingEngine::Restir::Tests
             PFN_vkCmdBindDescriptorSets vkCmdBindDescriptorSets_ = nullptr;
             PFN_vkCmdDispatch vkCmdDispatch_ = nullptr;
             PFN_vkCmdPipelineBarrier2 vkCmdPipelineBarrier2_ = nullptr;
+            PFN_vkCmdCopyBuffer vkCmdCopyBuffer_ = nullptr;
             PFN_vkCmdCopyImageToBuffer vkCmdCopyImageToBuffer_ = nullptr;
             PFN_vkQueueSubmit2 vkQueueSubmit2_ = nullptr;
             PFN_vkQueueWaitIdle vkQueueWaitIdle_ = nullptr;
@@ -628,6 +681,7 @@ namespace RenderingEngine::Restir::Tests
                 LoadDevice(vkCmdBindDescriptorSets_, "vkCmdBindDescriptorSets");
                 LoadDevice(vkCmdDispatch_, "vkCmdDispatch");
                 LoadDevice(vkCmdPipelineBarrier2_, "vkCmdPipelineBarrier2");
+                LoadDevice(vkCmdCopyBuffer_, "vkCmdCopyBuffer");
                 LoadDevice(vkCmdCopyImageToBuffer_, "vkCmdCopyImageToBuffer");
                 LoadDevice(vkQueueSubmit2_, "vkQueueSubmit2");
                 LoadDevice(vkQueueWaitIdle_, "vkQueueWaitIdle");
@@ -903,6 +957,157 @@ namespace RenderingEngine::Restir::Tests
                 imageReadback_ = CreateBuffer(
                     sizeof(Float4) * kReservoirCount, VK_BUFFER_USAGE_TRANSFER_DST_BIT, nullptr);
                 CreateDebugImage();
+
+                using namespace Contracts;
+                using namespace Contracts::AbiV3;
+                constexpr std::uint32_t productionPixelCount = 4u;
+                constexpr VkBufferUsageFlags productionStorageUsage =
+                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
+                    | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
+                    | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+                const GpuRestirParametersV3 productionParameters{
+                    { 2u, 2u, productionPixelCount, 1u },
+                    { 0u, 32u, 20u, 2u },
+                    { 11u, 12u, 13u, 14u },
+                    { 15u, 16u, 6u, RestirShadowPhysical },
+                    { 0u, RestirCandidateUniformLight, 0u, 0u },
+                    { 1u, 1u, 0u, 0u },
+                    { 0.8f, 0.1f, 1.0f, 0.1f },
+                    { 0.0f, 0.0f, 1.0f, 0.0f }
+                };
+                productionParams_ = CreateDataBuffer(
+                    productionParameters, uniformUsage);
+
+                std::array<AbiV2::GpuPrimarySurfaceV2, productionPixelCount>
+                    productionSurfaces{};
+                for (std::uint32_t index = 0u;
+                    index < productionPixelCount; ++index)
+                {
+                    auto& surface = productionSurfaces[index];
+                    surface.worldPositionLinearDepth = {
+                        static_cast<float>(index), 0.0f, 0.0f, 1.0f };
+                    surface.geometricNormalRoughness = {
+                        0.0f, 0.0f, 1.0f, 0.5f };
+                    surface.shadingNormalMetallic = {
+                        0.0f, 0.0f, 1.0f, 0.0f };
+                    surface.diffuseAlbedo = { 0.8f, 0.8f, 0.8f, 0.0f };
+                    surface.specularAlbedo = { 0.04f, 0.04f, 0.04f, 0.0f };
+                    surface.identity = {
+                        7u, 11u + index, 13u + index,
+                        index == 2u ? AbiV2::PrimarySurfaceFlagNone
+                            : AbiV2::PrimarySurfaceFlagValid
+                                | AbiV2::PrimarySurfaceFlagFrontFace
+                                | AbiV2::PrimarySurfaceFlagHasDiffuse
+                                | AbiV2::PrimarySurfaceFlagHasSpecular };
+                }
+                productionSurfaces_ = CreateDataBuffer(
+                    std::span<const AbiV2::GpuPrimarySurfaceV2>(
+                        productionSurfaces), productionStorageUsage);
+
+                const auto makeProductionCandidate = [](
+                    const std::uint32_t pixel,
+                    const float target,
+                    const float proposal,
+                    const float correction)
+                {
+                    GpuRestirCandidateV3 candidate{};
+                    candidate.sample.positionDistance = {
+                        static_cast<float>(pixel), 1.0f, 0.0f, 1.0f };
+                    candidate.sample.directionCombinedPdf = {
+                        0.0f, 1.0f, 0.0f, proposal };
+                    candidate.sample.radianceDiscretePdf = {
+                        1.0f, 1.0f, 1.0f, 1.0f };
+                    candidate.sample.identity = {
+                        100u + pixel, 200u + pixel, pixel, 14u };
+                    candidate.sample.generation = { 12u, 11u, 14u, 0u };
+                    candidate.sample.metadata = {
+                        AbiV1::SampleMeasureSolidAngle,
+                        RestirSampleFlagValid, 0u, 0u };
+                    candidate.sample.sourceIdentity = {
+                        pixel, 7u, 11u + pixel, 13u + pixel };
+                    candidate.targetProposalSupportCorrection = {
+                        target, proposal, target > 0.0f ? 1.0f : 0.0f,
+                        correction };
+                    candidate.provenance = {
+                        RestirCandidateUniformLight, RestirReuseNone,
+                        pixel, 0u };
+                    return candidate;
+                };
+                const std::array productionCandidates{
+                    makeProductionCandidate(0u, 2.0f, 0.25f, 1.0f),
+                    makeProductionCandidate(1u, 0.0f, 0.5f, 1.0f),
+                    // Invalid surfaces are exported with correction=0 and
+                    // must not masquerade as legal zero-target proposals.
+                    makeProductionCandidate(2u, 0.0f, 0.5f, 0.0f),
+                    makeProductionCandidate(3u, 1.0f, 0.5f, 1.0f)
+                };
+                productionCandidates_ = CreateDataBuffer(
+                    std::span<const GpuRestirCandidateV3>(
+                        productionCandidates), productionStorageUsage);
+
+                productionInitial_ = CreateBuffer(
+                    sizeof(GpuRestirReservoirV3) * productionPixelCount,
+                    productionStorageUsage, nullptr);
+                productionTemporal_ = CreateBuffer(
+                    sizeof(GpuRestirReservoirV3) * productionPixelCount,
+                    productionStorageUsage, nullptr);
+                productionSpatial_ = CreateBuffer(
+                    sizeof(GpuRestirReservoirV3) * productionPixelCount,
+                    productionStorageUsage, nullptr);
+                productionSpatialSnapshot_ = CreateBuffer(
+                    sizeof(GpuRestirReservoirV3) * productionPixelCount,
+                    productionStorageUsage, nullptr);
+                productionHistory_ = CreateBuffer(
+                    sizeof(GpuRestirReservoirV3) * productionPixelCount,
+                    productionStorageUsage, nullptr);
+
+                const std::array<AbiV2::GpuGBufferRecordV2,
+                    productionPixelCount> motion{};
+                const std::array<AbiV2::GpuPrimarySurfaceV2,
+                    productionPixelCount> historySurfaces{};
+                const std::array<UInt2, 1u> lightMap{ UInt2{ 0u, 12u } };
+                const std::array<std::uint32_t, 1u> productionNeighbors{ 0u };
+                const std::array<std::uint32_t,
+                    productionPixelCount> reasons{};
+                const GpuRestirStatisticsV3 productionStatistics{};
+                productionMotion_ = CreateDataBuffer(
+                    std::span<const AbiV2::GpuGBufferRecordV2>(motion),
+                    productionStorageUsage);
+                productionHistorySurfaces_ = CreateDataBuffer(
+                    std::span<const AbiV2::GpuPrimarySurfaceV2>(
+                        historySurfaces), productionStorageUsage);
+                productionLightMap_ = CreateDataBuffer(
+                    std::span<const UInt2>(lightMap), productionStorageUsage);
+                productionNeighbors_ = CreateDataBuffer(
+                    std::span<const std::uint32_t>(productionNeighbors),
+                    productionStorageUsage);
+                productionReasons_ = CreateDataBuffer(
+                    std::span<const std::uint32_t>(reasons),
+                    productionStorageUsage);
+                productionStats_ = CreateDataBuffer(
+                    productionStatistics, productionStorageUsage);
+
+                std::array<AbiV1::GpuHitQueueRecordV1,
+                    productionPixelCount> visibilityHits{};
+                for (std::uint32_t index = 0u;
+                    index < productionPixelCount; ++index)
+                {
+                    visibilityHits[index].positionT.w = 0.5f;
+                    visibilityHits[index].metadata = {
+                        index,
+                        index == 3u ? AbiV0::HitKindTriangle
+                            : AbiV0::HitKindMiss,
+                        0u, index };
+                }
+                productionVisibility_ = CreateDataBuffer(
+                    std::span<const AbiV1::GpuHitQueueRecordV1>(
+                        visibilityHits), productionStorageUsage);
+                productionDebug_ = CreateBuffer(
+                    sizeof(GpuRestirDebugV3) * productionPixelCount,
+                    productionStorageUsage, nullptr);
+                productionImageReadback_ = CreateBuffer(
+                    sizeof(Float4) * productionPixelCount,
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT, nullptr);
             }
 
             [[nodiscard]] static std::filesystem::path ShaderDirectory()
@@ -1056,15 +1261,124 @@ namespace RenderingEngine::Restir::Tests
                     descriptorWrites.data(), 0u, nullptr);
             }
 
+            [[nodiscard]] ProductionStage CreateProductionStage(
+                const std::filesystem::path& shader,
+                const std::span<const ProductionBindingSpec> bindings)
+            {
+                ProductionStage stage{};
+                for (std::uint32_t set = 0u; set < 6u; ++set)
+                {
+                    std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
+                    for (const ProductionBindingSpec binding : bindings)
+                    {
+                        if (binding.set == set)
+                        {
+                            layoutBindings.push_back({ binding.binding, binding.type,
+                                1u, VK_SHADER_STAGE_COMPUTE_BIT, nullptr });
+                        }
+                    }
+                    VkDescriptorSetLayoutCreateInfo setInfo{
+                        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+                    setInfo.bindingCount = static_cast<std::uint32_t>(
+                        layoutBindings.size());
+                    setInfo.pBindings = layoutBindings.data();
+                    Check(vkCreateDescriptorSetLayout_(device_, &setInfo, nullptr,
+                            &stage.descriptorSetLayouts[set]),
+                        "vkCreateDescriptorSetLayout(production-v3)");
+                }
+
+                VkPipelineLayoutCreateInfo layoutInfo{
+                    VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+                layoutInfo.setLayoutCount = 6u;
+                layoutInfo.pSetLayouts = stage.descriptorSetLayouts.data();
+                Check(vkCreatePipelineLayout_(device_, &layoutInfo, nullptr,
+                        &stage.pipelineLayout),
+                    "vkCreatePipelineLayout(production-v3)");
+
+                const std::vector<std::uint32_t> words = ReadShader(shader);
+                VkShaderModuleCreateInfo moduleInfo{
+                    VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+                moduleInfo.codeSize = words.size() * sizeof(std::uint32_t);
+                moduleInfo.pCode = words.data();
+                VkShaderModule module = VK_NULL_HANDLE;
+                Check(vkCreateShaderModule_(device_, &moduleInfo, nullptr, &module),
+                    "vkCreateShaderModule(production-v3)");
+                VkPipelineShaderStageCreateInfo shaderStage{
+                    VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+                shaderStage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+                shaderStage.module = module;
+                shaderStage.pName = "main";
+                VkComputePipelineCreateInfo pipelineInfo{
+                    VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+                pipelineInfo.stage = shaderStage;
+                pipelineInfo.layout = stage.pipelineLayout;
+                const VkResult pipelineResult = vkCreateComputePipelines_(
+                    device_, VK_NULL_HANDLE, 1u, &pipelineInfo, nullptr,
+                    &stage.pipeline);
+                vkDestroyShaderModule_(device_, module, nullptr);
+                Check(pipelineResult, "vkCreateComputePipelines(production-v3)");
+
+                VkDescriptorSetAllocateInfo allocateInfo{
+                    VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+                allocateInfo.descriptorPool = descriptorPool_;
+                allocateInfo.descriptorSetCount = 6u;
+                allocateInfo.pSetLayouts = stage.descriptorSetLayouts.data();
+                Check(vkAllocateDescriptorSets_(device_, &allocateInfo,
+                        stage.descriptorSets.data()),
+                    "vkAllocateDescriptorSets(production-v3)");
+                return stage;
+            }
+
+            void WriteProductionStage(
+                const ProductionStage& stage,
+                const std::span<const ProductionBufferWrite> writes,
+                const bool storageImage)
+            {
+                std::vector<VkDescriptorBufferInfo> bufferInfos(writes.size());
+                std::vector<VkWriteDescriptorSet> descriptorWrites;
+                descriptorWrites.reserve(writes.size() + (storageImage ? 1u : 0u));
+                for (std::size_t index = 0u; index < writes.size(); ++index)
+                {
+                    const ProductionBufferWrite& source = writes[index];
+                    const Buffer& buffer = buffers_[source.buffer];
+                    bufferInfos[index] = { buffer.handle, 0u, buffer.logicalSize };
+                    VkWriteDescriptorSet write{
+                        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+                    write.dstSet = stage.descriptorSets[source.set];
+                    write.dstBinding = source.binding;
+                    write.descriptorCount = 1u;
+                    write.descriptorType = source.type;
+                    write.pBufferInfo = &bufferInfos[index];
+                    descriptorWrites.push_back(write);
+                }
+                VkDescriptorImageInfo imageInfo{};
+                if (storageImage)
+                {
+                    imageInfo.imageView = debugImage_.view;
+                    imageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+                    VkWriteDescriptorSet write{
+                        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+                    write.dstSet = stage.descriptorSets[5u];
+                    write.dstBinding = 16u;
+                    write.descriptorCount = 1u;
+                    write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                    write.pImageInfo = &imageInfo;
+                    descriptorWrites.push_back(write);
+                }
+                vkUpdateDescriptorSets_(device_,
+                    static_cast<std::uint32_t>(descriptorWrites.size()),
+                    descriptorWrites.data(), 0u, nullptr);
+            }
+
             void CreatePipelinesAndDescriptors()
             {
                 const std::array<VkDescriptorPoolSize, 3u> poolSizes{
-                    VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 5u },
-                    VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 40u },
-                    VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1u }
+                    VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 16u },
+                    VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 96u },
+                    VkDescriptorPoolSize{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 4u }
                 };
                 VkDescriptorPoolCreateInfo poolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-                poolInfo.maxSets = 5u;
+                poolInfo.maxSets = 48u;
                 poolInfo.poolSizeCount = static_cast<std::uint32_t>(poolSizes.size());
                 poolInfo.pPoolSizes = poolSizes.data();
                 Check(vkCreateDescriptorPool_(device_, &poolInfo, nullptr, &descriptorPool_),
@@ -1146,6 +1460,115 @@ namespace RenderingEngine::Restir::Tests
                 WriteStage(stages_[2], spatialWrites, false);
                 WriteStage(stages_[3], visibilityWrites, false);
                 WriteStage(stages_[4], debugWrites, true);
+
+                constexpr VkDescriptorType ubo = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                constexpr VkDescriptorType ssbo = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                const std::array productionInitialBindings{
+                    ProductionBindingSpec{ 3u, 24u, ssbo },
+                    ProductionBindingSpec{ 5u, 0u, ubo },
+                    ProductionBindingSpec{ 5u, 1u, ssbo },
+                    ProductionBindingSpec{ 5u, 9u, ssbo },
+                    ProductionBindingSpec{ 5u, 26u, ssbo }
+                };
+                const std::array productionTemporalBindings{
+                    ProductionBindingSpec{ 3u, 24u, ssbo },
+                    ProductionBindingSpec{ 4u, 0u, ssbo },
+                    ProductionBindingSpec{ 5u, 0u, ubo },
+                    ProductionBindingSpec{ 5u, 5u, ssbo },
+                    ProductionBindingSpec{ 5u, 9u, ssbo },
+                    ProductionBindingSpec{ 5u, 15u, ssbo },
+                    ProductionBindingSpec{ 5u, 21u, ssbo },
+                    ProductionBindingSpec{ 5u, 26u, ssbo },
+                    ProductionBindingSpec{ 5u, 27u, ssbo },
+                    ProductionBindingSpec{ 5u, 30u, ssbo }
+                };
+                const std::array productionSpatialBindings{
+                    ProductionBindingSpec{ 3u, 24u, ssbo },
+                    ProductionBindingSpec{ 5u, 0u, ubo },
+                    ProductionBindingSpec{ 5u, 9u, ssbo },
+                    ProductionBindingSpec{ 5u, 15u, ssbo },
+                    ProductionBindingSpec{ 5u, 22u, ssbo },
+                    ProductionBindingSpec{ 5u, 27u, ssbo },
+                    ProductionBindingSpec{ 5u, 28u, ssbo }
+                };
+                const std::array productionWinnerBindings{
+                    ProductionBindingSpec{ 5u, 0u, ubo },
+                    ProductionBindingSpec{ 5u, 9u, ssbo },
+                    ProductionBindingSpec{ 5u, 10u, ssbo },
+                    ProductionBindingSpec{ 5u, 28u, ssbo }
+                };
+                const std::array productionDebugBindings{
+                    ProductionBindingSpec{ 5u, 0u, ubo },
+                    ProductionBindingSpec{ 5u, 8u, ssbo },
+                    ProductionBindingSpec{ 5u, 16u, image },
+                    ProductionBindingSpec{ 5u, 29u, ssbo }
+                };
+                productionStages_.reserve(5u);
+                productionStages_.push_back(CreateProductionStage(
+                    directory / "RestirInitialV3.comp.spv",
+                    productionInitialBindings));
+                productionStages_.push_back(CreateProductionStage(
+                    directory / "RestirTemporalV3.comp.spv",
+                    productionTemporalBindings));
+                productionStages_.push_back(CreateProductionStage(
+                    directory / "RestirSpatialV3.comp.spv",
+                    productionSpatialBindings));
+                productionStages_.push_back(CreateProductionStage(
+                    directory / "RestirWinnerResolveV3.comp.spv",
+                    productionWinnerBindings));
+                productionStages_.push_back(CreateProductionStage(
+                    directory / "RestirDebugV3.comp.spv",
+                    productionDebugBindings));
+
+                const std::array productionInitialWrites{
+                    ProductionBufferWrite{ 3u, 24u, productionSurfaces_, ssbo },
+                    ProductionBufferWrite{ 5u, 0u, productionParams_, ubo },
+                    ProductionBufferWrite{ 5u, 1u, productionCandidates_, ssbo },
+                    ProductionBufferWrite{ 5u, 9u, productionStats_, ssbo },
+                    ProductionBufferWrite{ 5u, 26u, productionInitial_, ssbo }
+                };
+                const std::array productionTemporalWrites{
+                    ProductionBufferWrite{ 3u, 24u, productionSurfaces_, ssbo },
+                    ProductionBufferWrite{ 4u, 0u, productionMotion_, ssbo },
+                    ProductionBufferWrite{ 5u, 0u, productionParams_, ubo },
+                    ProductionBufferWrite{ 5u, 5u, productionHistorySurfaces_, ssbo },
+                    ProductionBufferWrite{ 5u, 9u, productionStats_, ssbo },
+                    ProductionBufferWrite{ 5u, 15u, productionReasons_, ssbo },
+                    ProductionBufferWrite{ 5u, 21u, productionLightMap_, ssbo },
+                    ProductionBufferWrite{ 5u, 26u, productionInitial_, ssbo },
+                    ProductionBufferWrite{ 5u, 27u, productionTemporal_, ssbo },
+                    ProductionBufferWrite{ 5u, 30u, productionHistory_, ssbo }
+                };
+                const std::array productionSpatialWrites{
+                    ProductionBufferWrite{ 3u, 24u, productionSurfaces_, ssbo },
+                    ProductionBufferWrite{ 5u, 0u, productionParams_, ubo },
+                    ProductionBufferWrite{ 5u, 9u, productionStats_, ssbo },
+                    ProductionBufferWrite{ 5u, 15u, productionReasons_, ssbo },
+                    ProductionBufferWrite{ 5u, 22u, productionNeighbors_, ssbo },
+                    ProductionBufferWrite{ 5u, 27u, productionTemporal_, ssbo },
+                    ProductionBufferWrite{ 5u, 28u, productionSpatial_, ssbo }
+                };
+                const std::array productionWinnerWrites{
+                    ProductionBufferWrite{ 5u, 0u, productionParams_, ubo },
+                    ProductionBufferWrite{ 5u, 9u, productionStats_, ssbo },
+                    ProductionBufferWrite{ 5u, 10u, productionVisibility_, ssbo },
+                    ProductionBufferWrite{ 5u, 28u, productionSpatial_, ssbo }
+                };
+                const std::array productionDebugWrites{
+                    ProductionBufferWrite{ 5u, 0u, productionParams_, ubo },
+                    ProductionBufferWrite{ 5u, 8u, productionDebug_, ssbo },
+                    ProductionBufferWrite{ 5u, 29u, productionSpatial_, ssbo }
+                };
+                WriteProductionStage(productionStages_[0],
+                    productionInitialWrites, false);
+                WriteProductionStage(productionStages_[1],
+                    productionTemporalWrites, false);
+                WriteProductionStage(productionStages_[2],
+                    productionSpatialWrites, false);
+                WriteProductionStage(productionStages_[3],
+                    productionWinnerWrites, false);
+                WriteProductionStage(productionStages_[4],
+                    productionDebugWrites, true);
             }
 
             void Dispatch(
@@ -1188,6 +1611,18 @@ namespace RenderingEngine::Restir::Tests
                 dependency.bufferMemoryBarrierCount = static_cast<std::uint32_t>(barriers.size());
                 dependency.pBufferMemoryBarriers = barriers.data();
                 vkCmdPipelineBarrier2_(commandBuffer, &dependency);
+            }
+
+            void DispatchProduction(const VkCommandBuffer commandBuffer,
+                const std::size_t stageIndex)
+            {
+                const ProductionStage& stage = productionStages_.at(stageIndex);
+                vkCmdBindPipeline_(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, stage.pipeline);
+                vkCmdBindDescriptorSets_(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                    stage.pipelineLayout, 0u,
+                    static_cast<std::uint32_t>(stage.descriptorSets.size()),
+                    stage.descriptorSets.data(), 0u, nullptr);
+                vkCmdDispatch_(commandBuffer, 1u, 1u, 1u);
             }
 
             void ImageBarrier(
@@ -1280,7 +1715,35 @@ namespace RenderingEngine::Restir::Tests
                 vkCmdCopyImageToBuffer_(commandBuffer, debugImage_.handle,
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffers_[imageReadback_].handle, 1u, &copy);
 
+                // Run the production ABI-v3 shaders, not the legacy smoke ABI.
+                const std::array productionBuffers{
+                    productionInitial_, productionTemporal_, productionSpatial_,
+                    productionReasons_, productionStats_, productionDebug_
+                };
+                for (std::size_t stage = 0u; stage < 4u; ++stage)
+                {
+                    DispatchProduction(commandBuffer, stage);
+                    BufferBarrier(commandBuffer, productionBuffers,
+                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT);
+                }
+                ImageBarrier(commandBuffer,
+                    VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_READ_BIT,
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+                DispatchProduction(commandBuffer, 4u);
+                ImageBarrier(commandBuffer,
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                    VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_READ_BIT,
+                    VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+                vkCmdCopyImageToBuffer_(commandBuffer, debugImage_.handle,
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    buffers_[productionImageReadback_].handle, 1u, &copy);
                 const std::array hostReadback{
+                    productionInitial_, productionTemporal_, productionSpatial_,
+                    productionDebug_, productionStats_, productionImageReadback_,
                     reservoirD_, directLighting_, debugBuffer_, statsBuffer_, imageReadback_
                 };
                 BufferBarrier(commandBuffer, hostReadback,
@@ -1358,6 +1821,46 @@ namespace RenderingEngine::Restir::Tests
 
             [[nodiscard]] VulkanSmokeReport ReadBack()
             {
+                using namespace Contracts::AbiV3;
+                const auto initial = ReadVector<GpuRestirReservoirV3>(productionInitial_, 4u);
+                const auto temporal = ReadVector<GpuRestirReservoirV3>(productionTemporal_, 4u);
+                const auto resolved = ReadVector<GpuRestirReservoirV3>(productionSpatial_, 4u);
+                const auto productionDebug = ReadVector<GpuRestirDebugV3>(productionDebug_, 4u);
+                const auto productionImage = ReadVector<Float4>(productionImageReadback_, 4u);
+                const auto require = [](const bool passed, const char* message) {
+                    if (!passed) throw std::runtime_error(message);
+                };
+                // Independent scalar oracle: M=1, sum=t/q, W=1/q.
+                require(initial[0].state.x == 1u && initial[0].weightState.x == 8.0f
+                    && initial[0].weightState.y == 4.0f,
+                    "Production V3 M=1 normalization disagrees with t/q and 1/q");
+                require(initial[1].state.x == 1u && initial[1].weightState.x == 0.0f
+                    && initial[1].weightState.y == 0.0f,
+                    "Production V3 legal zero-target proposal must count M=1 without a winner");
+                require(initial[2].state.x == 0u && initial[2].weightState.y == 0.0f,
+                    "Production V3 invalid surface must not count as a legal zero proposal");
+                for (std::size_t pixel = 0u; pixel < 4u; ++pixel)
+                {
+                    require(std::memcmp(&initial[pixel], &temporal[pixel], sizeof(GpuRestirReservoirV3)) == 0,
+                        "Production V3 disabled temporal stage changed the reservoir");
+                    require(std::memcmp(&temporal[pixel].selected, &resolved[pixel].selected,
+                            sizeof(temporal[pixel].selected)) == 0
+                        && std::memcmp(&temporal[pixel].weightState, &resolved[pixel].weightState,
+                            sizeof(Float4)) == 0
+                        && temporal[pixel].state.x == resolved[pixel].state.x,
+                        "Production V3 no-reuse spatial stage changed sample, weight or M");
+                    require(productionDebug[pixel].state.x == resolved[pixel].state.x
+                        && productionDebug[pixel].scalar.x == resolved[pixel].weightState.x
+                        && productionDebug[pixel].scalar.y == resolved[pixel].weightState.y
+                        && productionDebug[pixel].scalar.w == resolved[pixel].selectedTerms.w,
+                        "Production V3 debug record does not match published reservoir");
+                }
+                // Visibility is a fixed input fixture, not a traversal claim.
+                require(resolved[0].selectedTerms.w == 4.0f
+                    && resolved[3].selectedTerms.w == 0.0f
+                    && productionImage[0].x == 1.0f && productionImage[3].x == 0.0f,
+                    "Production V3 winner visibility or debug image disagrees with fixed hit inputs");
+                std::cout << "L9 production ABI-v3 GPU oracle: M=1, zero target, invalid surface, no reuse, visibility and debug readback PASS\n";
                 const std::vector<GpuReservoir> reservoirs = ReadVector<GpuReservoir>(
                     reservoirD_, kReservoirCount);
                 const std::vector<Float4> direct = ReadVector<Float4>(directLighting_, kReservoirCount);
@@ -1427,6 +1930,17 @@ namespace RenderingEngine::Restir::Tests
                 }
                 if (device_ != VK_NULL_HANDLE)
                 {
+                    for (auto stage = productionStages_.rbegin();
+                        stage != productionStages_.rend(); ++stage)
+                    {
+                        if (stage->pipeline != VK_NULL_HANDLE && vkDestroyPipeline_ != nullptr)
+                            vkDestroyPipeline_(device_, stage->pipeline, nullptr);
+                        if (stage->pipelineLayout != VK_NULL_HANDLE && vkDestroyPipelineLayout_ != nullptr)
+                            vkDestroyPipelineLayout_(device_, stage->pipelineLayout, nullptr);
+                        for (const VkDescriptorSetLayout layout : stage->descriptorSetLayouts)
+                            if (layout != VK_NULL_HANDLE && vkDestroyDescriptorSetLayout_ != nullptr)
+                                vkDestroyDescriptorSetLayout_(device_, layout, nullptr);
+                    }
                     for (auto stage = stages_.rbegin(); stage != stages_.rend(); ++stage)
                     {
                         if (stage->pipeline != VK_NULL_HANDLE && vkDestroyPipeline_ != nullptr)
@@ -1458,6 +1972,7 @@ namespace RenderingEngine::Restir::Tests
                         vkDestroyCommandPool_(device_, commandPool_, nullptr);
                     if (vkDestroyDevice_ != nullptr)
                         vkDestroyDevice_(device_, nullptr);
+                    device_ = VK_NULL_HANDLE;
                 }
                 if (instance_ != VK_NULL_HANDLE)
                 {
@@ -1465,10 +1980,12 @@ namespace RenderingEngine::Restir::Tests
                         vkDestroyDebugUtilsMessengerEXT_(instance_, debugMessenger_, nullptr);
                     if (vkDestroyInstance_ != nullptr)
                         vkDestroyInstance_(instance_, nullptr);
+                    instance_ = VK_NULL_HANDLE;
                 }
                 if (loader_ != nullptr)
                 {
                     FreeLibrary(loader_);
+                    loader_ = nullptr;
                 }
             }
         };

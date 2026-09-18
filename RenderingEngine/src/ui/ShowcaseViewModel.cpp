@@ -124,13 +124,6 @@ namespace RenderingEngine::Ui
                 model.reason = "fresh runtime status contains an invalid resolution";
             }
             else if (status.availability == TelemetryAvailability::Fresh
-                && status.samplesPerPixel.has_value()
-                && *status.samplesPerPixel == 0u)
-            {
-                model.availability = TelemetryAvailability::Invalid;
-                model.reason = "fresh runtime status contains zero accumulated SPP";
-            }
-            else if (status.availability == TelemetryAvailability::Fresh
                 && status.maximumBounce.has_value()
                 && *status.maximumBounce == 0u)
             {
@@ -182,9 +175,27 @@ namespace RenderingEngine::Ui
             model.frame = observationIsFresh && status.frameIndex.has_value()
                 ? IntegerText(*status.frameIndex)
                 : "--";
-            model.samplesPerPixel = observationIsFresh && status.samplesPerPixel.has_value()
-                ? IntegerText(*status.samplesPerPixel)
+            model.progressiveFilmSpp = observationIsFresh && status.progressiveFilmSpp.has_value()
+                ? IntegerText(*status.progressiveFilmSpp)
                 : "--";
+            model.currentFramePathsPerPixel = observationIsFresh && status.currentFramePathsPerPixel.has_value()
+                ? IntegerText(*status.currentFramePathsPerPixel) : "--";
+            model.referenceSpp = observationIsFresh && status.referenceSpp.has_value()
+                ? IntegerText(*status.referenceSpp) : "--";
+            model.temporalHistoryLength = observationIsFresh
+                    && status.temporalHistoryLength.has_value()
+                ? IntegerText(*status.temporalHistoryLength) : "--";
+            model.reservoirM = observationIsFresh && status.reservoirM.has_value()
+                ? IntegerText(*status.reservoirM) : "--";
+            model.reservoirAge = observationIsFresh && status.reservoirAge.has_value()
+                ? IntegerText(*status.reservoirAge) : "--";
+            model.reservoirCandidates = observationIsFresh
+                    && status.reservoirCandidates.has_value()
+                ? IntegerText(*status.reservoirCandidates) : "--";
+            model.visibilityRays = observationIsFresh && status.visibilityRays.has_value()
+                ? IntegerText(*status.visibilityRays) : "--";
+            model.totalTracedRays = observationIsFresh && status.totalTracedRays.has_value()
+                ? IntegerText(*status.totalTracedRays) : "--";
             const std::uint32_t bounce =
                 observationIsFresh
                     ? status.maximumBounce.value_or(config.render.maximumBounce)
@@ -199,7 +210,15 @@ namespace RenderingEngine::Ui
             model.text.append("Resolution: ").append(model.resolution);
             model.text.append(" | Seed: ").append(model.seed);
             model.text.append(" | Frame: ").append(model.frame);
-            model.text.append(" | SPP: ").append(model.samplesPerPixel);
+            model.text.append(" | Film SPP: ").append(model.progressiveFilmSpp);
+            model.text.append(" | Paths/pixel/frame: ").append(model.currentFramePathsPerPixel);
+            model.text.append(" | Reference SPP: ").append(model.referenceSpp);
+            model.text.append(" | Temporal H: ").append(model.temporalHistoryLength);
+            model.text.append(" | Reservoir M/Age: ").append(model.reservoirM)
+                .append("/").append(model.reservoirAge);
+            model.text.append(" | Candidates: ").append(model.reservoirCandidates);
+            model.text.append(" | Visibility/Total rays: ").append(model.visibilityRays)
+                .append("/").append(model.totalTracedRays);
             model.text.append(" | Bounce: ").append(model.bounce);
             model.text.append(" | GPU ms: ").append(model.gpuMilliseconds);
             return model;
@@ -234,7 +253,7 @@ namespace RenderingEngine::Ui
         });
 
         constexpr auto kBackends = std::to_array<EnumOption<TraversalBackend>>({
-            { TraversalBackend::LegacyAnalyticGpu, "legacy-analytic-gpu", "Legacy Analytic GPU", "L0" },
+            { TraversalBackend::CanonicalLinearGpu, "canonical-linear-gpu", "Canonical Linear GPU", "L0/L4" },
             { TraversalBackend::CpuBruteForce, "cpu-brute-force", "CPU Brute Force", "L3" },
             { TraversalBackend::CpuSahBvh, "cpu-sah", "CPU SAH BVH", "L3" },
             { TraversalBackend::GpuFlattenedSahBvh, "gpu-flattened-sah", "GPU Flattened SAH BVH", "L4" },
@@ -243,33 +262,43 @@ namespace RenderingEngine::Ui
             { TraversalBackend::VulkanRayTracingPipeline, "rt-pipeline", "Vulkan RT Pipeline", "L5" }
         });
 
-        constexpr auto kIntegrators = std::to_array<EnumOption<Integrator>>({
-            { Integrator::Whitted, "whitted", "Whitted", "L0" },
-            { Integrator::Pbr, "pbr", "Legacy PBR Comparison", "L0" },
-            { Integrator::CpuReferencePathTracer, "cpu-reference", "CPU Reference Path Tracer", "L3" },
-            { Integrator::GpuMegakernelPathTracer, "megakernel", "GPU Megakernel Path Tracer", "L6" },
-            { Integrator::GpuWavefrontPathTracer, "wavefront", "GPU Wavefront Path Tracer", "L7" }
+        constexpr auto kTransportModels = std::to_array<EnumOption<TransportModel>>({
+            { TransportModel::Pbr, "pbr", "PBR Path Transport", "L6" },
+            { TransportModel::Whitted, "whitted", "Whitted Specular Transport", "L0" }
+        });
+
+        constexpr auto kExecutionArchitectures =
+            std::to_array<EnumOption<ExecutionArchitecture>>({
+                { ExecutionArchitecture::Staged, "staged", "GPU Staged", "L6" },
+                { ExecutionArchitecture::CpuReference, "cpu-reference", "CPU Reference", "L3" },
+                { ExecutionArchitecture::Megakernel, "megakernel", "GPU Megakernel", "L6" },
+                { ExecutionArchitecture::Wavefront, "wavefront", "GPU Wavefront", "L7" }
         });
 
         constexpr auto kDirectEstimators = std::to_array<EnumOption<DirectLightingEstimator>>({
-            { DirectLightingEstimator::LegacyAnalyticDirect, "legacy-analytic-direct", "Legacy Analytic Direct", "L0" },
             { DirectLightingEstimator::BsdfOnly, "bsdf-only", "BSDF Only", "L6" },
             { DirectLightingEstimator::NextEventEstimation, "nee", "Next-event Estimation", "L6" },
             { DirectLightingEstimator::MultipleImportanceSampling, "mis", "Multiple Importance Sampling", "L6" },
             { DirectLightingEstimator::RestirDirectIllumination, "restir-di", "ReSTIR Direct Illumination", "L9" }
         });
 
-        constexpr auto kLightProposals = std::to_array<EnumOption<LightProposalDistribution>>({
-            { LightProposalDistribution::LegacyAnalyticLights, "legacy-analytic", "Legacy Analytic Lights", "L0" },
-            { LightProposalDistribution::UniformLights, "uniform", "Uniform Lights", "L6" },
-            { LightProposalDistribution::PowerWeightedLights, "power", "Power-weighted Lights", "L6" },
-            { LightProposalDistribution::EnvironmentImportance, "environment", "Environment Importance", "L6" }
+        constexpr auto kLightSelections =
+            std::to_array<EnumOption<LightSelectionStrategy>>({
+                { LightSelectionStrategy::Uniform, "uniform", "Uniform Light Selection", "L6" },
+                { LightSelectionStrategy::PowerWeighted, "power", "Power-weighted Light Selection", "L6" }
+        });
+
+        constexpr auto kEnvironmentSamplers =
+            std::to_array<EnumOption<EnvironmentDirectionSampler>>({
+                { EnvironmentDirectionSampler::UniformSphere, "uniform-sphere", "Uniform Sphere", "L6" },
+                { EnvironmentDirectionSampler::ImportanceMap, "importance-map", "Environment Importance Map", "L6" }
         });
 
         constexpr auto kReconstructions = std::to_array<EnumOption<ReconstructionMode>>({
-            { ReconstructionMode::Raw, "raw", "Raw", "L0" },
+            { ReconstructionMode::CurrentFrame, "current-frame", "Current Frame Noisy", "L8" },
+            { ReconstructionMode::ProgressiveMean, "progressive-mean", "Progressive Mean (static film)", "L8" },
             { ReconstructionMode::TemporalAccumulation, "temporal", "Temporal Accumulation", "L8" },
-            { ReconstructionMode::TemporalFixedAtrous, "temporal-atrous", "Temporal + Fixed A-Trous", "L8" },
+            { ReconstructionMode::SpatialFixedAtrous, "atrous-spatial", "Spatial A-Trous (no temporal history)", "L8" },
             { ReconstructionMode::Svgf, "svgf", "SVGF", "L8" }
         });
 
@@ -279,7 +308,26 @@ namespace RenderingEngine::Ui
             { DebugView::Normal, "normal", "Normal", "L0" },
             { DebugView::Roughness, "roughness", "Roughness", "L0" },
             { DebugView::Metallic, "metallic", "Metallic", "L0" },
-            { DebugView::Emissive, "emissive", "Emissive", "L0" }
+            { DebugView::Emissive, "emissive", "Emissive", "L0" },
+            { DebugView::Motion, "motion", "Motion Vectors", "L8" },
+            { DebugView::HistoryLength, "history-length", "History Length", "L8" },
+            { DebugView::Moments, "moments", "Luminance Moments", "L8" },
+            { DebugView::Variance, "variance", "Variance", "L8" },
+            { DebugView::TemporalAcceptance, "temporal-acceptance", "Temporal Acceptance", "L8" },
+            { DebugView::TemporalRejectReasons, "temporal-reject-reasons", "Temporal Reject Reasons", "L8" },
+            { DebugView::ReservoirM, "reservoir-m", "Reservoir M", "L9" },
+            { DebugView::ReservoirWeight, "reservoir-weight", "Reservoir Weight", "L9" },
+            { DebugView::ReservoirLightId, "reservoir-light-id", "Reservoir Light ID", "L9" },
+            { DebugView::ReservoirSource, "reservoir-source", "Candidate Source", "L9" },
+            { DebugView::ReservoirReuse, "reservoir-reuse", "Reuse Source", "L9" },
+            { DebugView::ReservoirRejection, "reservoir-rejection", "Reuse Rejection", "L9" },
+            { DebugView::WinnerVisibility, "winner-visibility", "Winner Visibility", "L9" }
+        });
+
+        constexpr auto kShadowMethods = std::to_array<EnumOption<ShadowMethod>>({
+            { ShadowMethod::Pcf, "pcf", "Percentage-closer Filtering", "L0" },
+            { ShadowMethod::Pcss, "pcss", "Percentage-closer Soft Shadows", "L0" },
+            { ShadowMethod::Physical, "physical", "Physical Shadows", "L0" }
         });
 
         template <typename Enum, std::size_t Size>
@@ -334,34 +382,13 @@ namespace RenderingEngine::Ui
             return dimension;
         }
 
-        [[nodiscard]] CapabilityOptionViewModel BuildLightPresetOption(
-            const RuntimeConfig& config,
-            const LightSamplingPresetDescriptor& preset)
-        {
-            RuntimeConfig candidate = config;
-            candidate.directLightingEstimator = preset.estimator;
-            candidate.lightProposalDistribution = preset.proposal;
-            const CapabilityDecision decision = CapabilityTable::Evaluate(candidate);
-            const bool built = CapabilityTable::IsBuilt(preset.estimator)
-                && CapabilityTable::IsBuilt(preset.proposal);
-
-            CapabilityOptionViewModel option;
-            option.value = static_cast<std::uint32_t>(preset.preset);
-            option.token = preset.label;
-            option.label = preset.label;
-            option.owner = preset.owner;
-            option.selected = config.directLightingEstimator == preset.estimator
-                && config.lightProposalDistribution == preset.proposal;
-            option.built = built;
-            option.enabled = built && decision.IsSupported();
-            option.status = decision.status;
-            option.reason = option.enabled ? std::string_view{} : decision.reason;
-            return option;
-        }
-
         [[nodiscard]] bool IsConfigAction(SemanticAction action) noexcept
         {
             return action == SemanticAction::AdjustVerticalFov
+                || action == SemanticAction::CycleSceneVariantForward
+                || action == SemanticAction::CycleSceneVariantBackward
+                || action
+                    == SemanticAction::RestoreCurrentSceneRecommendedProfile
                 || (action >= SemanticAction::CycleBackendForward
                     && action <= SemanticAction::CycleDebugViewBackward)
                 || (action >= SemanticAction::DecreaseMaximumBounce
@@ -406,6 +433,7 @@ namespace RenderingEngine::Ui
             case SemanticAction::ToggleAlgorithmPanel:
             case SemanticAction::ToggleProfilerPanel:
             case SemanticAction::ToggleDebugLegend:
+            case SemanticAction::PrintCurrentReview:
                 return true;
             default:
                 return false;
@@ -472,6 +500,7 @@ namespace RenderingEngine::Ui
             case SemanticAction::ToggleAlgorithmPanel:
             case SemanticAction::ToggleProfilerPanel:
             case SemanticAction::ToggleDebugLegend:
+            case SemanticAction::PrintCurrentReview:
                 return {};
             case SemanticAction::ResetHistories:
                 return "attach the renderer history-reset consumer";
@@ -513,6 +542,21 @@ namespace RenderingEngine::Ui
             RuntimeConfig candidate = config;
             switch (binding.action)
             {
+            case SemanticAction::RestoreCurrentSceneRecommendedProfile:
+            {
+                const SceneRecommendedProfile* const profile =
+                    FindSceneRecommendedProfile(config.scene);
+                if (profile == nullptr)
+                {
+                    entry.owner = "L10";
+                    entry.enabled = false;
+                    entry.reason = "current scene has no registered recommended teaching profile";
+                    return entry;
+                }
+                candidate = MakeSceneRecommendedConfig(config, *profile);
+                entry.owner = "L10";
+                break;
+            }
             case SemanticAction::AdjustVerticalFov:
                 candidate.render.verticalFovDegrees += 2.0f;
                 break;
@@ -555,6 +599,50 @@ namespace RenderingEngine::Ui
             entry.reason = entry.enabled ? std::string_view{} : decision.reason;
             return entry;
         }
+
+        [[nodiscard]] SceneRecommendationViewModel BuildSceneRecommendation(
+            const RuntimeConfig& config)
+        {
+            SceneRecommendationViewModel model;
+            const SceneRecommendedProfile* const profile =
+                FindSceneRecommendedProfile(config.scene);
+            if (profile == nullptr)
+            {
+                model.text = "Teaching recommendation: unregistered";
+                return model;
+            }
+
+            model.registered = true;
+            model.matches = MatchesSceneRecommendedProfile(config, *profile);
+            model.stableId = profile->stableId;
+            model.text.reserve(320u);
+            model.text.append("Teaching recommendation (F11): ");
+            model.text.append(model.matches ? "MATCH" : "DIFFERS");
+            model.text.append(" | ").append(profile->stableId);
+            model.text.append(" | ").append(LabelFor(profile->backend, kBackends));
+            model.text.append(" | ").append(LabelFor(
+                profile->transportModel, kTransportModels));
+            model.text.append(" | ").append(LabelFor(
+                profile->executionArchitecture, kExecutionArchitectures));
+            model.text.append(" | ").append(LabelFor(
+                profile->directLightingEstimator, kDirectEstimators));
+            model.text.append(" | ").append(LabelFor(
+                profile->lightSelection, kLightSelections));
+            model.text.append(" | ").append(LabelFor(
+                profile->environmentSampler, kEnvironmentSamplers));
+            model.text.append(" | ").append(LabelFor(
+                profile->reconstruction, kReconstructions));
+            model.text.append(" | ").append(LabelFor(profile->debugView, kDebugViews));
+            model.text.append(" | ").append(LabelFor(
+                profile->shadowMethod, kShadowMethods));
+            model.text.append(" | Bounce ").append(IntegerText(profile->maximumBounce));
+            if (profile->restir.has_value())
+            {
+                model.text.append(" | ReSTIR 100 / temporal-spatial / explicitly-biased"
+                    " / C1 / N5 / M32 / H20 / Compare 8:1 / animation off");
+            }
+            return model;
+        }
     }
 
     ModeTupleViewModel BuildModeTupleViewModel(const RuntimeConfig& config) noexcept
@@ -562,11 +650,14 @@ namespace RenderingEngine::Ui
         return {
             LabelFor(config.scene, kScenes),
             LabelFor(config.backend, kBackends),
-            LabelFor(config.integrator, kIntegrators),
+            LabelFor(config.transportModel, kTransportModels),
+            LabelFor(config.executionArchitecture, kExecutionArchitectures),
             LabelFor(config.directLightingEstimator, kDirectEstimators),
-            LabelFor(config.lightProposalDistribution, kLightProposals),
+            LabelFor(config.lightSelection, kLightSelections),
+            LabelFor(config.environmentSampler, kEnvironmentSamplers),
             LabelFor(config.reconstruction, kReconstructions),
-            LabelFor(config.debugView, kDebugViews)
+            LabelFor(config.debugView, kDebugViews),
+            LabelFor(config.shadowMethod, kShadowMethods)
         };
     }
 
@@ -584,11 +675,14 @@ namespace RenderingEngine::Ui
         };
         append(tuple.scene);
         append(tuple.backend);
-        append(tuple.integrator);
+        append(tuple.transportModel);
+        append(tuple.executionArchitecture);
         append(tuple.directEstimator);
-        append(tuple.lightProposal);
+        append(tuple.lightSelection);
+        append(tuple.environmentSampler);
         append(tuple.reconstruction);
         append(tuple.debugView);
+        append(tuple.shadowMethod);
         return text;
     }
 
@@ -653,7 +747,8 @@ namespace RenderingEngine::Ui
         model.tupleText = FormatModeTuple(model.tuple);
         model.runtimeStatus = BuildRuntimeStatusLine(config, effectiveStatus);
         model.currentTupleCapability = BuildCurrentTupleCapability(config);
-        model.dimensions.reserve(7);
+        model.sceneRecommendation = BuildSceneRecommendation(config);
+        model.dimensions.reserve(10);
         model.dimensions.push_back(BuildDimension(
             "scene", "Scene", kScenes, config,
             [](const RuntimeConfig& value) { return value.scene; },
@@ -665,10 +760,24 @@ namespace RenderingEngine::Ui
             [](RuntimeConfig& value, TraversalBackend option) { value.backend = option; },
             [](TraversalBackend option) { return CapabilityTable::IsBuilt(option); }));
         model.dimensions.push_back(BuildDimension(
-            "integrator", "Integrator", kIntegrators, config,
-            [](const RuntimeConfig& value) { return value.integrator; },
-            [](RuntimeConfig& value, Integrator option) { value.integrator = option; },
-            [](Integrator option) { return CapabilityTable::IsBuilt(option); }));
+            "transport", "Transport Model", kTransportModels, config,
+            [](const RuntimeConfig& value) { return value.transportModel; },
+            [](RuntimeConfig& value, TransportModel option)
+            {
+                value.transportModel = option;
+            },
+            [](TransportModel option) { return CapabilityTable::IsBuilt(option); }));
+        model.dimensions.push_back(BuildDimension(
+            "execution", "Execution Architecture", kExecutionArchitectures, config,
+            [](const RuntimeConfig& value) { return value.executionArchitecture; },
+            [](RuntimeConfig& value, ExecutionArchitecture option)
+            {
+                value.executionArchitecture = option;
+            },
+            [](ExecutionArchitecture option)
+            {
+                return CapabilityTable::IsBuilt(option);
+            }));
         model.dimensions.push_back(BuildDimension(
             "direct-lighting", "Direct-lighting Estimator", kDirectEstimators, config,
             [](const RuntimeConfig& value) { return value.directLightingEstimator; },
@@ -678,13 +787,25 @@ namespace RenderingEngine::Ui
             },
             [](DirectLightingEstimator option) { return CapabilityTable::IsBuilt(option); }));
         model.dimensions.push_back(BuildDimension(
-            "light-proposal", "Light Proposal Distribution", kLightProposals, config,
-            [](const RuntimeConfig& value) { return value.lightProposalDistribution; },
-            [](RuntimeConfig& value, LightProposalDistribution option)
+            "light-selection", "Discrete Light Selection", kLightSelections, config,
+            [](const RuntimeConfig& value) { return value.lightSelection; },
+            [](RuntimeConfig& value, LightSelectionStrategy option)
             {
-                value.lightProposalDistribution = option;
+                value.lightSelection = option;
             },
-            [](LightProposalDistribution option) { return CapabilityTable::IsBuilt(option); }));
+            [](LightSelectionStrategy option) { return CapabilityTable::IsBuilt(option); }));
+        model.dimensions.push_back(BuildDimension(
+            "environment-sampler", "Environment Direction Sampler",
+            kEnvironmentSamplers, config,
+            [](const RuntimeConfig& value) { return value.environmentSampler; },
+            [](RuntimeConfig& value, EnvironmentDirectionSampler option)
+            {
+                value.environmentSampler = option;
+            },
+            [](EnvironmentDirectionSampler option)
+            {
+                return CapabilityTable::IsBuilt(option);
+            }));
         model.dimensions.push_back(BuildDimension(
             "reconstruction", "Reconstruction", kReconstructions, config,
             [](const RuntimeConfig& value) { return value.reconstruction; },
@@ -695,14 +816,11 @@ namespace RenderingEngine::Ui
             [](const RuntimeConfig& value) { return value.debugView; },
             [](RuntimeConfig& value, DebugView option) { value.debugView = option; },
             [](DebugView option) { return CapabilityTable::IsBuilt(option); }));
-
-        const std::span<const LightSamplingPresetDescriptor> presets =
-            GetLightSamplingPresetCatalog();
-        model.lightSamplingPresets.reserve(presets.size());
-        for (const LightSamplingPresetDescriptor& preset : presets)
-        {
-            model.lightSamplingPresets.push_back(BuildLightPresetOption(config, preset));
-        }
+        model.dimensions.push_back(BuildDimension(
+            "shadow-method", "Shadow Method", kShadowMethods, config,
+            [](const RuntimeConfig& value) { return value.shadowMethod; },
+            [](RuntimeConfig& value, ShadowMethod option) { value.shadowMethod = option; },
+            [](ShadowMethod option) { return CapabilityTable::IsBuilt(option); }));
 
         const std::span<const ActionBinding> bindings = GetActionCatalog();
         model.help.reserve(bindings.size());

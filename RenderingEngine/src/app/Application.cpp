@@ -7,7 +7,10 @@
 #include "app/ExitCode.hpp"
 #include "app/IntegratedModuleRegistry.hpp"
 #include "app/RuntimeConfig.hpp"
+#include "app/RuntimeStatusText.hpp"
 #include "renderers/VulkanWhittedRenderer.hpp"
+#include "scene/CanonicalScene.hpp"
+#include "scene/ExperimentScenes.hpp"
 
 #include <exception>
 #include <iostream>
@@ -58,11 +61,37 @@ namespace RenderingEngine
                 commandLine.config.run.artifactRoot,
                 commandLine.config.run.runIdentifier);
 
-            if (commandLine.config.integrator == Integrator::CpuReferencePathTracer)
+            if (commandLine.config.executionArchitecture
+                == ExecutionArchitecture::CpuReference)
             {
                 RunCpuReferenceRuntime(commandLine.config, artifactLayout);
                 return ToProcessExitCode(ExitCode::Success);
             }
+
+            Scene::ExperimentSceneBuildOptions sceneBuildOptions;
+            sceneBuildOptions.variantStableId = commandLine.config.sceneVariant;
+            sceneBuildOptions.manyLightsCount = ResolveManyLightsCount(
+                commandLine.config.restir.manyLightsTier);
+            sceneBuildOptions.animateLights = commandLine.config.restir.animateLights;
+            sceneBuildOptions.animateCamera = commandLine.config.restir.animateLights;
+            sceneBuildOptions.animateRigidOccluders =
+                commandLine.config.restir.animateRigidOccluders;
+            const Scene::ExperimentScene experimentScene = Scene::BuildExperimentScene(
+                static_cast<Scene::ExperimentScenePreset>(commandLine.config.scene),
+                sceneBuildOptions);
+            const Scene::CanonicalScene& canonicalScene = experimentScene.canonical;
+            const Scene::CanonicalSceneValidation canonicalValidation =
+                Scene::ValidateCanonicalScene(canonicalScene);
+            if (!canonicalValidation)
+            {
+                throw std::runtime_error(
+                    "Production canonical scene provider is invalid: "
+                    + canonicalValidation.reason);
+            }
+
+            std::cout << "[启动] 单窗口 GLFW / Vulkan 演示器已就绪。\n"
+                << "[当前配置] " << FormatRuntimeConfigStatus(commandLine.config) << '\n'
+                << GlfwKeyHelpText() << "\n\n";
 
             if (platformHostFactory == nullptr)
             {
@@ -74,7 +103,7 @@ namespace RenderingEngine
                 commandLine.config.render.width,
                 commandLine.config.render.height
             };
-            platformCreateInfo.title = "Vulkan HLSL Rendering Engine";
+            platformCreateInfo.title = "Vulkan RT Wave 5 Debug 实验展示场";
             platformCreateInfo.captureCursorOnStart = true;
 
             std::unique_ptr<IPlatformHost> platform = platformHostFactory(platformCreateInfo);
@@ -84,7 +113,7 @@ namespace RenderingEngine
             }
 
             VulkanWhittedRenderer renderer(std::move(platform));
-            renderer.Run(MakeLegacyRunOptions(commandLine.config));
+            renderer.Run(commandLine.config, canonicalScene);
             return ToProcessExitCode(ExitCode::Success);
         }
         catch (const CommandLineError& error)

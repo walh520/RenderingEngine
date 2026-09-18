@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals"><VCProjectVersion>18.0</VCProjectVersion><Keyword>Win32Proj</Keyword><ProjectGuid>{F14B5DBA-D9DB-47E5-A61F-C8ECADFBDB2A}</ProjectGuid><RootNamespace>RenderingEngineSceneWave1</RootNamespace><WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion><VcpkgEnableManifest>true</VcpkgEnableManifest><VcpkgManifestInstall>true</VcpkgManifestInstall><VcpkgRoot Condition="'$(VcpkgRoot)' == ''">$([System.IO.Path]::GetFullPath('$(VCTargetsPath)..\..\..\..\VC\vcpkg\'))</VcpkgRoot><L2ImportVcpkgIntegration Condition="'$(VcpkgPropsImported)' != 'true' and Exists('$(VcpkgRoot)scripts\buildsystems\msbuild\vcpkg.props')">true</L2ImportVcpkgIntegration></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration"><ConfigurationType>StaticLibrary</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v145</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration"><ConfigurationType>StaticLibrary</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v145</PlatformToolset><WholeProgramOptimization>true</WholeProgramOptimization><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(VcpkgRoot)scripts\buildsystems\msbuild\vcpkg.props" Condition="'$(L2ImportVcpkgIntegration)' == 'true'" />
+  <ImportGroup Label="ExtensionSettings" /><ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
+  <Import Project="..\..\msbuild\RenderingEngine.Common.props" />
+  <PropertyGroup><OutDir>$(RenderingEngineRepositoryRoot)bin\$(Platform)\$(Configuration)\</OutDir><IntDir>$(RenderingEngineRepositoryRoot)build\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</IntDir><TargetName>RenderingEngine.SceneWave1</TargetName><VcpkgManifestRoot>$(RenderingEngineRepositoryRoot)</VcpkgManifestRoot></PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><ClCompile><PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile></ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><ClCompile><PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile></ItemDefinitionGroup>
+  <ItemGroup><ClCompile Include="CanonicalScene.cpp" /><ClCompile Include="ExperimentScenes.cpp" /><ClCompile Include="GltfCanonicalScene.cpp" /><ClCompile Include="ManyLightsArena.cpp" /><ClCompile Include="ManyLightsSceneProvider.cpp" /></ItemGroup>
+  <ItemGroup><ClInclude Include="..\..\include\scene\CanonicalScene.hpp" /><ClInclude Include="..\..\include\scene\ExperimentScenes.hpp" /><ClInclude Include="..\..\include\scene\GltfCanonicalScene.hpp" /><ClInclude Include="..\..\include\scene\ManyLightsArena.hpp" /><ClInclude Include="..\..\include\scene\ManyLightsSceneProvider.hpp" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="..\..\restir\RenderingEngine.Restir.vcxproj"><Project>{93342811-2C94-4072-B53E-CB4097B70FD2}</Project></ProjectReference></ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(VcpkgRoot)scripts\buildsystems\msbuild\vcpkg.targets" Condition="'$(L2ImportVcpkgIntegration)' == 'true'" />
+  <Target Name="L2ValidateVcpkgIntegration" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(VcpkgRoot)scripts\buildsystems\msbuild\vcpkg.targets')" Text="L2 glTF scene loading requires the pinned vcpkg integration. Pass /p:VcpkgRoot=&lt;path&gt;." />
+  </Target>
+</Project>

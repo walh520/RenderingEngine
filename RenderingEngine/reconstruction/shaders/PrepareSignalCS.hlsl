@@ -1,10 +1,10 @@
 #include "ReconstructionCommon.hlsli"
 
-[[vk::binding(0, 0)]] StructuredBuffer<L8GBufferRecord> gGBuffer : register(t0);
-[[vk::binding(1, 0)]] StructuredBuffer<L8SignalRecord> gRawSignal : register(t1);
-[[vk::binding(2, 0)]] RWStructuredBuffer<L8SignalRecord> gDemodulatedSignal : register(u0);
+[[vk::binding(0, 4)]] StructuredBuffer<GpuGBufferRecordV2> gGBuffer;
+[[vk::binding(4, 4)]] StructuredBuffer<GpuReconstructionSignalV2> gRawSignal;
+[[vk::binding(5, 4)]] RWStructuredBuffer<L8SignalRecord> gDemodulatedSignal;
 
-[[vk::binding(3, 0)]] cbuffer L8PrepareConstants : register(b0)
+[[vk::binding(17, 4)]] cbuffer L8PrepareConstants
 {
     uint2 gPrepareExtent;
     float gMinimumAlbedo;
@@ -18,5 +18,6 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (any(pixel >= gPrepareExtent)) return;
     const uint index = L8LinearIndex(pixel, gPrepareExtent);
     gDemodulatedSignal[index] = L8Demodulate(
-        gRawSignal[index], gGBuffer[index], gMinimumAlbedo, gDemodulateSpecular);
+        L8LoadRawSignal(gRawSignal[index]), L8LoadGBuffer(gGBuffer[index]),
+        gMinimumAlbedo, gDemodulateSpecular);
 }

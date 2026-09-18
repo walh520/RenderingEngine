@@ -19,16 +19,139 @@ namespace RenderingEngine::Ui
 {
     namespace
     {
+        enum class ShowcasePanelSlot
+        {
+            Status,
+            Algorithm,
+            Scene,
+            Debug,
+            Profiler,
+            Capture,
+            Help
+        };
+
+        struct ShowcasePanelPlacement
+        {
+            ImVec2 position;
+            ImVec2 size;
+        };
+
+        [[nodiscard]] ShowcasePanelPlacement InitialPanelPlacement(
+            ShowcasePanelSlot slot)
+        {
+            const ImGuiViewport* const viewport = ImGui::GetMainViewport();
+            ImVec2 workPosition = viewport != nullptr
+                ? viewport->WorkPos
+                : ImVec2(0.0f, 0.0f);
+            ImVec2 workSize = viewport != nullptr
+                ? viewport->WorkSize
+                : ImGui::GetIO().DisplaySize;
+            if (viewport != nullptr)
+            {
+                const float expectedWorkTop =
+                    viewport->Pos.y + ImGui::GetFrameHeight();
+                if (workPosition.y < expectedWorkTop)
+                {
+                    const float menuBarOffset = expectedWorkTop - workPosition.y;
+                    workPosition.y += menuBarOffset;
+                    workSize.y = std::max(1.0f, workSize.y - menuBarOffset);
+                }
+            }
+            if (workSize.x < 320.0f || workSize.y < 240.0f)
+            {
+                workPosition = ImVec2(0.0f, 0.0f);
+                workSize = ImVec2(1280.0f, 720.0f);
+            }
+
+            constexpr float margin = 12.0f;
+            constexpr float gap = 10.0f;
+            const float statusHeight = std::clamp(
+                workSize.y * 0.19f,
+                112.0f,
+                145.0f);
+            const float bodyTop = workPosition.y + margin + statusHeight + gap;
+            const float bodyHeight = std::max(
+                260.0f,
+                workSize.y - margin * 2.0f - gap - statusHeight);
+            const float bodyWidth = std::max(
+                600.0f,
+                workSize.x - margin * 2.0f - gap);
+            const float leftWidth = bodyWidth * 0.56f;
+            const float rightWidth = bodyWidth - leftWidth;
+            const ShowcasePanelPlacement status{
+                ImVec2(workPosition.x + margin, workPosition.y + margin),
+                ImVec2(std::max(320.0f, workSize.x - margin * 2.0f), statusHeight)};
+            const ShowcasePanelPlacement left{
+                ImVec2(workPosition.x + margin, bodyTop),
+                ImVec2(leftWidth, bodyHeight)};
+            const ShowcasePanelPlacement right{
+                ImVec2(workPosition.x + margin + leftWidth + gap, bodyTop),
+                ImVec2(rightWidth, bodyHeight)};
+
+            switch (slot)
+            {
+            case ShowcasePanelSlot::Status:
+                return status;
+            case ShowcasePanelSlot::Algorithm:
+                return left;
+            case ShowcasePanelSlot::Scene:
+                return {
+                    ImVec2(right.position.x + 28.0f, right.position.y + 28.0f),
+                    ImVec2(std::max(300.0f, right.size.x - 56.0f),
+                        std::max(260.0f, right.size.y - 56.0f))};
+            case ShowcasePanelSlot::Debug:
+                return right;
+            case ShowcasePanelSlot::Profiler:
+                return {
+                    ImVec2(workPosition.x + workSize.x * 0.20f,
+                        workPosition.y + workSize.y * 0.24f),
+                    ImVec2(workSize.x * 0.60f, workSize.y * 0.60f)};
+            case ShowcasePanelSlot::Capture:
+                return {
+                    ImVec2(workPosition.x + workSize.x * 0.17f,
+                        workPosition.y + workSize.y * 0.18f),
+                    ImVec2(workSize.x * 0.66f, workSize.y * 0.72f)};
+            case ShowcasePanelSlot::Help:
+                return {
+                    ImVec2(workPosition.x + workSize.x * 0.12f,
+                        workPosition.y + workSize.y * 0.14f),
+                    ImVec2(workSize.x * 0.76f, workSize.y * 0.76f)};
+            }
+            return left;
+        }
+
+        void ApplyInitialPanelPlacement(ShowcasePanelSlot slot)
+        {
+            const ShowcasePanelPlacement placement = InitialPanelPlacement(slot);
+            ImGui::SetNextWindowPos(placement.position, ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(placement.size, ImGuiCond_FirstUseEver);
+        }
+
         void Text(std::string_view value)
         {
             const char* const begin = value.empty() ? "" : value.data();
             ImGui::TextUnformatted(begin, begin + value.size());
         }
 
+        void WrappedText(std::string_view value)
+        {
+            const char* const begin = value.empty() ? "" : value.data();
+            ImGui::PushTextWrapPos(0.0f);
+            ImGui::TextUnformatted(begin, begin + value.size());
+            ImGui::PopTextWrapPos();
+        }
+
         void TextDisabled(std::string_view value)
         {
             ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
             Text(value);
+            ImGui::PopStyleColor();
+        }
+
+        void WrappedTextDisabled(std::string_view value)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            WrappedText(value);
             ImGui::PopStyleColor();
         }
 
@@ -180,13 +303,11 @@ namespace RenderingEngine::Ui
             {
                 return true;
             }
-            constexpr std::array<std::pair<std::string_view, std::string_view>, 6> aliases = {{
-                { "whitted", "legacy-whitted" },
-                { "pbr", "legacy-pbr" },
-                { "environment", "environment-importance" },
+            constexpr std::array<std::pair<std::string_view, std::string_view>, 4> aliases = {{
+                { "importance-map", "environment-importance" },
                 { "uniform", "uniform-one-light" },
                 { "power", "power-weighted-one-light" },
-                { "temporal-atrous", "atrous" }
+                { "atrous-spatial", "atrous" }
             }};
             return std::any_of(
                 aliases.begin(),
@@ -201,8 +322,10 @@ namespace RenderingEngine::Ui
             const ShowcaseViewModel& model,
             std::string_view algorithmToken) noexcept
         {
-            constexpr std::array<std::string_view, 5> dimensions = {
-                "backend", "integrator", "direct-lighting", "light-proposal", "reconstruction"
+            constexpr std::array<std::string_view, 8> dimensions = {
+                "backend", "transport", "execution", "direct-lighting",
+                "light-selection", "environment-sampler", "reconstruction",
+                "shadow-method"
             };
             return std::any_of(
                 dimensions.begin(),
@@ -245,10 +368,10 @@ namespace RenderingEngine::Ui
             else
             {
                 Text(scene->card.label);
-                Text(scene->card.description);
+                WrappedText(scene->card.description);
                 if (!scene->availability.IsAvailable())
                 {
-                    TextDisabled(scene->availability.reason);
+                    WrappedTextDisabled(scene->availability.reason);
                 }
             }
 
@@ -267,17 +390,17 @@ namespace RenderingEngine::Ui
                     CompletionLabel(entry.state).data());
                 if (!entry.algorithm.explanation.empty())
                 {
-                    Text(entry.algorithm.explanation);
+                    WrappedText(entry.algorithm.explanation);
                 }
                 if (!entry.algorithm.knownLimitation.empty())
                 {
                     const std::string limitation = "Limitation: "
                         + std::string(entry.algorithm.knownLimitation);
-                    TextDisabled(limitation);
+                    WrappedTextDisabled(limitation);
                 }
                 if (!entry.reason.empty())
                 {
-                    TextDisabled(entry.reason);
+                    WrappedTextDisabled(entry.reason);
                 }
             }
             if (!matchedAlgorithm)
@@ -290,17 +413,22 @@ namespace RenderingEngine::Ui
             }
         }
 
-        void DrawStatusOverlay(const ShowcaseViewModel& model)
+        void DrawStatusOverlay(
+            const ShowcaseViewModel& model,
+            const std::string_view actionFeedback,
+            const bool actionFeedbackIsError)
         {
-            constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_AlwaysAutoResize
-                | ImGuiWindowFlags_NoCollapse;
+            ApplyInitialPanelPlacement(ShowcasePanelSlot::Status);
+            constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse
+                | ImGuiWindowFlags_NoFocusOnAppearing
+                | ImGuiWindowFlags_NoNavFocus;
             if (ImGui::Begin("Showcase Status", nullptr, flags))
             {
-                Text(model.tupleText);
-                Text(model.runtimeStatus.text);
+                WrappedText(model.tupleText);
+                WrappedText(model.runtimeStatus.text);
                 if (!model.runtimeStatus.providerId.empty())
                 {
-                    ImGui::Text("Provider: %s | %.*s | %.*s | config=%llu scene=%llu resource=%llu",
+                    ImGui::TextWrapped("Provider: %s | %.*s | %.*s | config=%llu scene=%llu resource=%llu",
                         model.runtimeStatus.providerId.c_str(),
                         static_cast<int>(ProvenanceLabel(model.runtimeStatus.provenance).size()),
                         ProvenanceLabel(model.runtimeStatus.provenance).data(),
@@ -312,19 +440,38 @@ namespace RenderingEngine::Ui
                 }
                 if (!model.runtimeStatus.reason.empty())
                 {
-                    TextDisabled(model.runtimeStatus.reason);
+                    WrappedTextDisabled(model.runtimeStatus.reason);
                 }
                 if (model.currentTupleCapability.status == CapabilityStatus::Supported)
                 {
-                    Text(model.currentTupleCapability.text);
+                    WrappedText(model.currentTupleCapability.text);
                 }
                 else
                 {
-                    TextDisabled(model.currentTupleCapability.text);
+                    WrappedTextDisabled(model.currentTupleCapability.text);
                 }
                 if (!model.currentTupleCapability.reason.empty())
                 {
-                    TextDisabled(model.currentTupleCapability.reason);
+                    WrappedTextDisabled(model.currentTupleCapability.reason);
+                }
+                if (model.sceneRecommendation.matches)
+                {
+                    WrappedText(model.sceneRecommendation.text);
+                }
+                else
+                {
+                    WrappedTextDisabled(model.sceneRecommendation.text);
+                }
+                if (!actionFeedback.empty())
+                {
+                    ImGui::Separator();
+                    ImGui::PushStyleColor(
+                        ImGuiCol_Text,
+                        actionFeedbackIsError
+                            ? ImVec4(1.0f, 0.42f, 0.34f, 1.0f)
+                            : ImVec4(0.44f, 0.92f, 0.56f, 1.0f));
+                    WrappedText(actionFeedback);
+                    ImGui::PopStyleColor();
                 }
             }
             ImGui::End();
@@ -382,32 +529,48 @@ namespace RenderingEngine::Ui
             {
                 return;
             }
+            ApplyInitialPanelPlacement(ShowcasePanelSlot::Algorithm);
             if (!ImGui::Begin("Algorithm", &open))
             {
                 ImGui::End();
                 return;
             }
 
-            Text(model.tupleText);
-            Text(model.runtimeStatus.text);
+            WrappedText(model.tupleText);
+            WrappedText(model.runtimeStatus.text);
             if (!model.runtimeStatus.providerId.empty())
             {
                 const std::string source =
                     "Runtime status provider: " + model.runtimeStatus.providerId;
-                TextDisabled(source);
+                WrappedTextDisabled(source);
             }
             if (!model.runtimeStatus.reason.empty())
             {
-                TextDisabled(model.runtimeStatus.reason);
+                WrappedTextDisabled(model.runtimeStatus.reason);
             }
             if (model.currentTupleCapability.status == CapabilityStatus::Supported)
             {
-                Text(model.currentTupleCapability.text);
+                WrappedText(model.currentTupleCapability.text);
             }
             else
             {
-                TextDisabled(model.currentTupleCapability.text);
+                WrappedTextDisabled(model.currentTupleCapability.text);
             }
+            if (model.sceneRecommendation.matches)
+            {
+                WrappedText(model.sceneRecommendation.text);
+            }
+            else
+            {
+                WrappedTextDisabled(model.sceneRecommendation.text);
+            }
+            DrawRequestButton(
+                model.sceneRecommendation.matches
+                    ? "Presentation Active (F11)"
+                    : "Restore Presentation (F11)",
+                SemanticAction::RestoreCurrentSceneRecommendedProfile,
+                model,
+                queue);
             DrawCurrentProgramExplanation(model, program);
             ImGui::Separator();
             for (const CapabilityDimensionViewModel& dimension : model.dimensions)
@@ -534,6 +697,7 @@ namespace RenderingEngine::Ui
             {
                 return;
             }
+            ApplyInitialPanelPlacement(ShowcasePanelSlot::Scene);
             if (!ImGui::Begin("Scene", &open))
             {
                 ImGui::End();
@@ -586,6 +750,7 @@ namespace RenderingEngine::Ui
             {
                 return;
             }
+            ApplyInitialPanelPlacement(ShowcasePanelSlot::Debug);
             if (!ImGui::Begin("Debug", &open))
             {
                 ImGui::End();
@@ -696,6 +861,7 @@ namespace RenderingEngine::Ui
             {
                 return;
             }
+            ApplyInitialPanelPlacement(ShowcasePanelSlot::Profiler);
             if (!ImGui::Begin("Profiler", &open))
             {
                 ImGui::End();
@@ -891,6 +1057,7 @@ namespace RenderingEngine::Ui
             {
                 return;
             }
+            ApplyInitialPanelPlacement(ShowcasePanelSlot::Capture);
             if (!ImGui::Begin("Capture and QA", &open))
             {
                 ImGui::End();
@@ -902,7 +1069,7 @@ namespace RenderingEngine::Ui
                 *inputs.showcase,
                 *inputs.actionQueue);
             DrawRequestButton(
-                "Run short benchmark",
+                "Run Benchmark Entry (F8)",
                 SemanticAction::RequestBenchmark,
                 *inputs.showcase,
                 *inputs.actionQueue);
@@ -1031,6 +1198,7 @@ namespace RenderingEngine::Ui
             {
                 return;
             }
+            ApplyInitialPanelPlacement(ShowcasePanelSlot::Help);
             if (!ImGui::Begin("Showcase Help", &open))
             {
                 ImGui::End();
@@ -1119,17 +1287,41 @@ namespace RenderingEngine::Ui
                 ? SemanticAction::CycleBackendForward
                 : SemanticAction::CycleBackendBackward;
         }
-        else if (dimensionId == "integrator")
+        else if (dimensionId == "transport")
         {
             action = forward
-                ? SemanticAction::CycleIntegratorForward
-                : SemanticAction::CycleIntegratorBackward;
+                ? SemanticAction::CycleTransportModelForward
+                : SemanticAction::CycleTransportModelBackward;
         }
-        else if (dimensionId == "direct-lighting" || dimensionId == "light-proposal")
+        else if (dimensionId == "execution")
         {
             action = forward
-                ? SemanticAction::CycleLightSamplingForward
-                : SemanticAction::CycleLightSamplingBackward;
+                ? SemanticAction::CycleExecutionArchitectureForward
+                : SemanticAction::CycleExecutionArchitectureBackward;
+        }
+        else if (dimensionId == "direct-lighting")
+        {
+            action = forward
+                ? SemanticAction::CycleDirectLightingForward
+                : SemanticAction::CycleDirectLightingBackward;
+        }
+        else if (dimensionId == "light-selection")
+        {
+            action = forward
+                ? SemanticAction::CycleLightSelectionForward
+                : SemanticAction::CycleLightSelectionBackward;
+        }
+        else if (dimensionId == "environment-sampler")
+        {
+            action = forward
+                ? SemanticAction::CycleEnvironmentSamplerForward
+                : SemanticAction::CycleEnvironmentSamplerBackward;
+        }
+        else if (dimensionId == "shadow-method")
+        {
+            action = forward
+                ? SemanticAction::CycleShadowForward
+                : SemanticAction::CycleShadowBackward;
         }
         else if (dimensionId == "reconstruction")
         {
@@ -1175,7 +1367,10 @@ namespace RenderingEngine::Ui
         }
 
         DrawPanelMenu(panels);
-        DrawStatusOverlay(*inputs.showcase);
+        DrawStatusOverlay(
+            *inputs.showcase,
+            inputs.actionFeedback,
+            inputs.actionFeedbackIsError);
         DrawAlgorithmPanel(
             panels.algorithm,
             *inputs.showcase,

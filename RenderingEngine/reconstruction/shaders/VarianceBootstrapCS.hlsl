@@ -1,16 +1,18 @@
 #include "ReconstructionCommon.hlsli"
 
-[[vk::binding(0, 0)]] StructuredBuffer<L8GBufferRecord> gVarianceGBuffer : register(t0);
-[[vk::binding(1, 0)]] StructuredBuffer<L8SignalRecord> gVarianceSignal : register(t1);
-[[vk::binding(2, 0)]] RWStructuredBuffer<L8HistoryRecord> gVarianceHistory : register(u0);
-[[vk::binding(3, 0)]] RWStructuredBuffer<float> gVarianceOutput : register(u1);
+[[vk::binding(0, 4)]] StructuredBuffer<GpuGBufferRecordV2> gVarianceGBuffer;
+[[vk::binding(8, 4)]] StructuredBuffer<L8SignalRecord> gVarianceSignal;
+[[vk::binding(7, 4)]] RWStructuredBuffer<L8HistoryRecord> gVarianceHistory;
+[[vk::binding(10, 4)]] RWStructuredBuffer<float> gVarianceOutput;
 
-[[vk::binding(4, 0)]] cbuffer L8VarianceConstants : register(b0)
+[[vk::binding(19, 4)]] cbuffer L8VarianceConstants
 {
     uint2 gVarianceExtent;
     uint gShortHistoryLength;
     uint gSpatialRadius;
     float gMinimumVariance;
+    uint gUseTemporalVariance;
+    float2 gVarianceReserved;
 };
 
 [numthreads(8, 8, 1)]
@@ -19,13 +21,14 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     const uint2 pixel = dispatchThreadId.xy;
     if (any(pixel >= gVarianceExtent)) return;
     const uint index = L8LinearIndex(pixel, gVarianceExtent);
-    const L8GBufferRecord center = gVarianceGBuffer[index];
-    L8HistoryRecord history = gVarianceHistory[index];
+    const L8GBufferRecord center = L8LoadGBuffer(gVarianceGBuffer[index]);
+    L8HistoryRecord history = (L8HistoryRecord)0;
+    if (gUseTemporalVariance != 0u) history = gVarianceHistory[index];
     if (center.valid == 0u || center.linearDepth < 0.0f || !isfinite(center.linearDepth) ||
         !L8IsUsableNormal(center.worldNormal))
     {
         history.variance = gMinimumVariance;
-        gVarianceHistory[index] = history;
+        if (gUseTemporalVariance != 0u) gVarianceHistory[index] = history;
         gVarianceOutput[index] = gMinimumVariance;
         return;
     }
@@ -42,7 +45,8 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
             const int2 samplePixel = int2(pixel) + int2(x, y);
             if (any(samplePixel < 0) || any(samplePixel >= int2(gVarianceExtent))) continue;
             const uint sampleIndex = L8LinearIndex(uint2(samplePixel), gVarianceExtent);
-            const L8GBufferRecord sampleGBuffer = gVarianceGBuffer[sampleIndex];
+            const L8GBufferRecord sampleGBuffer =
+                L8LoadGBuffer(gVarianceGBuffer[sampleIndex]);
             const L8SignalRecord signal = gVarianceSignal[sampleIndex];
             if (sampleGBuffer.valid == 0u || sampleGBuffer.linearDepth < 0.0f ||
                 !isfinite(sampleGBuffer.linearDepth) || !L8IsUsableNormal(sampleGBuffer.worldNormal) ||
@@ -67,12 +71,14 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     const float mean = sumsValid ? first / weightSum : 0.0f;
     const float rawSpatialVariance = sumsValid ? second / weightSum - mean * mean : 0.0f;
     const float spatialVariance = isfinite(rawSpatialVariance) ? max(rawSpatialVariance, 0.0f) : 0.0f;
-    const float temporalBlend = saturate(float(history.historyLength) / float(max(gShortHistoryLength, 1u)));
+    const float temporalBlend = gUseTemporalVariance != 0u
+        ? saturate(float(history.historyLength) / float(max(gShortHistoryLength, 1u)))
+        : 0.0f;
     const float safeTemporalVariance = isfinite(history.variance) && history.variance >= 0.0f
         ? history.variance
         : spatialVariance;
     const float bootstrapped = lerp(spatialVariance, safeTemporalVariance, temporalBlend);
     history.variance = isfinite(bootstrapped) ? max(bootstrapped, gMinimumVariance) : gMinimumVariance;
-    gVarianceHistory[index] = history;
+    if (gUseTemporalVariance != 0u) gVarianceHistory[index] = history;
     gVarianceOutput[index] = history.variance;
 }

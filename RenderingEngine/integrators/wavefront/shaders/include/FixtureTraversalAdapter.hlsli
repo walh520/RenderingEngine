@@ -10,13 +10,14 @@
 
 #include "pbr_fixture_traversal.hlsli"
 
-void WfFixtureMiss(uint pathIndex, uint rayIndex, out WfMaterialWorkItem hit)
+void WfFixtureMiss(uint rayId, uint pathIndex, out WfMaterialWorkItem hit)
 {
     hit.positionT = float4(0.0f, 0.0f, 0.0f, -1.0f);
     hit.geometricNormalBaryU = 0.0f;
     hit.shadingNormalBaryV = 0.0f;
     hit.ids = 0xffffffffu;
-    hit.identity = uint4(pathIndex, rayIndex, kWfHitMiss, 0u);
+    hit.metadata = uint4(rayId, kWfHitMiss, 0u, pathIndex);
+    hit.reserved0 = 0u;
 }
 
 bool WfTraceClosest(WfRayItem ray, uint rayIndex, out WfMaterialWorkItem hit)
@@ -30,7 +31,7 @@ bool WfTraceClosest(WfRayItem ray, uint rayIndex, out WfMaterialWorkItem hit)
         query, ray.originTMin.w, ray.directionTMax.w, pbrHit);
     if (!found)
     {
-        WfFixtureMiss(ray.path.x, rayIndex, hit);
+        WfFixtureMiss(ray.identity.x, ray.identity.y, hit);
         return false;
     }
 
@@ -44,7 +45,12 @@ bool WfTraceClosest(WfRayItem ray, uint rayIndex, out WfMaterialWorkItem hit)
         pbrHit.primitiveId,
         0u,
         pbrHit.materialIndex);
-    hit.identity = uint4(ray.path.x, rayIndex, 1u, pbrHit.frontFace);
+    hit.metadata = uint4(
+        ray.identity.x,
+        1u,
+        pbrHit.frontFace != 0u ? 1u : 0u,
+        ray.identity.y);
+    hit.reserved0 = 0u;
     return true;
 }
 

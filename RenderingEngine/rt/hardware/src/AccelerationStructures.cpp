@@ -600,13 +600,18 @@ namespace RenderingEngine::Rt::Hardware
         allocator_->Dispatch().cmdPipelineBarrier2(commandBuffer, &dependency);
     }
 
-    void AccelerationStructureBuilder::RecordBuildToTraceBarrier(VkCommandBuffer commandBuffer) const noexcept
+    void AccelerationStructureBuilder::RecordBuildToTraceBarrier(
+        const VkCommandBuffer commandBuffer,
+        const bool includeRayTracingPipelineStage) const noexcept
     {
         VkMemoryBarrier2 barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER_2};
         barrier.srcStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
         barrier.srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
-        barrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT |
-            VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
+        barrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        if (includeRayTracingPipelineStage)
+        {
+            barrier.dstStageMask |= VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
+        }
         barrier.dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR |
             VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
         VkDependencyInfo dependency{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};

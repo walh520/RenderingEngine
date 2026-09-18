@@ -1,18 +1,14 @@
 #include "app/CpuReferenceRuntime.hpp"
 
 #include "integrators/reference_cpu/CornellReference.hpp"
+#include "rt/cpu/ImageOutput.hpp"
 
-#include <algorithm>
-#include <bit>
-#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <limits>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 namespace RenderingEngine
 {
@@ -21,73 +17,52 @@ namespace RenderingEngine
         using Integrators::ReferenceCpu::CornellReferenceOptions;
         using Integrators::ReferenceCpu::CornellReferenceResult;
 
-        [[nodiscard]] std::uint8_t LinearToSrgbByte(const float value, const float exposure)
+        [[nodiscard]] ArtifactLayout ResolveAvailableCpuReferenceLayout(
+            const ArtifactLayout& requested)
         {
-            const float linear = std::max(0.0f, value * exposure);
-            const float mapped = linear / (1.0f + linear);
-            const float srgb = mapped <= 0.0031308f
-                ? 12.92f * mapped
-                : 1.055f * std::pow(mapped, 1.0f / 2.4f) - 0.055f;
-            return static_cast<std::uint8_t>(std::clamp(srgb, 0.0f, 1.0f) * 255.0f + 0.5f);
-        }
-
-        void WritePfm(
-            const std::filesystem::path& path,
-            const std::uint32_t width,
-            const std::uint32_t height,
-            const std::vector<float>& pixels)
-        {
-            static_assert(std::endian::native == std::endian::little);
-            std::ofstream output(path, std::ios::binary | std::ios::trunc);
-            if (!output)
+            std::error_code filesystemError;
+            if (!std::filesystem::exists(
+                    requested.runDirectory, filesystemError))
             {
-                throw std::runtime_error("Failed to create CPU reference PFM output.");
-            }
-            output << "PF\n" << width << ' ' << height << "\n-1.0\n";
-            for (std::uint32_t row = height; row-- > 0u;)
-            {
-                const std::size_t offset = static_cast<std::size_t>(row) * width * 3u;
-                output.write(
-                    reinterpret_cast<const char*>(pixels.data() + offset),
-                    static_cast<std::streamsize>(width) * 3 * sizeof(float));
-            }
-            if (!output)
-            {
-                throw std::runtime_error("Failed while writing CPU reference PFM output.");
-            }
-        }
-
-        void WritePpm(
-            const std::filesystem::path& path,
-            const std::uint32_t width,
-            const std::uint32_t height,
-            const std::vector<float>& pixels,
-            const float exposure)
-        {
-            std::ofstream output(path, std::ios::binary | std::ios::trunc);
-            if (!output)
-            {
-                throw std::runtime_error("Failed to create CPU reference PPM preview.");
-            }
-            output << "P6\n" << width << ' ' << height << "\n255\n";
-            for (const float component : pixels)
-            {
-                if (!std::isfinite(component))
+                if (filesystemError)
                 {
-                    throw std::runtime_error("CPU reference produced a non-finite preview component.");
+                    throw std::runtime_error(
+                        "Failed to query the CPU reference artifact directory.");
                 }
-                output.put(static_cast<char>(LinearToSrgbByte(component, exposure)));
+                return requested;
             }
-            if (!output)
+
+            const std::string baseRunIdentifier =
+                requested.runDirectory.filename().string();
+            for (std::uint32_t suffix = 1u; suffix <= 9999u; ++suffix)
             {
-                throw std::runtime_error("Failed while writing CPU reference PPM preview.");
+                ArtifactLayout candidate = ResolveArtifactLayout(
+                    requested.artifactRoot,
+                    baseRunIdentifier + "-" + std::to_string(suffix));
+                filesystemError.clear();
+                const bool candidateExists = std::filesystem::exists(
+                    candidate.runDirectory, filesystemError);
+                if (filesystemError)
+                {
+                    throw std::runtime_error(
+                        "Failed to query a CPU reference artifact directory candidate.");
+                }
+                if (!candidateExists)
+                {
+                    std::cout << "CPU reference run already exists; using "
+                        << candidate.runDirectory.string() << " instead.\n";
+                    return candidate;
+                }
             }
+            throw std::runtime_error(
+                "No available CPU reference artifact run directory remains.");
         }
 
         void WriteMetadata(
             const std::filesystem::path& path,
             const RuntimeConfig& config,
-            const CornellReferenceResult& result)
+            const CornellReferenceResult& result,
+            const std::uint64_t pixelHash)
         {
             std::ofstream output(path, std::ios::binary | std::ios::trunc);
             if (!output)
@@ -96,6 +71,11 @@ namespace RenderingEngine
             }
             output
                 << "{\n"
+                << "  \"schema_version\": \"artifact-layout-v0\",\n"
+                << "  \"contract_versions\": {"
+                << "\"scene_frame_abi\": \"abi-v0-numeric-1\", "
+                << "\"gpu_traversal_abi\": \"abi-v1-numeric-2\", "
+                << "\"runtime_config\": \"runtime-config-v2\"},\n"
                 << "  \"provider\": \"L3-cpu-reference\",\n"
                 << "  \"scene\": \"cornell-box-private-fixture\",\n"
                 << "  \"width\": " << config.render.width << ",\n"
@@ -104,6 +84,7 @@ namespace RenderingEngine
                 << "  \"max_bounces\": " << config.render.maximumBounce << ",\n"
                 << "  \"seed\": " << config.render.baseSeed << ",\n"
                 << "  \"scene_hash\": " << result.sceneHash << ",\n"
+                << "  \"pixel_hash\": " << pixelHash << ",\n"
                 << "  \"ray_count\": " << result.rayCount << ",\n"
                 << "  \"shadow_ray_count\": " << result.shadowRayCount << ",\n"
                 << "  \"non_finite_count\": " << result.nonFiniteCount << ",\n"
@@ -120,6 +101,9 @@ namespace RenderingEngine
         const RuntimeConfig& config,
         const ArtifactLayout& artifactLayout)
     {
+        const ArtifactLayout outputLayout =
+            ResolveAvailableCpuReferenceLayout(artifactLayout);
+
         CornellReferenceOptions options;
         options.width = config.render.width;
         options.height = config.render.height;
@@ -139,41 +123,44 @@ namespace RenderingEngine
         }
 
         std::error_code filesystemError;
-        const bool runDirectoryExists = std::filesystem::exists(
-            artifactLayout.runDirectory, filesystemError);
-        if (filesystemError)
-        {
-            throw std::runtime_error("Failed to query the CPU reference artifact directory.");
-        }
-        if (runDirectoryExists)
-        {
-            throw std::runtime_error("CPU reference artifact run already exists.");
-        }
         if (!std::filesystem::create_directories(
-                artifactLayout.referencesDirectory, filesystemError) || filesystemError)
+                outputLayout.referencesDirectory, filesystemError) || filesystemError)
         {
             throw std::runtime_error("Failed to create the CPU reference artifact directory.");
         }
 
         try
         {
-            WritePfm(
-                artifactLayout.referencesDirectory / "cpu-reference.pfm",
-                options.width, options.height, result.pixels);
-            WritePpm(
-                artifactLayout.referencesDirectory / "cpu-reference.ppm",
-                options.width, options.height, result.pixels, config.render.exposure);
-            WriteMetadata(artifactLayout.metadataFile, config, result);
+            if (!Rt::Cpu::WriteLinearRgbExr(
+                    outputLayout.referencesDirectory / "cornell-reference.exr",
+                    options.width, options.height, result.pixels, error))
+            {
+                throw std::runtime_error(error);
+            }
+            if (!Rt::Cpu::WriteSrgbBmpPreview(
+                    outputLayout.referencesDirectory / "cornell-reference.bmp",
+                    options.width, options.height, result.pixels,
+                    config.render.exposure, error))
+            {
+                throw std::runtime_error(error);
+            }
+            const std::uint64_t pixelHash = Rt::Cpu::HashLinearRgbPixels(
+                options.width, options.height, result.pixels, error);
+            if (pixelHash == 0u)
+            {
+                throw std::runtime_error(error);
+            }
+            WriteMetadata(outputLayout.metadataFile, config, result, pixelHash);
         }
         catch (...)
         {
-            std::filesystem::remove_all(artifactLayout.runDirectory, filesystemError);
+            std::filesystem::remove_all(outputLayout.runDirectory, filesystemError);
             throw;
         }
 
         std::cout << "L3 CPU reference complete: " << options.width << 'x'
             << options.height << ", spp=" << options.spp
             << ", rays=" << result.rayCount
-            << ", artifacts=" << artifactLayout.runDirectory.string() << '\n';
+            << ", artifacts=" << outputLayout.runDirectory.string() << '\n';
     }
 }

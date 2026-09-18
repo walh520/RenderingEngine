@@ -7,7 +7,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
-#include <span>
+#include <functional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -52,7 +53,7 @@ namespace RenderingEngine::Ui
     {
         SceneChanged,
         BackendChanged,
-        IntegratorOrLightSamplingChanged,
+        TransportExecutionOrSamplingChanged,
         ReconstructionChanged,
         ResolutionRenderScaleOrFovChanged,
         CameraDiscontinuity,
@@ -82,7 +83,7 @@ namespace RenderingEngine::Ui
             return atqp | ResetResource::AccelerationStructures;
         case ResetCause::BackendChanged:
             return atqp | ResetResource::AccelerationStructures;
-        case ResetCause::IntegratorOrLightSamplingChanged:
+        case ResetCause::TransportExecutionOrSamplingChanged:
         case ResetCause::ResolutionRenderScaleOrFovChanged:
         case ResetCause::CameraDiscontinuity:
         case ResetCause::ShadingParameterChanged:
@@ -100,28 +101,6 @@ namespace RenderingEngine::Ui
         }
         return ResetResource::None;
     }
-
-    enum class LightSamplingPreset : std::uint8_t
-    {
-        LegacyAnalytic,
-        BsdfOnly,
-        NeeUniform,
-        NeePowerWeighted,
-        MisPowerWeighted,
-        RestirDirectIllumination
-    };
-
-    struct LightSamplingPresetDescriptor
-    {
-        LightSamplingPreset preset;
-        DirectLightingEstimator estimator;
-        LightProposalDistribution proposal;
-        std::string_view label;
-        std::string_view owner;
-    };
-
-    [[nodiscard]] std::span<const LightSamplingPresetDescriptor>
-        GetLightSamplingPresetCatalog() noexcept;
 
     enum class RoutedCommand : std::uint16_t
     {
@@ -152,7 +131,8 @@ namespace RenderingEngine::Ui
         ToggleSplitScreenComparison,
         ToggleDebugLegend,
         RequestBenchmark,
-        RequestReferenceComparison
+        RequestReferenceComparison,
+        PrintCurrentReview
     };
 
     enum class ActionApplyStatus : std::uint8_t
@@ -214,7 +194,10 @@ namespace RenderingEngine::Ui
     // the queue in FIFO order at the caller's frame-start fixed point.  Every
     // config mutation is first made on a candidate copy, evaluated as a whole,
     // and committed only on Supported.
+    using SceneVariantCatalog = std::function<std::vector<std::string>(const RuntimeConfig&)>;
+
     [[nodiscard]] ActionBatchResult ApplyQueuedActions(
         ActionQueue& queue,
-        RuntimeConfig& liveConfig);
+        RuntimeConfig& liveConfig,
+        const SceneVariantCatalog& sceneVariants = {});
 }

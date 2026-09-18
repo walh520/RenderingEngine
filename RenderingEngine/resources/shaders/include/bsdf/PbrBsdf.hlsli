@@ -1,6 +1,8 @@
 #ifndef RENDERING_ENGINE_PBR_BSDF_L6_HLSLI
 #define RENDERING_ENGINE_PBR_BSDF_L6_HLSLI
 
+#include "../contracts/GpuRecordsAbiV1.hlsli"
+
 // L6-private BSDF reference implementation.
 //
 // Direction convention: wo and wi are normalized world-space directions that
@@ -19,6 +21,36 @@ static const uint kBsdfTransportImportanceL6 = 1u;
 static const uint kBsdfMeasureInvalidL6 = 0u;
 static const uint kBsdfMeasureSolidAngleL6 = 1u;
 static const uint kBsdfMeasureDiscreteL6 = 2u;
+
+// PbrBsdfL6 keeps its historical private measure values. Exporting a sample
+// through the shared ABI must use these explicit mappings; the two encodings
+// are intentionally not layout-compatible (ABI v1 uses invalid=0,
+// discrete=1, solid-angle=2, area=3).
+uint PbrBsdfPrivateMeasureToAbiV1L6(uint privateMeasure)
+{
+    if (privateMeasure == kBsdfMeasureSolidAngleL6)
+    {
+        return kSampleMeasureSolidAngleV1;
+    }
+    if (privateMeasure == kBsdfMeasureDiscreteL6)
+    {
+        return kSampleMeasureDiscreteV1;
+    }
+    return kSampleMeasureInvalidV1;
+}
+
+uint PbrAbiV1MeasureToPrivateBsdfMeasureL6(uint abiMeasure)
+{
+    if (abiMeasure == kSampleMeasureSolidAngleV1)
+    {
+        return kBsdfMeasureSolidAngleL6;
+    }
+    if (abiMeasure == kSampleMeasureDiscreteV1)
+    {
+        return kBsdfMeasureDiscreteL6;
+    }
+    return kBsdfMeasureInvalidL6;
+}
 
 static const uint kBsdfLobeDiffuseL6 = 1u << 0u;
 static const uint kBsdfLobeGlossyL6 = 1u << 1u;
@@ -203,6 +235,7 @@ bool BsdfRoughnessIsFiniteModelL6(float perceptualRoughness)
     return alpha >= kBsdfMinimumAlphaL6;
 }
 
+[noinline]
 bool ValidateBsdfParamsL6(BsdfContextL6 context, BsdfParamsL6 parameters)
 {
     if (parameters.allowedLobes == 0u ||
@@ -211,6 +244,53 @@ bool ValidateBsdfParamsL6(BsdfContextL6 context, BsdfParamsL6 parameters)
         return false;
     }
 
+#if defined(PBR_L6_MATERIAL_METALLIC_ROUGHNESS_ONLY)
+    return parameters.model == kBsdfModelMetallicRoughnessL6 &&
+        BsdfColorInUnitRangeL6(parameters.baseColor) &&
+        BsdfColorInUnitRangeL6(parameters.f0) &&
+        BsdfRoughnessIsFiniteModelL6(parameters.perceptualRoughness) &&
+        BsdfFiniteFloatL6(parameters.metallic) &&
+        parameters.metallic >= 0.0f && parameters.metallic <= 1.0f &&
+        BsdfFiniteFloatL6(parameters.transmission) &&
+        parameters.transmission >= 0.0f && parameters.transmission <= 1.0f;
+#elif defined(PBR_L6_MATERIAL_MR_SMOOTH_ONLY)
+    if (parameters.model == kBsdfModelSmoothGlassL6)
+    {
+        return BsdfPositiveEtaContextL6(context) &&
+            BsdfFiniteFloatL6(parameters.transmission) &&
+            parameters.transmission >= 0.0f && parameters.transmission <= 1.0f;
+    }
+    return parameters.model == kBsdfModelMetallicRoughnessL6 &&
+        BsdfColorInUnitRangeL6(parameters.baseColor) &&
+        BsdfColorInUnitRangeL6(parameters.f0) &&
+        BsdfRoughnessIsFiniteModelL6(parameters.perceptualRoughness) &&
+        BsdfFiniteFloatL6(parameters.metallic) &&
+        parameters.metallic >= 0.0f && parameters.metallic <= 1.0f &&
+        BsdfFiniteFloatL6(parameters.transmission) &&
+        parameters.transmission >= 0.0f && parameters.transmission <= 1.0f;
+#elif defined(PBR_L6_MATERIAL_SHOWCASE_ONLY)
+    if (parameters.model == kBsdfModelSmoothGlassL6)
+    {
+        return BsdfPositiveEtaContextL6(context) &&
+            BsdfFiniteFloatL6(parameters.transmission) &&
+            parameters.transmission >= 0.0f && parameters.transmission <= 1.0f;
+    }
+    if (parameters.model == kBsdfModelRoughDielectricL6)
+    {
+        return BsdfRoughnessIsFiniteModelL6(parameters.perceptualRoughness) &&
+            BsdfPositiveEtaContextL6(context) &&
+            BsdfFiniteFloatL6(parameters.transmission) &&
+            parameters.transmission >= 0.0f && parameters.transmission <= 1.0f;
+    }
+    return parameters.model == kBsdfModelMetallicRoughnessL6 &&
+        BsdfColorInUnitRangeL6(parameters.baseColor) &&
+        BsdfColorInUnitRangeL6(parameters.f0) &&
+        BsdfRoughnessIsFiniteModelL6(parameters.perceptualRoughness) &&
+        BsdfFiniteFloatL6(parameters.metallic) &&
+        parameters.metallic >= 0.0f && parameters.metallic <= 1.0f &&
+        BsdfFiniteFloatL6(parameters.transmission) &&
+        parameters.transmission >= 0.0f && parameters.transmission <= 1.0f;
+#else
     if (parameters.model == kBsdfModelLambertL6)
     {
         return BsdfColorInUnitRangeL6(parameters.baseColor);
@@ -265,6 +345,25 @@ bool ValidateBsdfParamsL6(BsdfContextL6 context, BsdfParamsL6 parameters)
     }
 
     return false;
+#endif
+}
+
+// ReSTIR DI's production target currently evaluates only the opaque
+// metallic-roughness reflection model. Keep this ownership test beside the
+// BSDF contract so every execution architecture makes the same decision.
+bool BsdfSupportsRestirPrimaryDirectL6(BsdfParamsL6 parameters)
+{
+    const uint required =
+        kBsdfLobeDiffuseReflectionL6 | kBsdfLobeGlossyReflectionL6;
+    const uint unsupported =
+        kBsdfLobeTransmissionL6 | kBsdfLobeSpecularL6;
+    return parameters.model == kBsdfModelMetallicRoughnessL6
+        && parameters.useComplexConductorFresnel == 0u
+        && BsdfRoughnessIsFiniteModelL6(parameters.perceptualRoughness)
+        && BsdfFiniteFloatL6(parameters.transmission)
+        && parameters.transmission == 0.0f
+        && (parameters.allowedLobes & required) == required
+        && (parameters.allowedLobes & unsupported) == 0u;
 }
 
 bool BsdfBuildFrameL6(
@@ -543,6 +642,7 @@ float BsdfGgxVisibleNormalPdfL6(float3 wo, float3 microNormal, float alpha)
         abs(dot(wo, microNormal)) / abs(wo.z);
 }
 
+[noinline]
 bool BsdfSampleGgxVisibleNormalL6(
     float3 wo,
     float alpha,
@@ -705,6 +805,7 @@ BsdfEvalL6 BsdfEvaluateLambertLocalL6(
     return result;
 }
 
+[noinline]
 BsdfEvalL6 BsdfEvaluateGgxReflectionLocalL6(
     BsdfContextL6 context,
     BsdfParamsL6 parameters,
@@ -785,6 +886,7 @@ bool BsdfMetallicLobeProbabilitiesL6(
         BsdfFiniteFloatL6(specularProbability);
 }
 
+[noinline]
 BsdfEvalL6 BsdfEvaluateMetallicRoughnessLocalL6(
     BsdfParamsL6 parameters,
     float3 wo,
@@ -901,6 +1003,7 @@ bool BsdfRoughDielectricEventProbabilitiesL6(
     return true;
 }
 
+[noinline]
 BsdfEvalL6 BsdfEvaluateRoughDielectricLocalL6(
     BsdfContextL6 context,
     BsdfParamsL6 parameters,
@@ -1008,6 +1111,7 @@ BsdfEvalL6 BsdfEvaluateRoughDielectricLocalL6(
     return result;
 }
 
+[noinline]
 BsdfEvalL6 EvaluateBsdfL6(
     BsdfContextL6 context,
     BsdfParamsL6 parameters,
@@ -1047,6 +1151,23 @@ BsdfEvalL6 EvaluateBsdfL6(
     const float3 wiLocal = BsdfToLocalL6(
         wiWorld, tangent, bitangent, shadingNormal);
 
+#if defined(PBR_L6_MATERIAL_METALLIC_ROUGHNESS_ONLY)
+    result = BsdfEvaluateMetallicRoughnessLocalL6(
+        parameters, woLocal, wiLocal);
+#elif defined(PBR_L6_MATERIAL_MR_SMOOTH_ONLY)
+    if (parameters.model == kBsdfModelMetallicRoughnessL6)
+    {
+        result = BsdfEvaluateMetallicRoughnessLocalL6(
+            parameters, woLocal, wiLocal);
+    }
+    else if (parameters.model == kBsdfModelSmoothGlassL6)
+    {
+        // Delta lobes have no finite-direction Evaluate/Pdf value.
+        result.measure = kBsdfMeasureDiscreteL6;
+        return result;
+    }
+#else
+#if !defined(PBR_L6_MATERIAL_SHOWCASE_ONLY)
     if (parameters.model == kBsdfModelLambertL6)
     {
         result = BsdfEvaluateLambertLocalL6(parameters, woLocal, wiLocal);
@@ -1057,7 +1178,9 @@ BsdfEvalL6 EvaluateBsdfL6(
         result = BsdfEvaluateGgxReflectionLocalL6(
             context, parameters, woLocal, wiLocal);
     }
-    else if (parameters.model == kBsdfModelRoughDielectricL6)
+    else
+#endif
+    if (parameters.model == kBsdfModelRoughDielectricL6)
     {
         result = BsdfEvaluateRoughDielectricLocalL6(
             context, parameters, woLocal, wiLocal);
@@ -1073,6 +1196,7 @@ BsdfEvalL6 EvaluateBsdfL6(
         result.measure = kBsdfMeasureDiscreteL6;
         return result;
     }
+#endif
 
     if (result.isValid == 0u ||
         !BsdfValidateWorldEventL6(
@@ -1177,6 +1301,7 @@ bool BsdfRefractLocalL6(
     return BsdfSafeNormalizeL6(candidate, wi);
 }
 
+[noinline]
 BsdfSampleL6 BsdfSampleSmoothGlassLocalL6(
     BsdfContextL6 context,
     BsdfParamsL6 parameters,
@@ -1261,6 +1386,7 @@ BsdfSampleL6 BsdfSampleSmoothGlassLocalL6(
     return result;
 }
 
+[noinline]
 BsdfSampleL6 BsdfSampleFiniteLocalL6(
     BsdfContextL6 context,
     BsdfParamsL6 parameters,
@@ -1271,6 +1397,46 @@ BsdfSampleL6 BsdfSampleFiniteLocalL6(
     result.measure = kBsdfMeasureSolidAngleL6;
     result.eta = 1.0f;
 
+#if defined(PBR_L6_MATERIAL_METALLIC_ROUGHNESS_ONLY) || \
+    defined(PBR_L6_MATERIAL_MR_SMOOTH_ONLY)
+    if (parameters.model != kBsdfModelMetallicRoughnessL6)
+    {
+        return InvalidBsdfSampleL6();
+    }
+    const float alpha = parameters.perceptualRoughness *
+        parameters.perceptualRoughness;
+    float diffuseProbability;
+    float specularProbability;
+    if (!BsdfMetallicLobeProbabilitiesL6(
+        parameters, wo, diffuseProbability, specularProbability))
+    {
+        return InvalidBsdfSampleL6();
+    }
+    if (randomSample.x < diffuseProbability)
+    {
+        result.direction = BsdfSampleCosineHemisphereL6(randomSample.yz);
+        result.lobeFlags = kBsdfLobeDiffuseReflectionL6;
+    }
+    else
+    {
+        float3 microNormal;
+        if (specularProbability <= 0.0f ||
+            !BsdfSampleGgxVisibleNormalL6(
+                wo, alpha, randomSample.yz, microNormal))
+        {
+            return InvalidBsdfSampleL6();
+        }
+        result.direction = -wo + 2.0f * dot(wo, microNormal) * microNormal;
+        if (result.direction.z <= kBsdfDirectionEpsilonL6)
+        {
+            return InvalidBsdfSampleL6();
+        }
+        result.lobeFlags = kBsdfLobeGlossyReflectionL6;
+    }
+    result.isValid = 1u;
+    return result;
+#else
+#if !defined(PBR_L6_MATERIAL_SHOWCASE_ONLY)
     if (parameters.model == kBsdfModelLambertL6)
     {
         if (!BsdfContainsFlagsL6(
@@ -1283,9 +1449,11 @@ BsdfSampleL6 BsdfSampleFiniteLocalL6(
         result.isValid = 1u;
         return result;
     }
+#endif
 
     const float alpha = parameters.perceptualRoughness *
         parameters.perceptualRoughness;
+#if !defined(PBR_L6_MATERIAL_SHOWCASE_ONLY)
     if (parameters.model == kBsdfModelGgxConductorL6 ||
         parameters.model == kBsdfModelGgxDielectricReflectionL6)
     {
@@ -1308,6 +1476,7 @@ BsdfSampleL6 BsdfSampleFiniteLocalL6(
         result.isValid = 1u;
         return result;
     }
+#endif
 
     if (parameters.model == kBsdfModelMetallicRoughnessL6)
     {
@@ -1393,8 +1562,10 @@ BsdfSampleL6 BsdfSampleFiniteLocalL6(
     }
 
     return InvalidBsdfSampleL6();
+#endif
 }
 
+[noinline]
 BsdfSampleL6 SampleBsdfL6(
     BsdfContextL6 context,
     BsdfParamsL6 parameters,
@@ -1428,6 +1599,10 @@ BsdfSampleL6 SampleBsdfL6(
     }
 
     BsdfSampleL6 localSample;
+#if defined(PBR_L6_MATERIAL_METALLIC_ROUGHNESS_ONLY)
+    localSample = BsdfSampleFiniteLocalL6(
+        context, parameters, woLocal, randomSample);
+#else
     if (parameters.model == kBsdfModelSmoothGlassL6)
     {
         localSample = BsdfSampleSmoothGlassLocalL6(
@@ -1438,6 +1613,7 @@ BsdfSampleL6 SampleBsdfL6(
         localSample = BsdfSampleFiniteLocalL6(
             context, parameters, woLocal, randomSample);
     }
+#endif
     if (localSample.isValid == 0u)
     {
         return result;

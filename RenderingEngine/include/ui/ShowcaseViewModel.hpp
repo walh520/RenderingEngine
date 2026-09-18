@@ -18,11 +18,14 @@ namespace RenderingEngine::Ui
     {
         std::string_view scene;
         std::string_view backend;
-        std::string_view integrator;
+        std::string_view transportModel;
+        std::string_view executionArchitecture;
         std::string_view directEstimator;
-        std::string_view lightProposal;
+        std::string_view lightSelection;
+        std::string_view environmentSampler;
         std::string_view reconstruction;
         std::string_view debugView;
+        std::string_view shadowMethod;
     };
 
     struct CapabilityOptionViewModel
@@ -76,7 +79,15 @@ namespace RenderingEngine::Ui
         std::optional<ShowcaseRuntimeResolution> resolution;
         std::optional<std::uint64_t> seed;
         std::optional<std::uint64_t> frameIndex;
-        std::optional<std::uint32_t> samplesPerPixel;
+        std::optional<std::uint32_t> progressiveFilmSpp;
+        std::optional<std::uint32_t> currentFramePathsPerPixel;
+        std::optional<std::uint32_t> referenceSpp;
+        std::optional<std::uint32_t> temporalHistoryLength;
+        std::optional<std::uint32_t> reservoirM;
+        std::optional<std::uint32_t> reservoirAge;
+        std::optional<std::uint64_t> reservoirCandidates;
+        std::optional<std::uint64_t> visibilityRays;
+        std::optional<std::uint64_t> totalTracedRays;
         std::optional<std::uint32_t> maximumBounce;
         std::optional<double> gpuFrameMilliseconds;
     };
@@ -93,7 +104,15 @@ namespace RenderingEngine::Ui
         std::string resolution;
         std::string seed;
         std::string frame;
-        std::string samplesPerPixel;
+        std::string progressiveFilmSpp;
+        std::string currentFramePathsPerPixel;
+        std::string referenceSpp;
+        std::string temporalHistoryLength;
+        std::string reservoirM;
+        std::string reservoirAge;
+        std::string reservoirCandidates;
+        std::string visibilityRays;
+        std::string totalTracedRays;
         std::string bounce;
         std::string gpuMilliseconds;
         std::string providerId;
@@ -114,14 +133,22 @@ namespace RenderingEngine::Ui
         std::string text;
     };
 
+    struct SceneRecommendationViewModel
+    {
+        bool registered = false;
+        bool matches = false;
+        std::string_view stableId;
+        std::string text;
+    };
+
     struct ShowcaseViewModel
     {
         ModeTupleViewModel tuple;
         std::string tupleText;
         RuntimeStatusLineViewModel runtimeStatus;
         CurrentTupleCapabilityViewModel currentTupleCapability;
+        SceneRecommendationViewModel sceneRecommendation;
         std::vector<CapabilityDimensionViewModel> dimensions;
-        std::vector<CapabilityOptionViewModel> lightSamplingPresets;
         std::vector<HelpEntryViewModel> help;
     };
 

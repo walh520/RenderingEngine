@@ -46,6 +46,12 @@ namespace RenderingEngine::Ui
         ShowcaseController* controller = nullptr;
         const Demos::ShowcaseWorkflowStart* fixedAbStart = nullptr;
         std::string_view fixedAbStartUnavailableReason;
+
+        // L0 publishes the most recent semantic-command result so a rejected
+        // hotkey is visible in the Vulkan window instead of only on stderr.
+        // The renderer owns the backing storage for the duration of the frame.
+        std::string_view actionFeedback;
+        bool actionFeedbackIsError = false;
     };
 
     enum class ImGuiShowcaseDrawStatus : std::uint8_t

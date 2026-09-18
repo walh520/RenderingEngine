@@ -21,6 +21,8 @@ namespace
         start.variantAStableId = "mis-off";
         start.variantBStableId = "mis-on";
         start.configGeneration = 3u;
+        start.captureFrameIndex = 23u;
+        start.captureSampleIndex = 64u;
         start.captureProvider = {
             "capture:renderer-readback", Availability::Available, {}
         };
@@ -39,6 +41,11 @@ namespace
         artifact.configGeneration = request.configGeneration;
         artifact.sceneGeneration = request.sceneGeneration;
         artifact.resourceGeneration = request.resourceGeneration;
+        artifact.sceneStableId = request.sceneStableId;
+        artifact.variantStableId = request.variantStableId;
+        artifact.anchor = request.anchor;
+        artifact.frameIndex = request.frameIndex;
+        artifact.sampleIndex = request.sampleIndex;
         artifact.runId = std::move(runId);
         artifact.exrPath = "captures/image.exr";
         artifact.pngPath = "captures/preview.png";
@@ -78,6 +85,14 @@ bool RunShowcaseControllerTests(std::ostream& errors)
         && panelUpdate.routed[0].status == RoutedRequestStatus::ConsumedLocally
         && controller.Panels().profiler,
         "F3 must toggle the lane-local profiler panel without a runtime provider");
+
+    queue.Push(SemanticAction::PrintCurrentReview);
+    const ActionBatchResult reviewBatch = ApplyQueuedActions(queue, config);
+    const ShowcaseControllerUpdate reviewUpdate = controller.Apply(reviewBatch);
+    expect(reviewUpdate.routed.size() == 1u
+            && reviewUpdate.routed[0].status
+                == RoutedRequestStatus::ConsumedLocally,
+        "F10 must remain available as a read-only local console review action");
 
     queue.Push(SemanticAction::RequestCapture);
     const ShowcaseControllerUpdate unavailableCapture =
@@ -148,14 +163,37 @@ bool RunShowcaseControllerTests(std::ostream& errors)
             && controller.TakePendingResets() == ResetResource::None,
         "a provider-reported shader reload success must queue one-shot A/T/Q/P resets");
 
-    queue.Push(SemanticAction::CycleIntegratorForward);
+    queue.Push(SemanticAction::CycleExecutionArchitectureForward);
     const ActionBatchResult configBatch = ApplyQueuedActions(queue, config);
     const ShowcaseControllerUpdate configUpdate = controller.Apply(configBatch);
     const ResetMask pendingResets = controller.TakePendingResets();
     expect(configUpdate.configGeneration == 1u
+        && config.executionArchitecture == ExecutionArchitecture::Megakernel
         && HasReset(pendingResets, ResetResource::ProfilerStatistics)
+        && !HasReset(pendingResets, ResetResource::AccelerationStructures)
         && controller.TakePendingResets() == ResetResource::None,
-        "a committed tuple change must advance generation and expose a one-shot P reset request");
+        "an integrator-only commit must advance generation without requesting an acceleration-structure reset");
+
+    RuntimeConfig recommendationConfig;
+    recommendationConfig.debugView = DebugView::Emissive;
+    ShowcaseController recommendationController;
+    ActionQueue recommendationQueue;
+    recommendationQueue.Push(
+        SemanticAction::RestoreCurrentSceneRecommendedProfile);
+    const ShowcaseControllerUpdate firstRecommendationUpdate =
+        recommendationController.Apply(
+            ApplyQueuedActions(recommendationQueue, recommendationConfig));
+    static_cast<void>(recommendationController.TakePendingResets());
+    recommendationQueue.Push(
+        SemanticAction::RestoreCurrentSceneRecommendedProfile);
+    const ShowcaseControllerUpdate repeatedRecommendationUpdate =
+        recommendationController.Apply(
+            ApplyQueuedActions(recommendationQueue, recommendationConfig));
+    expect(firstRecommendationUpdate.configGeneration == 1u
+            && repeatedRecommendationUpdate.configGeneration == 1u
+            && recommendationController.ConfigGeneration() == 1u
+            && recommendationController.TakePendingResets() == ResetResource::None,
+        "a repeated already-matching F11 must not advance generation or clear history");
 
     const float exposureBeforeMixedBatch = config.render.exposure;
     queue.Push(SemanticAction::RequestCapture);
@@ -201,11 +239,11 @@ bool RunShowcaseControllerTests(std::ostream& errors)
     runtimeStatus.sceneGeneration = 5u;
     runtimeStatus.resourceGeneration = 8u;
     runtimeStatus.frameIndex = 77u;
-    runtimeStatus.samplesPerPixel = 64u;
+    runtimeStatus.progressiveFilmSpp = 64u;
     runtimeStatus.gpuFrameMilliseconds = 2.5;
     const ShowcaseViewModel freshRuntime = controller.BuildViewModel(config, runtimeStatus);
     expect(freshRuntime.runtimeStatus.frame == "77"
-            && freshRuntime.runtimeStatus.samplesPerPixel == "64"
+            && freshRuntime.runtimeStatus.progressiveFilmSpp == "64"
             && freshRuntime.runtimeStatus.gpuMilliseconds == "2.5"
             && freshRuntime.runtimeStatus.availability == TelemetryAvailability::Fresh,
         "matching config/scene/resource generations must expose fresh runtime observations");
@@ -214,7 +252,7 @@ bool RunShowcaseControllerTests(std::ostream& errors)
     const ShowcaseViewModel staleRuntime = controller.BuildViewModel(config, runtimeStatus);
     expect(staleRuntime.runtimeStatus.availability == TelemetryAvailability::Stale
             && staleRuntime.runtimeStatus.frame == "--"
-            && staleRuntime.runtimeStatus.samplesPerPixel == "--"
+            && staleRuntime.runtimeStatus.progressiveFilmSpp == "--"
             && staleRuntime.runtimeStatus.gpuMilliseconds == "--"
             && staleRuntime.runtimeStatus.reason.find("generation mismatch")
                 != std::string::npos,

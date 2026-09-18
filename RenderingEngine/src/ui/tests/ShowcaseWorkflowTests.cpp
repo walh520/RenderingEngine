@@ -50,6 +50,8 @@ namespace
         start.variantAStableId = "path-tracing:baseline";
         start.variantBStableId = "path-tracing:mis";
         start.configGeneration = 42u;
+        start.captureFrameIndex = 77u;
+        start.captureSampleIndex = 4096u;
         start.captureProvider = {
             "capture:renderer-readback",
             availability,
@@ -69,6 +71,11 @@ namespace
         artifact.configGeneration = request.configGeneration;
         artifact.sceneGeneration = request.sceneGeneration;
         artifact.resourceGeneration = request.resourceGeneration;
+        artifact.sceneStableId = request.sceneStableId;
+        artifact.variantStableId = request.variantStableId;
+        artifact.anchor = request.anchor;
+        artifact.frameIndex = request.frameIndex;
+        artifact.sampleIndex = request.sampleIndex;
         artifact.runId = runId;
         artifact.exrPath = "captures/image.exr";
         artifact.pngPath = "captures/preview.png";
@@ -114,8 +121,8 @@ namespace
                 && requestA.anchor.baseSeed == requestB.anchor.baseSeed
                 && requestA.anchor.animationOriginTick == requestB.anchor.animationOriginTick,
             "camera, base seed, and animation origin must be invariant across A/B");
-        test.Expect(requestA.frameIndex == 0u
-                && requestA.sampleIndex == 0u
+        test.Expect(requestA.frameIndex == 77u
+                && requestA.sampleIndex == 4096u
                 && requestB.frameIndex == requestA.frameIndex
                 && requestB.sampleIndex == requestA.sampleIndex,
             "one A/B pair must use one frame/sample coordinate to isolate variant");
@@ -170,7 +177,7 @@ namespace
                     && json.find("\"resource_generation\": 11") != std::string::npos
                     && json.find("\"request_identity\": 1")
                         < json.find("\"request_identity\": 2")
-                    && json.find("\"frame_index\": 0, \"sample_index\": 0")
+                    && json.find("\"frame_index\": 77, \"sample_index\": 4096")
                         != std::string::npos
                     && json.find("\"paths\": {\"exr\": \"captures/image.exr\", \"png\": \"captures/preview.png\", \"metadata\": \"metadata.json\"}")
                         != std::string::npos
@@ -245,6 +252,32 @@ namespace
         test.Expect(identityStatus.error == ShowcaseWorkflowError::RequestIdentityMismatch
                 && identity.State() == ShowcaseWorkflowState::AwaitingA,
             "an unknown request identity must be rejected without consuming A");
+
+        ShowcaseProviderArtifactRecord wrongFrame =
+            MakeArtifact(identity.Requests()[0], "run-a");
+        ++wrongFrame.frameIndex;
+        const ShowcaseWorkflowStatus frameStatus = identity.Submit(wrongFrame);
+        test.Expect(frameStatus.error == ShowcaseWorkflowError::RequestIdentityMismatch
+                && identity.State() == ShowcaseWorkflowState::AwaitingA,
+            "another frame coordinate must be rejected without consuming A");
+
+        ShowcaseProviderArtifactRecord wrongAnchor =
+            MakeArtifact(identity.Requests()[0], "run-a");
+        ++wrongAnchor.anchor.baseSeed;
+        const ShowcaseWorkflowStatus anchorStatus = identity.Submit(wrongAnchor);
+        test.Expect(anchorStatus.error == ShowcaseWorkflowError::RequestIdentityMismatch
+                && identity.State() == ShowcaseWorkflowState::AwaitingA,
+            "another comparison anchor must be rejected without consuming A");
+
+        ShowcaseProviderArtifactRecord wrongVariantStableId =
+            MakeArtifact(identity.Requests()[0], "run-a");
+        wrongVariantStableId.variantStableId = "path-tracing:foreign";
+        const ShowcaseWorkflowStatus variantStableIdStatus =
+            identity.Submit(wrongVariantStableId);
+        test.Expect(variantStableIdStatus.error
+                    == ShowcaseWorkflowError::RequestIdentityMismatch
+                && identity.State() == ShowcaseWorkflowState::AwaitingA,
+            "another stable variant identity must be rejected without consuming A");
 
         ShowcaseWorkflow duplicate;
         test.Expect(static_cast<bool>(duplicate.Start(MakeStart())),

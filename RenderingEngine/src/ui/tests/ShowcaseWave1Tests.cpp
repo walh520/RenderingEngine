@@ -1,5 +1,7 @@
 #include "app/ArtifactLayout.hpp"
+#include "app/CapabilityTable.hpp"
 #include "app/RuntimeConfig.hpp"
+#include "app/RuntimeStatusText.hpp"
 #include "demos/CaptureBundleWriter.hpp"
 #include "demos/ShowcaseReport.hpp"
 #include "demos/ShowcaseWorkflow.hpp"
@@ -27,8 +29,14 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #include <tinyexr.h>
+#include "FrameSignalOracle.hpp"
 
 bool RunDebugProfilerModelTests(std::ostream& output);
+bool RunWave2TelemetryAdapterTests(std::ostream& output);
+int RunWave4TelemetryAdapterTests(std::ostream& output);
+bool RunManyLightsWave4Tests(std::ostream& output);
+bool RunCapturePreviewTests(std::ostream& output);
+bool RunGlfwActionAdapterTests(std::ostream& output);
 bool RunImGuiShowcasePanelsTests(std::ostream& output);
 bool RunShowcaseControllerTests(std::ostream& output);
 bool RunShowcaseEvidenceTests(std::ostream& output);
@@ -93,10 +101,13 @@ namespace
     {
         return left.version == right.version
             && left.scene == right.scene
+            && left.sceneVariant == right.sceneVariant
             && left.backend == right.backend
-            && left.integrator == right.integrator
+            && left.transportModel == right.transportModel
+            && left.executionArchitecture == right.executionArchitecture
             && left.directLightingEstimator == right.directLightingEstimator
-            && left.lightProposalDistribution == right.lightProposalDistribution
+            && left.lightSelection == right.lightSelection
+            && left.environmentSampler == right.environmentSampler
             && left.reconstruction == right.reconstruction
             && left.debugView == right.debugView
             && left.shadowMethod == right.shadowMethod
@@ -118,7 +129,22 @@ namespace
             && left.run.benchmarkPreset == right.run.benchmarkPreset
             && left.run.referenceImage == right.run.referenceImage
             && left.run.artifactRoot == right.run.artifactRoot
-            && left.run.runIdentifier == right.run.runIdentifier;
+            && left.run.runIdentifier == right.run.runIdentifier
+            && left.restir.manyLightsTier == right.restir.manyLightsTier
+            && left.restir.reuseStage == right.restir.reuseStage
+            && left.restir.biasMode == right.restir.biasMode
+            && left.restir.initialCandidatesPerPixel
+                == right.restir.initialCandidatesPerPixel
+            && left.restir.spatialNeighbors == right.restir.spatialNeighbors
+            && left.restir.maximumReservoirM == right.restir.maximumReservoirM
+            && left.restir.maximumHistoryAge == right.restir.maximumHistoryAge
+            && left.restir.comparisonCandidateBudgetPerPixel
+                == right.restir.comparisonCandidateBudgetPerPixel
+            && left.restir.comparisonVisibilityBudgetPerPixel
+                == right.restir.comparisonVisibilityBudgetPerPixel
+            && left.restir.animateLights == right.restir.animateLights
+            && left.restir.animateRigidOccluders
+                == right.restir.animateRigidOccluders;
     }
 
     [[nodiscard]] std::vector<unsigned char> ReadBinaryFile(const std::filesystem::path& path)
@@ -147,7 +173,7 @@ namespace
         metadata.schemaVersion = "artifact-layout-v0";
         metadata.contractVersions = {
             { "abi", "abi-v0-numeric-1" },
-            { "runtime-config", "runtime-config-v0-app-0" },
+            { "runtime-config", "runtime-config-v2-app-1" },
             { "artifact-layout", "artifact-layout-v0" }
         };
         metadata.evidenceIdentity.providerId = "l10.bundle-test";
@@ -174,10 +200,10 @@ namespace
         RenderingEngine::RuntimeConfig requestedConfig;
         requestedConfig.scene = RenderingEngine::ScenePreset::CornellBox;
         requestedConfig.backend = RenderingEngine::TraversalBackend::CpuSahBvh;
-        requestedConfig.integrator = RenderingEngine::Integrator::CpuReferencePathTracer;
+        requestedConfig.executionArchitecture = RenderingEngine::ExecutionArchitecture::CpuReference;
         requestedConfig.directLightingEstimator = RenderingEngine::DirectLightingEstimator::NextEventEstimation;
-        requestedConfig.lightProposalDistribution = RenderingEngine::LightProposalDistribution::UniformLights;
-        requestedConfig.reconstruction = RenderingEngine::ReconstructionMode::TemporalFixedAtrous;
+        requestedConfig.lightSelection = RenderingEngine::LightSelectionStrategy::Uniform;
+        requestedConfig.reconstruction = RenderingEngine::ReconstructionMode::CurrentFrame;
         requestedConfig.render.width = 64u;
         requestedConfig.render.height = 64u;
         requestedConfig.render.vsync = RenderingEngine::RuntimeToggle::Enabled;
@@ -185,6 +211,8 @@ namespace
         metadata.requestedRuntimeConfig = requestedConfig;
         metadata.effectiveRuntimeConfig.render.width = 64u;
         metadata.effectiveRuntimeConfig.render.height = 64u;
+        metadata.effectiveRuntimeConfig.reconstruction =
+            RenderingEngine::ReconstructionMode::ProgressiveMean;
         metadata.shaderHashes = { { "capture-test", "sha256:test-shader" } };
         metadata.renderStartedAtUtc = "2026-08-24T00:00:00Z";
         metadata.renderCompletedAtUtc = "2026-08-24T00:00:01Z";
@@ -208,6 +236,7 @@ namespace
 
     void TestActionMap(TestContext& tests)
     {
+        using namespace RenderingEngine;
         using namespace RenderingEngine::Ui;
 
         const std::span<const ActionBinding> catalog = GetActionCatalog();
@@ -215,21 +244,104 @@ namespace
 
         const ActionBinding* backendForward = FindActionBinding(InputKey::B, InputModifier::None);
         const ActionBinding* backendBackward = FindActionBinding(InputKey::B, InputModifier::Shift);
+        const ActionBinding* transportForward = FindActionBinding(InputKey::I, InputModifier::None);
+        const ActionBinding* transportBackward = FindActionBinding(InputKey::I, InputModifier::Shift);
+        const ActionBinding* executionForward = FindActionBinding(InputKey::I, InputModifier::Control);
+        const ActionBinding* executionBackward = FindActionBinding(
+            InputKey::I, InputModifier::Control | InputModifier::Shift);
+        const ActionBinding* directForward = FindActionBinding(InputKey::L, InputModifier::None);
+        const ActionBinding* directBackward = FindActionBinding(InputKey::L, InputModifier::Shift);
+        const ActionBinding* proposalForward = FindActionBinding(InputKey::L, InputModifier::Control);
+        const ActionBinding* proposalBackward = FindActionBinding(
+            InputKey::L, InputModifier::Control | InputModifier::Shift);
+        const ActionBinding* environmentForward = FindActionBinding(InputKey::L, InputModifier::Alt);
+        const ActionBinding* environmentBackward = FindActionBinding(
+            InputKey::L, InputModifier::Alt | InputModifier::Shift);
+        const ActionBinding* shadowForward = FindActionBinding(
+            InputKey::L, InputModifier::Control | InputModifier::Alt);
+        const ActionBinding* shadowBackward = FindActionBinding(
+            InputKey::L, InputModifier::Control | InputModifier::Alt | InputModifier::Shift);
         const ActionBinding* capture = FindActionBinding(InputKey::F4, InputModifier::None);
         const ActionBinding* exit = FindActionBinding(InputKey::F4, InputModifier::Alt);
         const ActionBinding* fov = FindActionBinding(InputKey::MouseWheel, InputModifier::Alt);
+        const ActionBinding* review = FindActionBinding(InputKey::F10, InputModifier::None);
+        const ActionBinding* restoreRecommendation = FindActionBinding(
+            InputKey::F11, InputModifier::None);
         tests.Expect(backendForward != nullptr
             && backendForward->action == SemanticAction::CycleBackendForward,
             "B must map to forward backend cycle");
         tests.Expect(backendBackward != nullptr
             && backendBackward->action == SemanticAction::CycleBackendBackward,
             "Shift+B must map to backward backend cycle");
+        tests.Expect(transportForward != nullptr
+                && transportForward->action == SemanticAction::CycleTransportModelForward
+                && transportBackward != nullptr
+                && transportBackward->action == SemanticAction::CycleTransportModelBackward,
+            "I and Shift+I must map only to transport-model cycles");
+        tests.Expect(executionForward != nullptr
+                && executionForward->action == SemanticAction::CycleExecutionArchitectureForward
+                && executionBackward != nullptr
+                && executionBackward->action == SemanticAction::CycleExecutionArchitectureBackward,
+            "Ctrl+I and Ctrl+Shift+I must map only to execution-architecture cycles");
+        tests.Expect(directForward != nullptr
+                && directForward->action
+                    == SemanticAction::CycleDirectLightingForward
+                && directBackward != nullptr
+                && directBackward->action
+                    == SemanticAction::CycleDirectLightingBackward,
+            "L and Shift+L must map only to the direct-lighting axis");
+        tests.Expect(proposalForward != nullptr
+                && proposalForward->action
+                    == SemanticAction::CycleLightSelectionForward
+                && proposalBackward != nullptr
+                && proposalBackward->action
+                    == SemanticAction::CycleLightSelectionBackward,
+            "Ctrl+L and Ctrl+Shift+L must map only to the discrete-light-selection axis");
+        tests.Expect(environmentForward != nullptr
+                && environmentForward->action == SemanticAction::CycleEnvironmentSamplerForward
+                && environmentBackward != nullptr
+                && environmentBackward->action == SemanticAction::CycleEnvironmentSamplerBackward,
+            "Alt+L and Alt+Shift+L must map only to the environment-sampler axis");
+        tests.Expect(shadowForward != nullptr
+                && shadowForward->action == SemanticAction::CycleShadowForward
+                && shadowBackward != nullptr
+                && shadowBackward->action == SemanticAction::CycleShadowBackward,
+            "Ctrl+Alt+L and Ctrl+Alt+Shift+L must map only to the shadow-method axis");
         tests.Expect(capture != nullptr && capture->action == SemanticAction::RequestCapture,
             "F4 must map to capture without colliding with Alt+F4");
         tests.Expect(exit != nullptr && exit->action == SemanticAction::RequestExit,
             "Alt+F4 must map to application exit");
         tests.Expect(fov != nullptr && fov->action == SemanticAction::AdjustVerticalFov,
             "Alt+Wheel must map to RuntimeConfig FOV adjustment");
+        tests.Expect(review != nullptr
+                && review->action == SemanticAction::PrintCurrentReview,
+            "F10 must print the current scene and algorithm review");
+        tests.Expect(restoreRecommendation != nullptr
+                && restoreRecommendation->action
+                    == SemanticAction::RestoreCurrentSceneRecommendedProfile
+                && restoreRecommendation->activation == ActionActivation::PressOnly,
+            "F11 must be a press-only current-scene teaching recommendation restore");
+
+        RuntimeConfig reviewConfig;
+        reviewConfig.scene = ScenePreset::ManyLightsRestirArena;
+        reviewConfig.backend = TraversalBackend::VulkanRayQuery;
+        reviewConfig.executionArchitecture = ExecutionArchitecture::Wavefront;
+        reviewConfig.directLightingEstimator =
+            DirectLightingEstimator::RestirDirectIllumination;
+        reviewConfig.lightSelection =
+            LightSelectionStrategy::PowerWeighted;
+        reviewConfig.reconstruction = ReconstructionMode::Svgf;
+        const std::string reviewText = FormatRuntimeReview(reviewConfig);
+        tests.Expect(reviewText.find(ScenePresetName(reviewConfig.scene))
+                    != std::string::npos
+                && reviewText.find("ReSTIR") != std::string::npos
+                && reviewText.find("Vulkan Ray Query") != std::string::npos
+                && reviewText.find("SVGF") != std::string::npos
+                && reviewText.find("scene-recommended.many-lights.v2")
+                    != std::string::npos
+                && reviewText.find("偏离") != std::string::npos
+                && reviewText.find("F11") != std::string::npos,
+            "the F10 study card must describe current/recommended tuples and their match state");
     }
 
     void TestRuntimeHarness(TestContext& tests)
@@ -241,48 +353,244 @@ namespace
             | ResetResource::TemporalHistory
             | ResetResource::ReservoirHistory
             | ResetResource::ProfilerStatistics;
+        tests.Expect(ResetMaskFor(ResetCause::ProgressiveCameraMotion)
+                == ResetResource::Accumulation
+                && ResetMaskFor(ResetCause::CameraDiscontinuity) == atqp,
+            "progressive camera motion must reset film only while a camera cut must reset A|T|Q|P");
 
         RuntimeConfig config;
         const RuntimeConfig initial = config;
+        tests.Expect(initial.executionArchitecture == ExecutionArchitecture::Staged,
+            "Wave 1 must consume the ADR 0005 PBR RuntimeConfig default without a private UI default");
         ActionQueue queue;
-        const std::uint64_t firstSequence = queue.Push(SemanticAction::CycleIntegratorForward);
-        const std::uint64_t secondSequence = queue.Push(SemanticAction::CycleIntegratorBackward);
+        const std::uint64_t firstSequence = queue.Push(SemanticAction::CycleExecutionArchitectureForward);
+        const std::uint64_t secondSequence = queue.Push(SemanticAction::CycleExecutionArchitectureForward);
+        queue.Push(SemanticAction::CycleExecutionArchitectureForward);
         tests.Expect(SameRuntimeConfig(config, initial), "queueing must not mutate RuntimeConfig before frame start");
-        tests.Expect(firstSequence < secondSequence && queue.Size() == 2u, "ActionQueue must assign FIFO sequence numbers");
+        tests.Expect(firstSequence < secondSequence && queue.Size() == 3u, "ActionQueue must assign FIFO sequence numbers");
 
         const ActionBatchResult integratorBatch = ApplyQueuedActions(queue, config);
         tests.Expect(queue.Empty(), "ApplyQueuedActions must drain the frame queue");
-        tests.Expect(integratorBatch.actions.size() == 2u
+        tests.Expect(integratorBatch.actions.size() == 3u
             && integratorBatch.actions[0].queued.sequence == firstSequence
             && integratorBatch.actions[1].queued.sequence == secondSequence,
             "queued actions must apply in FIFO order");
-        tests.Expect(integratorBatch.actions[0].status == ActionApplyStatus::ConfigCommitted
-            && integratorBatch.actions[1].status == ActionApplyStatus::ConfigCommitted,
-            "built Whitted/PBR integrator cycles must commit");
-        tests.Expect(config.integrator == Integrator::Whitted,
-            "forward then backward integrator cycles must restore the initial tuple");
-        tests.Expect(integratorBatch.requestedResets == atqp,
-            "integrator changes must request A+T+Q+P and no AS reset");
+        const std::array forwardIntegrators{
+            ExecutionArchitecture::Megakernel,
+            ExecutionArchitecture::Wavefront,
+            ExecutionArchitecture::Staged
+        };
+        bool forwardCycleValid = integratorBatch.actions.size()
+            == forwardIntegrators.size();
+        for (std::size_t index = 0; index < forwardIntegrators.size(); ++index)
+        {
+            if (!forwardCycleValid)
+            {
+                break;
+            }
+            RuntimeConfig expected = initial;
+            expected.executionArchitecture = forwardIntegrators[index];
+            forwardCycleValid = forwardCycleValid
+                && integratorBatch.actions[index].status
+                    == ActionApplyStatus::ConfigCommitted
+                && SameRuntimeConfig(
+                    integratorBatch.actions[index].effectiveRuntimeConfig,
+                    expected)
+                && CapabilityTable::Evaluate(
+                    integratorBatch.actions[index].effectiveRuntimeConfig).IsSupported();
+        }
+        tests.Expect(forwardCycleValid,
+            "Ctrl+I must visit every interactive execution architecture while changing only that field");
+        tests.Expect(SameRuntimeConfig(config, initial),
+            "three forward execution steps must return to staged execution");
+        tests.Expect(integratorBatch.actions[0].requestedResets == atqp
+                && integratorBatch.actions[1].requestedResets == atqp
+                && integratorBatch.actions[2].requestedResets == atqp
+                && integratorBatch.requestedResets == atqp,
+            "execution-only switches must reset sampling histories without rebuilding acceleration structures");
+
+        queue.Push(SemanticAction::CycleExecutionArchitectureBackward);
+        queue.Push(SemanticAction::CycleExecutionArchitectureBackward);
+        queue.Push(SemanticAction::CycleExecutionArchitectureBackward);
+        const ActionBatchResult reverseIntegratorBatch = ApplyQueuedActions(queue, config);
+        const std::array reverseIntegrators{
+            ExecutionArchitecture::Wavefront,
+            ExecutionArchitecture::Megakernel,
+            ExecutionArchitecture::Staged
+        };
+        bool reverseCycleValid = reverseIntegratorBatch.actions.size()
+            == reverseIntegrators.size();
+        for (std::size_t index = 0;
+            reverseCycleValid && index < reverseIntegrators.size(); ++index)
+        {
+            RuntimeConfig expected = initial;
+            expected.executionArchitecture = reverseIntegrators[index];
+            reverseCycleValid = reverseIntegratorBatch.actions[index].status
+                    == ActionApplyStatus::ConfigCommitted
+                && SameRuntimeConfig(
+                    reverseIntegratorBatch.actions[index].effectiveRuntimeConfig,
+                    expected)
+                && CapabilityTable::Evaluate(
+                    reverseIntegratorBatch.actions[index].effectiveRuntimeConfig).IsSupported();
+        }
+        tests.Expect(reverseCycleValid && SameRuntimeConfig(config, initial),
+            "Ctrl+Shift+I must traverse only the execution axis in reverse and restore staged execution");
+        tests.Expect(reverseIntegratorBatch.actions[0].requestedResets == atqp
+                && reverseIntegratorBatch.actions[1].requestedResets == atqp
+                && reverseIntegratorBatch.actions[2].requestedResets == atqp
+                && reverseIntegratorBatch.requestedResets == atqp,
+            "reverse execution-only switches must request only the sampling-history reset mask");
+
+        queue.Push(SemanticAction::CycleExecutionArchitectureForward);
+        queue.Push(SemanticAction::PrintCurrentReview);
+        const ActionBatchResult cycleThenReviewBatch =
+            ApplyQueuedActions(queue, config);
+        tests.Expect(cycleThenReviewBatch.actions.size() == 2u
+                && cycleThenReviewBatch.actions[1].status
+                    == ActionApplyStatus::RoutedToOwner
+                && cycleThenReviewBatch.actions[1].effectiveRuntimeConfig.executionArchitecture
+                    == ExecutionArchitecture::Megakernel
+                && FormatRuntimeReview(
+                    cycleThenReviewBatch.actions[1].effectiveRuntimeConfig)
+                    .find("GPU Megakernel") != std::string::npos,
+            "a Ctrl+I,F10 FIFO sequence must print the newly committed execution architecture");
+        config = initial;
+
+        RuntimeConfig transportAxisConfig = initial;
+        const RuntimeConfig beforeTransportAxis = transportAxisConfig;
+        queue.Push(SemanticAction::CycleTransportModelForward);
+        const ActionBatchResult transportAxisBatch =
+            ApplyQueuedActions(queue, transportAxisConfig);
+        RuntimeConfig transportAxisExpected = beforeTransportAxis;
+        transportAxisExpected.transportModel = TransportModel::Whitted;
+        tests.Expect(transportAxisBatch.actions.size() == 1u
+                && transportAxisBatch.actions[0].status
+                    == ActionApplyStatus::ConfigCommitted
+                && SameRuntimeConfig(transportAxisConfig, transportAxisExpected)
+                && transportAxisConfig.executionArchitecture
+                    == ExecutionArchitecture::Staged
+                && transportAxisBatch.actions[0].requestedResets == atqp
+                && CapabilityTable::Evaluate(transportAxisConfig).IsSupported(),
+            "I must change only PBR to Whitted from the legal PBR/Staged tuple");
+
+        RuntimeConfig environmentAxisConfig = initial;
+        const RuntimeConfig beforeEnvironmentAxis = environmentAxisConfig;
+        queue.Push(SemanticAction::CycleEnvironmentSamplerForward);
+        const ActionBatchResult environmentAxisBatch =
+            ApplyQueuedActions(queue, environmentAxisConfig);
+        RuntimeConfig environmentAxisExpected = beforeEnvironmentAxis;
+        environmentAxisExpected.environmentSampler =
+            EnvironmentDirectionSampler::ImportanceMap;
+        tests.Expect(environmentAxisBatch.actions.size() == 1u
+                && environmentAxisBatch.actions[0].status
+                    == ActionApplyStatus::ConfigCommitted
+                && SameRuntimeConfig(environmentAxisConfig, environmentAxisExpected)
+                && environmentAxisBatch.actions[0].requestedResets == atqp
+                && CapabilityTable::Evaluate(environmentAxisConfig).IsSupported(),
+            "Alt+L must change only the environment-direction sampler from the legal PBR/Staged tuple");
 
         const RuntimeConfig beforeBackend = config;
         queue.Push(SemanticAction::CycleBackendForward);
         const ActionBatchResult backendBatch = ApplyQueuedActions(queue, config);
+        RuntimeConfig backendExpected = beforeBackend;
+        backendExpected.backend = TraversalBackend::GpuFlattenedSahBvh;
         tests.Expect(backendBatch.actions.size() == 1u
-            && backendBatch.actions[0].status == ActionApplyStatus::AcceptedNoConfigChange,
-            "a cycle with only one built backend must remain a supported no-op");
-        tests.Expect(SameRuntimeConfig(config, beforeBackend), "built-only backend cycle must not select future modes");
+            && backendBatch.actions[0].status
+                == ActionApplyStatus::ConfigCommitted
+            && SameRuntimeConfig(config, backendExpected),
+            "B must change only the backend field from legacy analytic to flattened SAH");
+
+        config.backend = TraversalBackend::GpuFlattenedSahBvh;
+        config.executionArchitecture = ExecutionArchitecture::Megakernel;
+        config.directLightingEstimator =
+            DirectLightingEstimator::MultipleImportanceSampling;
+        config.lightSelection =
+            LightSelectionStrategy::PowerWeighted;
+        tests.Expect(CapabilityTable::Evaluate(config).IsSupported(),
+            "the explicit Wave 2 test tuple must be supported before hotkey cycling");
+        const RuntimeConfig beforeWave2Backend = config;
+        queue.Push(SemanticAction::CycleBackendForward);
+        const ActionBatchResult wave2BackendBatch =
+            ApplyQueuedActions(queue, config);
+        tests.Expect(wave2BackendBatch.actions.size() == 1u
+                && wave2BackendBatch.actions[0].status
+                    == ActionApplyStatus::ConfigCommitted
+                && config.backend == TraversalBackend::VulkanRayQuery,
+            "B must cycle between the supported Wave 2 traversal backends");
+        RuntimeConfig backendOnlyExpected = beforeWave2Backend;
+        backendOnlyExpected.backend = TraversalBackend::VulkanRayQuery;
+        tests.Expect(SameRuntimeConfig(config, backendOnlyExpected),
+            "B must change only the backend dimension of the complete tuple");
 
         const RuntimeConfig beforeScene = config;
-        queue.Push(SemanticAction::SelectScene3);
+        queue.Push(SemanticAction::SelectScene5);
         const ActionBatchResult sceneBatch = ApplyQueuedActions(queue, config);
+        RuntimeConfig sceneExpected = beforeScene;
+        sceneExpected.scene = ScenePreset::EnvironmentSamplingDome;
         tests.Expect(sceneBatch.actions.size() == 1u
-            && sceneBatch.actions[0].status == ActionApplyStatus::Rejected
-            && sceneBatch.actions[0].capabilityStatus == CapabilityStatus::Unsupported
-            && !sceneBatch.actions[0].reason.empty(),
-            "an unbuilt scene selection must reject with the shared capability reason");
-        tests.Expect(SameRuntimeConfig(config, beforeScene), "rejected scene action must leave the complete tuple unchanged");
+            && sceneBatch.actions[0].status == ActionApplyStatus::ConfigCommitted
+            && SameRuntimeConfig(config, sceneExpected),
+            "scene selection must change only the scene field");
 
-        queue.Push(SemanticAction::CycleIntegratorForward, ActionPhase::Repeated);
+        const RuntimeConfig beforeSponza = config;
+        RuntimeConfig cycleVariantConfig = config;
+        ActionQueue cycleVariantQueue;
+        const SceneVariantCatalog testVariants = [](const RuntimeConfig& candidate) {
+            return candidate.scene == ScenePreset::EnvironmentSamplingDome
+                ? std::vector<std::string>{ "uniform-sphere", "polar-sun", "seam-sun" }
+                : std::vector<std::string>{ "canonical-cornell", "nee", "mis" };
+        };
+        cycleVariantQueue.Push(SemanticAction::CycleSceneVariantForward);
+        cycleVariantQueue.Push(SemanticAction::PrintCurrentReview);
+        cycleVariantQueue.Push(SemanticAction::CycleSceneVariantBackward);
+        const auto variantCycleBatch = ApplyQueuedActions(cycleVariantQueue, cycleVariantConfig, testVariants);
+        tests.Expect(variantCycleBatch.actions[0].status == ActionApplyStatus::ConfigCommitted
+                && variantCycleBatch.actions[0].effectiveRuntimeConfig.sceneVariant == "polar-sun"
+                && variantCycleBatch.actions[1].effectiveRuntimeConfig.sceneVariant == "polar-sun"
+                && cycleVariantConfig.sceneVariant == "uniform-sphere"
+                && variantCycleBatch.actions[0].requestedResets == ResetMaskFor(ResetCause::SceneChanged),
+            "variant cycling must preserve FIFO snapshots and reset scene payload dependencies");
+        RuntimeConfig expectedVariantConfig = config;
+        expectedVariantConfig.sceneVariant = "uniform-sphere";
+        tests.Expect(SameRuntimeConfig(cycleVariantConfig, expectedVariantConfig),
+            "variant cycling must preserve all non-variant configuration fields");
+        cycleVariantQueue.Push(SemanticAction::SelectScene3);
+        cycleVariantQueue.Push(SemanticAction::CycleSceneVariantForward);
+        (void)ApplyQueuedActions(cycleVariantQueue, cycleVariantConfig, testVariants);
+        tests.Expect(cycleVariantConfig.scene == ScenePreset::CornellBox
+                && cycleVariantConfig.sceneVariant == "nee",
+            "a digit followed by F12 must resolve the new scene's catalog in FIFO order");
+        const RuntimeConfig beforeMissingProvider = cycleVariantConfig;
+        cycleVariantQueue.Push(SemanticAction::CycleSceneVariantForward);
+        const auto missingVariants = ApplyQueuedActions(cycleVariantQueue, cycleVariantConfig);
+        tests.Expect(missingVariants.actions[0].status == ActionApplyStatus::Rejected
+                && SameRuntimeConfig(beforeMissingProvider, cycleVariantConfig),
+            "missing scene variant provider must reject without fallback or mutation");
+        RuntimeConfig variantConfig = config;
+        variantConfig.sceneVariant = "polar-sun";
+        ActionQueue variantQueue;
+        variantQueue.Push(SemanticAction::SelectScene5);
+        (void)ApplyQueuedActions(variantQueue, variantConfig);
+        tests.Expect(variantConfig.sceneVariant == "polar-sun",
+            "selecting the same scene must preserve the selected experiment");
+        variantQueue.Push(SemanticAction::SelectScene3);
+        const ActionBatchResult variantSceneBatch = ApplyQueuedActions(variantQueue, variantConfig);
+        tests.Expect(variantSceneBatch.actions[0].status == ActionApplyStatus::ConfigCommitted
+                && variantConfig.scene == ScenePreset::CornellBox
+                && variantConfig.sceneVariant.empty(),
+            "changing scene must clear its predecessor's local experiment ID");
+        queue.Push(SemanticAction::SelectScene6);
+        const ActionBatchResult sponzaBatch = ApplyQueuedActions(queue, config);
+        tests.Expect(sponzaBatch.actions.size() == 1u
+            && sponzaBatch.actions[0].status == ActionApplyStatus::Rejected
+            && sponzaBatch.actions[0].capabilityStatus == CapabilityStatus::Unsupported
+            && sponzaBatch.actions[0].reason
+                == "Scene 6 unavailable: Sponza asset/provider gate",
+            "Scene 6 must report its exact Sponza asset/provider gate while remaining fail-closed");
+        tests.Expect(SameRuntimeConfig(config, beforeSponza),
+            "a rejected Sponza action must leave the complete tuple unchanged");
+
+        queue.Push(SemanticAction::CycleExecutionArchitectureForward, ActionPhase::Repeated);
         const ActionBatchResult repeatBatch = ApplyQueuedActions(queue, config);
         tests.Expect(repeatBatch.actions.size() == 1u
             && repeatBatch.actions[0].status == ActionApplyStatus::IgnoredInputPhase,
@@ -320,22 +628,686 @@ namespace
             && resetBatch.requestedResets == expectedManualReset,
             "R must route an A+T+Q reset request without claiming resource ownership");
 
+        const RuntimeConfig beforeReview = config;
+        queue.Push(SemanticAction::PrintCurrentReview);
+        const ActionBatchResult reviewBatch = ApplyQueuedActions(queue, config);
+        tests.Expect(reviewBatch.actions.size() == 1u
+                && reviewBatch.actions[0].status == ActionApplyStatus::RoutedToOwner
+                && reviewBatch.actions[0].routedCommand
+                    == RoutedCommand::PrintCurrentReview
+                && SameRuntimeConfig(config, beforeReview),
+            "F10 must route a read-only review request without mutating RuntimeConfig");
+
         RuntimeConfig targetSppConfig;
         targetSppConfig.render.targetSamplesPerPixel = 1u;
         const RuntimeConfig beforeDebug = targetSppConfig;
         queue.Push(SemanticAction::CycleDebugViewForward);
         const ActionBatchResult debugBatch = ApplyQueuedActions(queue, targetSppConfig);
-        tests.Expect(debugBatch.actions[0].status == ActionApplyStatus::AcceptedNoConfigChange,
-            "debug cycle must skip complete-tuple-invalid built candidates");
-        tests.Expect(SameRuntimeConfig(targetSppConfig, beforeDebug),
-            "complete-tuple filtering must preserve target-SPP final view");
+        tests.Expect(debugBatch.actions[0].status == ActionApplyStatus::ConfigCommitted,
+            "a stored film SPP target must not lock interactive debug cycling");
+        RuntimeConfig expectedDebug = beforeDebug;
+        expectedDebug.debugView = DebugView::BaseColor;
+        tests.Expect(SameRuntimeConfig(targetSppConfig, expectedDebug),
+            "debug cycling must preserve the dormant film SPP target and other axes");
 
-        const std::span<const LightSamplingPresetDescriptor> presets = GetLightSamplingPresetCatalog();
-        tests.Expect(presets.size() == 6u
-            && presets[2].estimator == DirectLightingEstimator::NextEventEstimation
-            && presets[2].proposal == LightProposalDistribution::UniformLights
-            && presets[3].proposal == LightProposalDistribution::PowerWeightedLights,
-            "L presets must keep direct estimator and proposal as explicit independent fields");
+        RuntimeConfig mixedConfig;
+        mixedConfig.scene = ScenePreset::ManyLightsRestirArena;
+        mixedConfig.backend = TraversalBackend::VulkanRayQuery;
+        mixedConfig.executionArchitecture = ExecutionArchitecture::Wavefront;
+        mixedConfig.directLightingEstimator =
+            DirectLightingEstimator::RestirDirectIllumination;
+        mixedConfig.lightSelection =
+            LightSelectionStrategy::PowerWeighted;
+        mixedConfig.reconstruction = ReconstructionMode::Svgf;
+        mixedConfig.debugView = DebugView::Emissive;
+        mixedConfig.shadowMethod = ShadowMethod::Physical;
+        mixedConfig.restir.manyLightsTier = ManyLightsTier::Lights100;
+        tests.Expect(CapabilityTable::Evaluate(mixedConfig).IsSupported(),
+            "the mixed UI fixture must start as a supported tuple");
+
+        const RuntimeConfig beforeDirect = mixedConfig;
+        queue.Push(SemanticAction::CycleDirectLightingForward);
+        const ActionBatchResult directBatch =
+            ApplyQueuedActions(queue, mixedConfig);
+        RuntimeConfig directExpected = beforeDirect;
+        directExpected.directLightingEstimator =
+            DirectLightingEstimator::BsdfOnly;
+        tests.Expect(directBatch.actions.size() == 1u
+                && directBatch.actions[0].status
+                == ActionApplyStatus::ConfigCommitted
+                && SameRuntimeConfig(mixedConfig, directExpected)
+                && directBatch.requestedResets == atqp,
+            "L must cycle only the direct-lighting estimator field");
+
+        const RuntimeConfig beforeProposal = mixedConfig;
+        queue.Push(SemanticAction::CycleLightSelectionForward);
+        const ActionBatchResult proposalBatch =
+            ApplyQueuedActions(queue, mixedConfig);
+        RuntimeConfig proposalExpected = beforeProposal;
+        proposalExpected.lightSelection =
+            LightSelectionStrategy::Uniform;
+        tests.Expect(proposalBatch.actions.size() == 1u
+                && proposalBatch.actions[0].status
+                    == ActionApplyStatus::ConfigCommitted
+                && SameRuntimeConfig(mixedConfig, proposalExpected)
+                && proposalBatch.requestedResets == atqp,
+            "Ctrl+L must cycle only the discrete-light-selection field");
+
+        const RuntimeConfig beforeShadow = mixedConfig;
+        queue.Push(SemanticAction::CycleShadowForward);
+        const ActionBatchResult shadowBatch =
+            ApplyQueuedActions(queue, mixedConfig);
+        RuntimeConfig shadowExpected = beforeShadow;
+        shadowExpected.shadowMethod = ShadowMethod::Pcf;
+        tests.Expect(shadowBatch.actions.size() == 1u
+                && shadowBatch.actions[0].status
+                    == ActionApplyStatus::ConfigCommitted
+                && SameRuntimeConfig(mixedConfig, shadowExpected)
+                && shadowBatch.requestedResets == atqp,
+            "Ctrl+Alt+L must cycle only the shadow-method field");
+
+        queue.Push(SemanticAction::CycleReconstructionForward);
+        const RuntimeConfig beforeReconstruction = mixedConfig;
+        const ActionBatchResult reconstructionBatch =
+            ApplyQueuedActions(queue, mixedConfig);
+        RuntimeConfig reconstructionExpected = beforeReconstruction;
+        reconstructionExpected.reconstruction = ReconstructionMode::CurrentFrame;
+        tests.Expect(reconstructionBatch.actions.size() == 1u
+                && reconstructionBatch.actions[0].status
+                    == ActionApplyStatus::ConfigCommitted
+                && SameRuntimeConfig(mixedConfig, reconstructionExpected),
+            "N must cycle only the reconstruction field and wrap SVGF to Current Frame");
+
+        const std::array reconstructionCycle{
+            ReconstructionMode::ProgressiveMean,
+            ReconstructionMode::TemporalAccumulation,
+            ReconstructionMode::SpatialFixedAtrous,
+            ReconstructionMode::Svgf
+        };
+        bool reconstructionCycleValid = true;
+        for (const ReconstructionMode expectedMode : reconstructionCycle)
+        {
+            const RuntimeConfig beforeCycle = mixedConfig;
+            queue.Push(SemanticAction::CycleReconstructionForward);
+            const ActionBatchResult cycleBatch =
+                ApplyQueuedActions(queue, mixedConfig);
+            RuntimeConfig expected = beforeCycle;
+            expected.reconstruction = expectedMode;
+            reconstructionCycleValid = reconstructionCycleValid
+                && cycleBatch.actions.size() == 1u
+                && cycleBatch.actions[0].status
+                    == ActionApplyStatus::ConfigCommitted
+                && SameRuntimeConfig(mixedConfig, expected)
+                && cycleBatch.requestedResets
+                    == (ResetResource::TemporalHistory
+                        | ResetResource::ProfilerStatistics);
+        }
+        tests.Expect(reconstructionCycleValid,
+            "N must traverse Progressive Mean, Temporal, Temporal+A-Trous, and SVGF in order");
+
+        const RuntimeConfig beforeIntegrator = mixedConfig;
+        RuntimeConfig integratorForwardConfig = beforeIntegrator;
+        queue.Push(SemanticAction::CycleExecutionArchitectureForward);
+        const ActionBatchResult integratorForwardBatch =
+            ApplyQueuedActions(queue, integratorForwardConfig);
+        RuntimeConfig integratorForwardExpected = beforeIntegrator;
+        integratorForwardExpected.executionArchitecture = ExecutionArchitecture::Staged;
+        tests.Expect(integratorForwardBatch.actions.size() == 1u
+                && integratorForwardBatch.actions[0].status
+                    == ActionApplyStatus::ConfigCommitted
+                && SameRuntimeConfig(
+                    integratorForwardConfig, integratorForwardExpected)
+                && integratorForwardBatch.requestedResets == atqp
+                && CapabilityTable::Evaluate(integratorForwardConfig).IsSupported(),
+            "Ctrl+I must change only Wavefront to Staged inside an arbitrary split tuple");
+
+        RuntimeConfig integratorBackwardConfig = beforeIntegrator;
+        queue.Push(SemanticAction::CycleExecutionArchitectureBackward);
+        const ActionBatchResult integratorBackwardBatch =
+            ApplyQueuedActions(queue, integratorBackwardConfig);
+        RuntimeConfig integratorBackwardExpected = beforeIntegrator;
+        integratorBackwardExpected.executionArchitecture =
+            ExecutionArchitecture::Megakernel;
+        tests.Expect(integratorBackwardBatch.actions.size() == 1u
+                && integratorBackwardBatch.actions[0].status
+                    == ActionApplyStatus::ConfigCommitted
+                && SameRuntimeConfig(
+                    integratorBackwardConfig, integratorBackwardExpected)
+                && integratorBackwardBatch.requestedResets == atqp
+                && CapabilityTable::Evaluate(integratorBackwardConfig).IsSupported(),
+            "Ctrl+Shift+I must change only Wavefront to Megakernel inside an arbitrary split tuple");
+    }
+
+    void TestSceneRecommendedProfiles(TestContext& tests)
+    {
+        using namespace RenderingEngine;
+        using namespace RenderingEngine::Ui;
+
+        const std::span<const SceneRecommendedProfile> profiles =
+            GetSceneRecommendedProfiles();
+        tests.Expect(profiles.size() == 10u,
+            "the teaching recommendation registry must cover all ten scenes");
+
+        const auto expectProfile = [&tests](
+            const ScenePreset scene,
+            const std::string_view stableId,
+            const TraversalBackend backend,
+            const TransportModel transport,
+            const ExecutionArchitecture execution,
+            const DirectLightingEstimator direct,
+            const LightSelectionStrategy lightSelection,
+            const EnvironmentDirectionSampler environmentSampler,
+            const ReconstructionMode reconstruction,
+            const std::uint32_t bounce)
+        {
+            const SceneRecommendedProfile* const profile =
+                FindSceneRecommendedProfile(scene);
+            tests.Expect(profile != nullptr
+                    && profile->stableId == stableId
+                    && profile->scene == scene
+                    && profile->backend == backend
+                    && profile->transportModel == transport
+                    && profile->executionArchitecture == execution
+                    && profile->directLightingEstimator == direct
+                    && profile->lightSelection == lightSelection
+                    && profile->environmentSampler == environmentSampler
+                    && profile->reconstruction == reconstruction
+                    && profile->debugView == DebugView::Final
+                    && profile->shadowMethod == ShadowMethod::Physical
+                    && profile->maximumBounce == bounce,
+                "a registered scene teaching recommendation differs from its fixed v1 contract");
+        };
+
+        expectProfile(ScenePreset::BaselineGallery,
+            "scene-recommended.baseline.v2", TraversalBackend::CanonicalLinearGpu,
+            TransportModel::Pbr, ExecutionArchitecture::Staged,
+            DirectLightingEstimator::NextEventEstimation, LightSelectionStrategy::Uniform,
+            EnvironmentDirectionSampler::UniformSphere, ReconstructionMode::ProgressiveMean, 8u);
+        expectProfile(ScenePreset::IntersectionBvhLab,
+            "scene-recommended.intersection-bvh.v2", TraversalBackend::GpuFlattenedSahBvh,
+            TransportModel::Pbr, ExecutionArchitecture::Staged,
+            DirectLightingEstimator::NextEventEstimation, LightSelectionStrategy::Uniform,
+            EnvironmentDirectionSampler::UniformSphere, ReconstructionMode::ProgressiveMean, 1u);
+        expectProfile(ScenePreset::WhittedOpticsRoom,
+            "scene-recommended.whitted-optics.v2", TraversalBackend::VulkanRayQuery,
+            TransportModel::Whitted, ExecutionArchitecture::Staged,
+            DirectLightingEstimator::NextEventEstimation, LightSelectionStrategy::Uniform,
+            EnvironmentDirectionSampler::UniformSphere, ReconstructionMode::ProgressiveMean, 12u);
+        expectProfile(ScenePreset::CornellBox,
+            "scene-recommended.cornell.v2", TraversalBackend::GpuFlattenedSahBvh,
+            TransportModel::Pbr, ExecutionArchitecture::Staged,
+            DirectLightingEstimator::MultipleImportanceSampling, LightSelectionStrategy::Uniform,
+            EnvironmentDirectionSampler::UniformSphere, ReconstructionMode::ProgressiveMean, 8u);
+        expectProfile(ScenePreset::GgxMisMaterialLab,
+            "scene-recommended.ggx-mis.v2", TraversalBackend::VulkanRayQuery,
+            TransportModel::Pbr, ExecutionArchitecture::Megakernel,
+            DirectLightingEstimator::MultipleImportanceSampling,
+            LightSelectionStrategy::PowerWeighted, EnvironmentDirectionSampler::UniformSphere,
+            ReconstructionMode::ProgressiveMean, 8u);
+        expectProfile(ScenePreset::EnvironmentSamplingDome,
+            "scene-recommended.environment-dome.v2", TraversalBackend::VulkanRayQuery,
+            TransportModel::Pbr, ExecutionArchitecture::Staged,
+            DirectLightingEstimator::MultipleImportanceSampling,
+            LightSelectionStrategy::PowerWeighted, EnvironmentDirectionSampler::ImportanceMap,
+            ReconstructionMode::ProgressiveMean, 8u);
+        expectProfile(ScenePreset::SponzaTraversalHall,
+            "scene-recommended.sponza.v2", TraversalBackend::VulkanRayQuery,
+            TransportModel::Pbr, ExecutionArchitecture::Wavefront,
+            DirectLightingEstimator::MultipleImportanceSampling,
+            LightSelectionStrategy::PowerWeighted, EnvironmentDirectionSampler::UniformSphere,
+            ReconstructionMode::ProgressiveMean, 8u);
+        expectProfile(ScenePreset::BackendParityBenchmark,
+            "scene-recommended.backend-parity.v2", TraversalBackend::CanonicalLinearGpu,
+            TransportModel::Pbr, ExecutionArchitecture::Staged,
+            DirectLightingEstimator::NextEventEstimation, LightSelectionStrategy::Uniform,
+            EnvironmentDirectionSampler::UniformSphere, ReconstructionMode::ProgressiveMean, 4u);
+        expectProfile(ScenePreset::TemporalStabilityCorridor,
+            "scene-recommended.temporal-stability.v2", TraversalBackend::VulkanRayQuery,
+            TransportModel::Pbr, ExecutionArchitecture::Wavefront,
+            DirectLightingEstimator::MultipleImportanceSampling,
+            LightSelectionStrategy::PowerWeighted, EnvironmentDirectionSampler::UniformSphere,
+            ReconstructionMode::Svgf, 6u);
+        expectProfile(ScenePreset::ManyLightsRestirArena,
+            "scene-recommended.many-lights.v2", TraversalBackend::VulkanRayQuery,
+            TransportModel::Pbr, ExecutionArchitecture::Wavefront,
+            DirectLightingEstimator::RestirDirectIllumination,
+            LightSelectionStrategy::PowerWeighted, EnvironmentDirectionSampler::UniformSphere,
+            ReconstructionMode::Svgf, 4u);
+
+        bool uniqueScenes = true;
+        bool uniqueStableIds = true;
+        for (std::size_t left = 0u; left < profiles.size(); ++left)
+        {
+            for (std::size_t right = left + 1u; right < profiles.size(); ++right)
+            {
+                uniqueScenes = uniqueScenes
+                    && profiles[left].scene != profiles[right].scene;
+                uniqueStableIds = uniqueStableIds
+                    && profiles[left].stableId != profiles[right].stableId;
+            }
+        }
+        tests.Expect(uniqueScenes && uniqueStableIds,
+            "recommendation scene keys and stable IDs must both be unique");
+
+        const SceneRecommendedProfile* const manyLights =
+            FindSceneRecommendedProfile(ScenePreset::ManyLightsRestirArena);
+        tests.Expect(manyLights != nullptr && manyLights->restir.has_value()
+                && manyLights->restir->manyLightsTier == ManyLightsTier::Lights100
+                && manyLights->restir->reuseStage == RestirReuseStage::TemporalSpatial
+                && manyLights->restir->biasMode == RestirBiasMode::ExplicitlyBiased
+                && manyLights->restir->initialCandidatesPerPixel == 1u
+                && manyLights->restir->spatialNeighbors == 5u
+                && manyLights->restir->maximumReservoirM == 32u
+                && manyLights->restir->maximumHistoryAge == 20u
+                && manyLights->restir->comparisonCandidateBudgetPerPixel == 8u
+                && manyLights->restir->comparisonVisibilityBudgetPerPixel == 1u
+                && !manyLights->restir->animateLights
+                && !manyLights->restir->animateRigidOccluders,
+            "scene 9 must carry the complete fixed ReSTIR teaching settings");
+
+        RuntimeConfig source;
+        source.scene = ScenePreset::ManyLightsRestirArena;
+        source.render.width = 960u;
+        source.render.height = 540u;
+        source.render.renderScale = 1.0f;
+        source.render.samplesPerFrame = 1u;
+        source.render.targetSamplesPerPixel = 17u;
+        source.render.baseSeed = 0x12345678u;
+        source.render.exposure = 2.25f;
+        source.render.verticalFovDegrees = 61.0f;
+        source.render.vsync = RuntimeToggle::Disabled;
+        source.run.frameLimit = 73u;
+        source.run.resizeTest = true;
+        source.run.validation = RuntimeToggle::Enabled;
+        source.run.captureDirectory = "D:/recommended-profile-capture";
+        source.run.benchmarkPreset = "preserved-benchmark";
+        source.run.referenceImage = "D:/preserved-reference.exr";
+        source.run.artifactRoot = "D:/preserved-artifacts";
+        source.run.runIdentifier = "preserved-run-id";
+        const RuntimeConfig made = MakeSceneRecommendedConfig(source, *manyLights);
+        tests.Expect(made.scene == source.scene
+                && made.render.width == source.render.width
+                && made.render.height == source.render.height
+                && made.render.renderScale == source.render.renderScale
+                && made.render.samplesPerFrame == source.render.samplesPerFrame
+                && made.render.targetSamplesPerPixel
+                    == source.render.targetSamplesPerPixel
+                && made.render.baseSeed == source.render.baseSeed
+                && made.render.exposure == source.render.exposure
+                && made.render.verticalFovDegrees
+                    == source.render.verticalFovDegrees
+                && made.render.vsync == source.render.vsync
+                && made.run.frameLimit == source.run.frameLimit
+                && made.run.resizeTest == source.run.resizeTest
+                && made.run.validation == source.run.validation
+                && made.run.captureDirectory == source.run.captureDirectory
+                && made.run.benchmarkPreset == source.run.benchmarkPreset
+                && made.run.referenceImage == source.run.referenceImage
+                && made.run.artifactRoot == source.run.artifactRoot
+                && made.run.runIdentifier == source.run.runIdentifier,
+            "recommendation construction must preserve scene, render/run controls, seed, FOV, and output paths");
+
+        constexpr ResetMask atqp = ResetResource::Accumulation
+            | ResetResource::TemporalHistory
+            | ResetResource::ReservoirHistory
+            | ResetResource::ProfilerStatistics;
+        constexpr ResetMask atqpas = atqp | ResetResource::AccelerationStructures;
+
+        for (const SceneRecommendedProfile& profile : profiles)
+        {
+            RuntimeConfig config;
+            config.scene = profile.scene;
+            config.debugView = DebugView::Emissive;
+            config.render.width = 960u;
+            config.render.height = 540u;
+            config.render.targetSamplesPerPixel = 19u;
+            config.render.baseSeed = 987654321u;
+            config.render.exposure = 1.75f;
+            config.render.verticalFovDegrees = 63.0f;
+            config.render.vsync = RuntimeToggle::Disabled;
+            config.run.frameLimit = 41u;
+            config.run.validation = RuntimeToggle::Enabled;
+            config.run.captureDirectory = "D:/profile-live-capture";
+            config.run.artifactRoot = "D:/profile-live-artifacts";
+            config.run.runIdentifier = "profile-live-run";
+            const RuntimeConfig before = config;
+
+            ActionQueue queue;
+            queue.Push(SemanticAction::RestoreCurrentSceneRecommendedProfile);
+            const ActionBatchResult batch = ApplyQueuedActions(queue, config);
+            if (profile.scene == ScenePreset::SponzaTraversalHall)
+            {
+                tests.Expect(batch.actions.size() == 1u
+                        && batch.actions[0].status == ActionApplyStatus::Rejected
+                        && batch.actions[0].reason
+                            == "Scene 6 unavailable: Sponza asset/provider gate"
+                        && SameRuntimeConfig(config, before),
+                    "the registered future Sponza recommendation must remain fail-closed and atomic");
+                continue;
+            }
+
+            const RuntimeConfig expected = MakeSceneRecommendedConfig(before, profile);
+            tests.Expect(batch.actions.size() == 1u
+                    && batch.actions[0].status == ActionApplyStatus::ConfigCommitted
+                    && SameRuntimeConfig(config, expected)
+                    && SameRuntimeConfig(
+                        batch.actions[0].effectiveRuntimeConfig, expected)
+                    && MatchesSceneRecommendedProfile(config, profile)
+                    && CapabilityTable::Evaluate(config).IsSupported(),
+                "F11 must atomically restore each built scene's supported recommendation while preserving owned-out fields");
+        }
+
+        const SceneRecommendedProfile* const baseline =
+            FindSceneRecommendedProfile(ScenePreset::BaselineGallery);
+        RuntimeConfig nonRestirPayload = RuntimeConfig{};
+        nonRestirPayload.scene = ScenePreset::BaselineGallery;
+        nonRestirPayload.debugView = DebugView::Emissive;
+        nonRestirPayload.restir.initialCandidatesPerPixel = 3u;
+        nonRestirPayload.restir.spatialNeighbors = 4u;
+        nonRestirPayload.restir.animateLights = false;
+        nonRestirPayload.restir.animateRigidOccluders = false;
+        const RuntimeConfig nonRestirBefore = nonRestirPayload;
+        ActionQueue nonRestirQueue;
+        nonRestirQueue.Push(SemanticAction::RestoreCurrentSceneRecommendedProfile);
+        const ActionBatchResult nonRestirBatch =
+            ApplyQueuedActions(nonRestirQueue, nonRestirPayload);
+        const RuntimeConfig nonRestirExpected =
+            MakeSceneRecommendedConfig(nonRestirBefore, *baseline);
+        tests.Expect(nonRestirBatch.actions.size() == 1u
+                && nonRestirBatch.actions[0].status
+                    == ActionApplyStatus::ConfigCommitted
+                && SameRuntimeConfig(nonRestirPayload, nonRestirExpected)
+                && nonRestirBatch.requestedResets == ResetResource::None
+                && nonRestirPayload.restir.initialCandidatesPerPixel == 3u
+                && nonRestirPayload.restir.spatialNeighbors == 4u
+                && !nonRestirPayload.restir.animateLights
+                && !nonRestirPayload.restir.animateRigidOccluders,
+            "F11 must preserve non-default ReSTIR settings when the current scene recommendation does not own them");
+        RuntimeConfig debugOnly = MakeSceneRecommendedConfig(RuntimeConfig{}, *baseline);
+        debugOnly.debugView = DebugView::Emissive;
+        ActionQueue resetQueue;
+        resetQueue.Push(SemanticAction::RestoreCurrentSceneRecommendedProfile);
+        const ActionBatchResult debugOnlyBatch = ApplyQueuedActions(resetQueue, debugOnly);
+        tests.Expect(debugOnlyBatch.actions[0].status == ActionApplyStatus::ConfigCommitted
+                && debugOnlyBatch.requestedResets == ResetResource::None,
+            "a recommendation that changes only Debug View must not reset histories");
+
+        RuntimeConfig reconstructionOnly = MakeSceneRecommendedConfig(RuntimeConfig{}, *baseline);
+        reconstructionOnly.reconstruction = ReconstructionMode::Svgf;
+        resetQueue.Push(SemanticAction::RestoreCurrentSceneRecommendedProfile);
+        const ActionBatchResult reconstructionBatch =
+            ApplyQueuedActions(resetQueue, reconstructionOnly);
+        tests.Expect(reconstructionBatch.requestedResets
+                == (ResetResource::TemporalHistory | ResetResource::ProfilerStatistics),
+            "a reconstruction-only F11 correction must request exactly T|P");
+
+        RuntimeConfig backendOnly = MakeSceneRecommendedConfig(RuntimeConfig{}, *baseline);
+        backendOnly.backend = TraversalBackend::VulkanRayQuery;
+        resetQueue.Push(SemanticAction::RestoreCurrentSceneRecommendedProfile);
+        const ActionBatchResult backendBatch = ApplyQueuedActions(resetQueue, backendOnly);
+        tests.Expect(backendBatch.requestedResets == atqpas,
+            "a backend correction must request A|T|Q|P|AS");
+
+        RuntimeConfig manyLightsPayload = MakeSceneRecommendedConfig(RuntimeConfig{}, *manyLights);
+        manyLightsPayload.scene = ScenePreset::ManyLightsRestirArena;
+        manyLightsPayload.restir.manyLightsTier = ManyLightsTier::Lights1000;
+        manyLightsPayload.restir.animateLights = true;
+        manyLightsPayload.restir.animateRigidOccluders = true;
+        resetQueue.Push(SemanticAction::RestoreCurrentSceneRecommendedProfile);
+        const ActionBatchResult payloadBatch =
+            ApplyQueuedActions(resetQueue, manyLightsPayload);
+        tests.Expect(payloadBatch.requestedResets == atqpas,
+            "scene 9 tier/animation payload restoration must rebuild scene and AS with A|T|Q|P|AS");
+
+        RuntimeConfig manyLightsSampling = MakeSceneRecommendedConfig(RuntimeConfig{}, *manyLights);
+        manyLightsSampling.scene = ScenePreset::ManyLightsRestirArena;
+        manyLightsSampling.restir.initialCandidatesPerPixel = 2u;
+        resetQueue.Push(SemanticAction::RestoreCurrentSceneRecommendedProfile);
+        const ActionBatchResult restirSamplingBatch =
+            ApplyQueuedActions(resetQueue, manyLightsSampling);
+        tests.Expect(restirSamplingBatch.requestedResets == atqp,
+            "scene 9 non-payload ReSTIR parameters must request A|T|Q|P without AS");
+
+        RuntimeConfig alreadyRecommended = MakeSceneRecommendedConfig(RuntimeConfig{}, *baseline);
+        const RuntimeConfig beforeNoOp = alreadyRecommended;
+        resetQueue.Push(SemanticAction::RestoreCurrentSceneRecommendedProfile);
+        const ActionBatchResult noOpBatch =
+            ApplyQueuedActions(resetQueue, alreadyRecommended);
+        tests.Expect(noOpBatch.actions[0].status
+                    == ActionApplyStatus::AcceptedNoConfigChange
+                && noOpBatch.actions[0].reason
+                    == "current scene already uses its recommended teaching profile"
+                && noOpBatch.requestedResets == ResetResource::None
+                && SameRuntimeConfig(alreadyRecommended, beforeNoOp),
+            "repeated F11 on a matching profile must be idempotent and keep history");
+
+        RuntimeConfig digitThenRestore = MakeSceneRecommendedConfig(RuntimeConfig{}, *manyLights);
+        digitThenRestore.scene = ScenePreset::ManyLightsRestirArena;
+        ActionQueue fifo;
+        fifo.Push(SemanticAction::SelectScene0);
+        fifo.Push(SemanticAction::RestoreCurrentSceneRecommendedProfile);
+        const ActionBatchResult fifoBatch = ApplyQueuedActions(fifo, digitThenRestore);
+        tests.Expect(fifoBatch.actions.size() == 2u
+                && fifoBatch.actions[0].effectiveRuntimeConfig.scene
+                    == ScenePreset::BaselineGallery
+                && fifoBatch.actions[0].effectiveRuntimeConfig.executionArchitecture
+                    == ExecutionArchitecture::Wavefront
+                && fifoBatch.actions[1].status == ActionApplyStatus::ConfigCommitted
+                && MatchesSceneRecommendedProfile(digitThenRestore, *baseline),
+            "0 must remain scene-only and a following F11 must restore the new scene recommendation in FIFO order");
+    }
+
+    void TestBuiltInteractiveCrossProduct(TestContext& tests)
+    {
+        using namespace RenderingEngine;
+
+        constexpr std::array scenes{
+            ScenePreset::BaselineGallery,
+            ScenePreset::IntersectionBvhLab,
+            ScenePreset::WhittedOpticsRoom,
+            ScenePreset::CornellBox,
+            ScenePreset::GgxMisMaterialLab,
+            ScenePreset::EnvironmentSamplingDome,
+            ScenePreset::BackendParityBenchmark,
+            ScenePreset::TemporalStabilityCorridor,
+            ScenePreset::ManyLightsRestirArena
+        };
+        constexpr std::array transports{
+            TransportModel::Pbr,
+            TransportModel::Whitted
+        };
+        constexpr std::array executions{
+            ExecutionArchitecture::Staged,
+            ExecutionArchitecture::Megakernel,
+            ExecutionArchitecture::Wavefront
+        };
+        constexpr std::array backends{
+            TraversalBackend::CanonicalLinearGpu,
+            TraversalBackend::GpuFlattenedSahBvh,
+            TraversalBackend::VulkanRayQuery
+        };
+        constexpr std::array directEstimators{
+            DirectLightingEstimator::BsdfOnly,
+            DirectLightingEstimator::NextEventEstimation,
+            DirectLightingEstimator::MultipleImportanceSampling,
+            DirectLightingEstimator::RestirDirectIllumination
+        };
+        constexpr std::array lightSelections{
+            LightSelectionStrategy::Uniform,
+            LightSelectionStrategy::PowerWeighted
+        };
+        constexpr std::array environmentSamplers{
+            EnvironmentDirectionSampler::UniformSphere,
+            EnvironmentDirectionSampler::ImportanceMap
+        };
+        constexpr std::array reconstructions{
+            ReconstructionMode::CurrentFrame,
+            ReconstructionMode::ProgressiveMean,
+            ReconstructionMode::TemporalAccumulation,
+            ReconstructionMode::SpatialFixedAtrous,
+            ReconstructionMode::Svgf
+        };
+        constexpr std::array debugViews{
+            DebugView::Final,
+            DebugView::BaseColor,
+            DebugView::Normal,
+            DebugView::Roughness,
+            DebugView::Metallic,
+            DebugView::Emissive
+        };
+        constexpr std::array shadowMethods{
+            ShadowMethod::Pcf,
+            ShadowMethod::Pcss,
+            ShadowMethod::Physical
+        };
+
+        constexpr std::size_t expectedCombinationCount = scenes.size()
+            * transports.size()
+            * executions.size()
+            * backends.size()
+            * directEstimators.size()
+            * lightSelections.size()
+            * environmentSamplers.size()
+            * reconstructions.size()
+            * debugViews.size()
+            * shadowMethods.size();
+        static_assert(expectedCombinationCount == 233'280u);
+        constexpr std::size_t expectedSupportedCount = 145'800u;
+
+        bool catalogContainsOnlyBuiltValues = true;
+        for (const ScenePreset scene : scenes)
+        {
+            catalogContainsOnlyBuiltValues = catalogContainsOnlyBuiltValues
+                && CapabilityTable::IsBuilt(scene);
+        }
+        for (const TransportModel transport : transports)
+        {
+            catalogContainsOnlyBuiltValues = catalogContainsOnlyBuiltValues
+                && CapabilityTable::IsBuilt(transport);
+        }
+        for (const ExecutionArchitecture execution : executions)
+        {
+            catalogContainsOnlyBuiltValues = catalogContainsOnlyBuiltValues
+                && CapabilityTable::IsBuilt(execution);
+        }
+        for (const TraversalBackend backend : backends)
+        {
+            catalogContainsOnlyBuiltValues = catalogContainsOnlyBuiltValues
+                && CapabilityTable::IsBuilt(backend);
+        }
+        for (const DirectLightingEstimator estimator : directEstimators)
+        {
+            catalogContainsOnlyBuiltValues = catalogContainsOnlyBuiltValues
+                && CapabilityTable::IsBuilt(estimator);
+        }
+        for (const LightSelectionStrategy lightSelection : lightSelections)
+        {
+            catalogContainsOnlyBuiltValues = catalogContainsOnlyBuiltValues
+                && CapabilityTable::IsBuilt(lightSelection);
+        }
+        for (const EnvironmentDirectionSampler environmentSampler : environmentSamplers)
+        {
+            catalogContainsOnlyBuiltValues = catalogContainsOnlyBuiltValues
+                && CapabilityTable::IsBuilt(environmentSampler);
+        }
+        for (const ReconstructionMode reconstruction : reconstructions)
+        {
+            catalogContainsOnlyBuiltValues = catalogContainsOnlyBuiltValues
+                && CapabilityTable::IsBuilt(reconstruction);
+        }
+        for (const DebugView debugView : debugViews)
+        {
+            catalogContainsOnlyBuiltValues = catalogContainsOnlyBuiltValues
+                && CapabilityTable::IsBuilt(debugView);
+        }
+        for (const ShadowMethod shadowMethod : shadowMethods)
+        {
+            catalogContainsOnlyBuiltValues = catalogContainsOnlyBuiltValues
+                && CapabilityTable::IsBuilt(shadowMethod);
+        }
+        tests.Expect(catalogContainsOnlyBuiltValues,
+            "the interactive cross-product fixture must contain only built axis values");
+
+        RuntimeConfig base;
+        base.restir.manyLightsTier = ManyLightsTier::Lights100;
+        base.run.headless = false;
+        base.render.targetSamplesPerPixel = 0u;
+        tests.Expect(CapabilityTable::Evaluate(base).IsSupported(),
+            "the interactive cross-product base RuntimeConfig must be valid and supported");
+
+        std::size_t evaluatedCount = 0u;
+        std::size_t supportedCount = 0u;
+        for (const ScenePreset scene : scenes)
+        {
+            for (const TransportModel transport : transports)
+            {
+                for (const ExecutionArchitecture execution : executions)
+                {
+                    for (const TraversalBackend backend : backends)
+                    {
+                        for (const DirectLightingEstimator estimator : directEstimators)
+                        {
+                            for (const LightSelectionStrategy lightSelection : lightSelections)
+                            {
+                                for (const EnvironmentDirectionSampler environmentSampler : environmentSamplers)
+                                {
+                                    for (const ReconstructionMode reconstruction : reconstructions)
+                                    {
+                                        for (const DebugView debugView : debugViews)
+                                        {
+                                            for (const ShadowMethod shadowMethod : shadowMethods)
+                                            {
+                                                RuntimeConfig candidate = base;
+                                                candidate.scene = scene;
+                                                candidate.transportModel = transport;
+                                                candidate.executionArchitecture = execution;
+                                                candidate.backend = backend;
+                                                candidate.directLightingEstimator = estimator;
+                                                candidate.lightSelection = lightSelection;
+                                                candidate.environmentSampler = environmentSampler;
+                                                candidate.reconstruction = reconstruction;
+                                                candidate.debugView = debugView;
+                                                candidate.shadowMethod = shadowMethod;
+                                                ++evaluatedCount;
+                                                const CapabilityDecision decision =
+                                                    CapabilityTable::Evaluate(candidate);
+                                                const bool expectedSupported =
+                                                    transport == TransportModel::Pbr
+                                                    || (execution
+                                                            == ExecutionArchitecture::Staged
+                                                        && estimator
+                                                            != DirectLightingEstimator::RestirDirectIllumination);
+                                                const CapabilityStatus expectedStatus =
+                                                    expectedSupported
+                                                    ? CapabilityStatus::Supported
+                                                    : CapabilityStatus::Unsupported;
+                                                tests.Expect(decision.status == expectedStatus,
+                                                    "every interactive tuple must match the explicit PBR/Whitted capability boundary");
+                                                if (decision.IsSupported())
+                                                {
+                                                    ++supportedCount;
+                                                }
+                                                else
+                                                {
+                                                    tests.Expect(!decision.reason.empty(),
+                                                        "every rejected split-axis tuple must explain why it is unsupported");
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        tests.Expect(evaluatedCount == expectedCombinationCount,
+            "the split-axis interactive cross-product must evaluate exactly 233280 tuples");
+        tests.Expect(supportedCount == expectedSupportedCount
+                && expectedCombinationCount - supportedCount == 87'480u,
+            "capability evaluation must accept exactly 145800 tuples and reject exactly 87480 unsupported combinations");
     }
 
     void TestViewModel(TestContext& tests)
@@ -345,14 +1317,26 @@ namespace
 
         const RuntimeConfig config;
         const ShowcaseViewModel model = BuildShowcaseViewModel(config);
-        tests.Expect(model.dimensions.size() == 7u,
-            "view model must expose seven orthogonal RuntimeConfig dimensions");
-        tests.Expect(std::count(model.tupleText.begin(), model.tupleText.end(), '|') == 6,
-            "formatted tuple must retain all seven dimensions");
-        tests.Expect(!model.tuple.directEstimator.empty() && !model.tuple.lightProposal.empty(),
-            "tuple must show direct estimator and light proposal separately");
+        tests.Expect(model.dimensions.size() == 10u,
+            "view model must expose ten orthogonal RuntimeConfig dimensions");
+        tests.Expect(std::count(model.tupleText.begin(), model.tupleText.end(), '|') == 9,
+            "formatted tuple must retain all ten dimensions");
+        tests.Expect(!model.tuple.transportModel.empty()
+                && !model.tuple.executionArchitecture.empty()
+                && !model.tuple.directEstimator.empty()
+                && !model.tuple.lightSelection.empty()
+                && !model.tuple.environmentSampler.empty()
+                && !model.tuple.shadowMethod.empty(),
+            "tuple must show transport, execution, direct, light, environment, and shadow axes separately");
         tests.Expect(model.help.size() == GetActionCatalog().size(),
             "help model must derive from the same action catalog");
+        tests.Expect(model.sceneRecommendation.registered
+                && model.sceneRecommendation.matches
+                && model.sceneRecommendation.stableId
+                    == "scene-recommended.baseline.v2"
+                && model.sceneRecommendation.text.find("F11")
+                    != std::string::npos,
+            "ImGui state must expose the current scene recommendation and match state");
 
         const auto sceneDimension = std::find_if(
             model.dimensions.begin(),
@@ -360,15 +1344,88 @@ namespace
             [](const CapabilityDimensionViewModel& dimension) { return dimension.id == "scene"; });
         tests.Expect(sceneDimension != model.dimensions.end() && sceneDimension->options.size() == 10u,
             "scene panel shell must expose all ten roadmap scenes");
-        if (sceneDimension != model.dimensions.end() && sceneDimension->options.size() > 3u)
+        if (sceneDimension != model.dimensions.end() && sceneDimension->options.size() > 5u)
         {
             const CapabilityOptionViewModel& baseline = sceneDimension->options[0];
             const CapabilityOptionViewModel& cornell = sceneDimension->options[3];
+            const CapabilityOptionViewModel& environment = sceneDimension->options[5];
+            const CapabilityOptionViewModel& sponza = sceneDimension->options[6];
             tests.Expect(baseline.selected && baseline.built && baseline.enabled,
                 "Baseline Gallery must be selected and enabled under Wave 0 capability");
-            tests.Expect(!cornell.built && !cornell.enabled && cornell.owner == "L2" && !cornell.reason.empty(),
-                "future scene must remain disabled with owner and capability reason");
+            tests.Expect(cornell.built && cornell.enabled && cornell.owner == "L2"
+                    && cornell.reason.empty(),
+                "built Cornell data must be selectable with the current independent axes");
+            tests.Expect(environment.built && environment.enabled
+                    && environment.owner == "L2" && environment.reason.empty(),
+                "the built environment scene must be selectable with the current independent axes");
+            tests.Expect(!sponza.built && !sponza.enabled
+                    && sponza.owner == "L2" && !sponza.reason.empty(),
+                "asset-gated Sponza must remain disabled with owner and capability reason");
         }
+
+        const auto transportDimension = std::find_if(
+            model.dimensions.begin(),
+            model.dimensions.end(),
+            [](const CapabilityDimensionViewModel& dimension)
+            {
+                return dimension.id == "transport";
+            });
+        const CapabilityOptionViewModel* selectedTransport = nullptr;
+        if (transportDimension != model.dimensions.end())
+        {
+            const auto selected = std::find_if(
+                transportDimension->options.begin(),
+                transportDimension->options.end(),
+                [](const CapabilityOptionViewModel& option)
+                {
+                    return option.selected;
+                });
+            if (selected != transportDimension->options.end())
+            {
+                selectedTransport = &*selected;
+            }
+        }
+        tests.Expect(transportDimension != model.dimensions.end()
+                && selectedTransport != nullptr
+                && selectedTransport->token == "pbr"
+                && selectedTransport->label == "PBR Path Transport",
+            "the view model must expose PBR as a transport model rather than an execution architecture");
+
+        const auto executionDimension = std::find_if(
+            model.dimensions.begin(), model.dimensions.end(),
+            [](const CapabilityDimensionViewModel& dimension)
+            {
+                return dimension.id == "execution";
+            });
+        tests.Expect(executionDimension != model.dimensions.end()
+                && executionDimension->options.size() == 4u,
+            "execution architecture must be presented as an independent dimension");
+
+        const auto reconstructionDimension = std::find_if(
+            model.dimensions.begin(), model.dimensions.end(),
+            [](const CapabilityDimensionViewModel& dimension)
+            {
+                return dimension.id == "reconstruction";
+            });
+        bool reconstructionOptionsOrdered =
+            reconstructionDimension != model.dimensions.end()
+            && reconstructionDimension->options.size() == 5u;
+        if (reconstructionOptionsOrdered)
+        {
+            const std::array<std::string_view, 5u> expectedTokens{
+                "current-frame", "progressive-mean", "temporal",
+                "atrous-spatial", "svgf"};
+            for (std::size_t index = 0u; index < expectedTokens.size(); ++index)
+            {
+                reconstructionOptionsOrdered = reconstructionOptionsOrdered
+                    && reconstructionDimension->options[index].token
+                        == expectedTokens[index]
+                    && reconstructionDimension->options[index].built
+                    && reconstructionDimension->options[index].enabled;
+            }
+        }
+        tests.Expect(reconstructionOptionsOrdered,
+            "reconstruction dimension must expose Current Frame, Progressive Mean, Temporal, Temporal+A-Trous, and SVGF in order");
 
         const auto captureHelp = std::find_if(
             model.help.begin(),
@@ -383,6 +1440,19 @@ namespace
             && !captureHelp->owner.empty()
             && !captureHelp->reason.empty(),
             "unconnected production capture action must be disabled and explained");
+        const auto recommendationHelp = std::find_if(
+            model.help.begin(),
+            model.help.end(),
+            [](const HelpEntryViewModel& entry)
+            {
+                return entry.binding != nullptr
+                    && entry.binding->action
+                        == SemanticAction::RestoreCurrentSceneRecommendedProfile;
+            });
+        tests.Expect(recommendationHelp != model.help.end()
+                && recommendationHelp->enabled
+                && recommendationHelp->owner == "L10",
+            "the ImGui/help surface must expose enabled F11 recommendation restore");
     }
 
     void TestCaptureBundle(TestContext& tests, float& measuredMaxAbsError)
@@ -422,6 +1492,8 @@ namespace
             std::span<const std::uint8_t>(preview)
         };
         CaptureMetadata metadata = MakeCaptureMetadata();
+        metadata.submittedCamera = std::array<float, 13>{
+            1, 2, 3, 0, 0, -1, 1, 0, 0, 0, 1, 0, 52 };
         AlignEffectiveLayout(metadata, layout);
 
         const CaptureBundleResult result = WriteCaptureBundle(layout, image, metadata);
@@ -490,15 +1562,21 @@ namespace
         }
 
         const std::string metadataJson = ReadTextFile(layout.metadataFile);
+        tests.Expect(metadataJson.find(
+            "\"submitted_camera_position_forward_right_up_fov\": [1, 2, 3, 0, 0, -1, 1, 0, 0, 0, 1, 0, 52]") != std::string::npos,
+            "capture must serialize observed camera values separately from its preset label");
         tests.Expect(metadataJson.find("\"state\": \"complete\"") != std::string::npos
             && metadataJson.find("\"requested\"") != std::string::npos
             && metadataJson.find("\"effective\"") != std::string::npos
             && metadataJson.find("\"scene\": \"cornell\"") != std::string::npos
             && metadataJson.find("\"backend\": \"cpu-sah\"") != std::string::npos
-            && metadataJson.find("\"integrator\": \"cpu-reference\"") != std::string::npos
+            && metadataJson.find("\"transport_model\": \"pbr\"") != std::string::npos
+            && metadataJson.find("\"execution_architecture\": \"cpu-reference\"") != std::string::npos
             && metadataJson.find("\"direct_lighting_estimator\": \"nee\"") != std::string::npos
-            && metadataJson.find("\"light_proposal_distribution\": \"uniform\"") != std::string::npos
-            && metadataJson.find("\"reconstruction\": \"temporal-atrous\"") != std::string::npos
+            && metadataJson.find("\"light_selection\": \"uniform\"") != std::string::npos
+            && metadataJson.find("\"environment_sampler\": \"uniform-sphere\"") != std::string::npos
+            && metadataJson.find("\"reconstruction\": \"current-frame\"") != std::string::npos
+            && metadataJson.find("\"reconstruction\": \"progressive-mean\"") != std::string::npos
             && metadataJson.find("\"vsync\": \"on\"") != std::string::npos
             && metadataJson.find("\"validation\": \"off\"") != std::string::npos
             && metadataJson.find("\"origin\": \"synthetic-test\"") != std::string::npos
@@ -520,7 +1598,7 @@ namespace
             && metadataJson.find("baseline \\\"fixed\\\" \\\\ preset\\nline2") != std::string::npos
             && metadataJson.find("captures/image.exr") != std::string::npos
             && metadataJson.find("captures/preview.png") != std::string::npos,
-            "metadata must publish completion last and use canonical cli-v0 tokens for replay");
+            "metadata must publish completion last and use runtime-config-v2 tokens for replay");
 
         const std::vector<unsigned char> pngBeforeCollision = ReadBinaryFile(layout.capturesDirectory / "preview.png");
         const CaptureBundleResult collision = WriteCaptureBundle(layout, image, metadata);
@@ -570,7 +1648,7 @@ namespace
             WriteCaptureBundle(badRuntimeLayout, image, badRuntimeMetadata);
         tests.Expect(badRuntimeResult.error == CaptureBundleError::InvalidMetadata
             && !std::filesystem::exists(badRuntimeLayout.runDirectory),
-            "an invalid runtime-config-v0 tuple must not publish complete metadata");
+            "an invalid runtime-config-v2 tuple must not publish complete metadata");
 
         const ArtifactLayout staleEvidenceLayout =
             ResolveArtifactLayout(temporary.Path(), "stale-evidence");
@@ -765,6 +1843,8 @@ namespace
         abStart.variantAStableId = "uniform";
         abStart.variantBStableId = "power-weighted";
         abStart.configGeneration = 0u;
+        abStart.captureFrameIndex = 23u;
+        abStart.captureSampleIndex = 64u;
         abStart.captureProvider = {
             "l10.bundle-ab-provider",
             Availability::Available,
@@ -781,6 +1861,11 @@ namespace
             artifact.configGeneration = request.configGeneration;
             artifact.sceneGeneration = request.sceneGeneration;
             artifact.resourceGeneration = request.resourceGeneration;
+            artifact.sceneStableId = request.sceneStableId;
+            artifact.variantStableId = request.variantStableId;
+            artifact.anchor = request.anchor;
+            artifact.frameIndex = request.frameIndex;
+            artifact.sampleIndex = request.sampleIndex;
             artifact.runId = std::move(runId);
             artifact.exrPath = "captures/image.exr";
             artifact.pngPath = "captures/preview.png";
@@ -1002,23 +2087,53 @@ namespace
     }
 }
 
-int main()
+int main(int argc, char** argv)
 {
+    if (argc > 1)
+    {
+        try
+        {
+            const std::string_view command = argv[1];
+            if (command == "--verify-progressive-film")
+                return RenderingEngine::Tests::VerifyProgressiveFilm(argc, argv);
+            if (command == "--compare-linear-exr")
+                return RenderingEngine::Tests::CompareLinearExr(argc, argv);
+            throw std::runtime_error("unknown Showcase test command");
+        }
+        catch (const std::exception& error)
+        {
+            std::cerr << error.what() << '\n';
+            return 2;
+        }
+    }
     TestContext tests;
     TestActionMap(tests);
     TestRuntimeHarness(tests);
+    TestSceneRecommendedProfiles(tests);
+    TestBuiltInteractiveCrossProduct(tests);
     TestViewModel(tests);
     float maxAbsError = 0.0f;
     TestCaptureBundle(tests, maxAbsError);
+    const bool capturePreviewChecksPassed = RunCapturePreviewTests(std::cerr);
     const bool controllerChecksPassed = RunShowcaseControllerTests(std::cerr);
+    const bool glfwActionAdapterChecksPassed = RunGlfwActionAdapterTests(std::cerr);
     const bool profilerChecksPassed = RunDebugProfilerModelTests(std::cerr);
+    const bool wave2TelemetryChecksPassed = RunWave2TelemetryAdapterTests(std::cerr);
+    const bool wave4TelemetryChecksPassed =
+        RunWave4TelemetryAdapterTests(std::cerr) == 0;
+    const bool manyLightsWave4ChecksPassed = RunManyLightsWave4Tests(std::cerr);
     const bool imguiChecksPassed = RunImGuiShowcasePanelsTests(std::cerr);
     const bool evidenceChecksPassed = RunShowcaseEvidenceTests(std::cerr);
     const bool programChecksPassed = RunShowcaseProgramTests(std::cerr);
     const bool reportChecksPassed = RunShowcaseReportTests(std::cerr);
     const bool workflowChecksPassed = RunShowcaseWorkflowTests(std::cerr);
-    const bool allWaveChecksPassed = controllerChecksPassed
+    const bool allWaveChecksPassed = capturePreviewChecksPassed
+        && controllerChecksPassed
+        && glfwActionAdapterChecksPassed
         && profilerChecksPassed
+        && wave2TelemetryChecksPassed
+        && wave4TelemetryChecksPassed
+        && manyLightsWave4ChecksPassed
         && imguiChecksPassed
         && evidenceChecksPassed
         && programChecksPassed

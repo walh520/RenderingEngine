@@ -8,14 +8,12 @@ struct L8MotionInput
     uint3 reserved;
 };
 
-[[vk::binding(0, 0)]] StructuredBuffer<L8MotionInput> gMotionInputs : register(t0);
-[[vk::binding(1, 0)]] StructuredBuffer<row_major float4x4> gCurrentObjectToWorld : register(t1);
-[[vk::binding(2, 0)]] StructuredBuffer<row_major float4x4> gPreviousObjectToWorld : register(t2);
-// The motion pass updates the same private GBuffer consumed by temporal and
-// compose, so no unconnected dense side buffer or copy pass is required.
-[[vk::binding(3, 0)]] RWStructuredBuffer<L8GBufferRecord> gMotionGBuffer : register(u0);
+[[vk::binding(1, 4)]] StructuredBuffer<L8MotionInput> gMotionInputs;
+[[vk::binding(2, 4)]] StructuredBuffer<row_major float4x4> gCurrentObjectToWorld;
+[[vk::binding(3, 4)]] StructuredBuffer<row_major float4x4> gPreviousObjectToWorld;
+[[vk::binding(0, 4)]] RWStructuredBuffer<GpuGBufferRecordV2> gMotionGBuffer;
 
-[[vk::binding(4, 0)]] cbuffer L8MotionConstants : register(b0)
+[[vk::binding(16, 4)]] cbuffer L8MotionConstants
 {
     row_major float4x4 gCurrentViewProjection;
     row_major float4x4 gPreviousViewProjection;
@@ -29,9 +27,9 @@ struct L8MotionInput
 
 void L8ClearMotion(uint index)
 {
-    gMotionGBuffer[index].motion = 0.0f.xx;
-    gMotionGBuffer[index].expectedPreviousLinearDepth = 0.0f;
-    gMotionGBuffer[index].motionValid = 0u;
+    gMotionGBuffer[index].motion.motionExpectedDepth = 0.0f.xxxx;
+    gMotionGBuffer[index].motion.currentPreviousUv = 0.0f.xxxx;
+    gMotionGBuffer[index].motion.identity.w = kMotionFlagNoneV2;
 }
 
 [numthreads(8, 8, 1)]
@@ -42,7 +40,8 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     const uint index = L8LinearIndex(pixel, gMotionExtent);
     // Misses have no surface to reproject. Check this before reading the motion
     // input or either transform SSBO, and always leave a finite payload.
-    if (gMotionGBuffer[index].valid == 0u)
+    if ((gMotionGBuffer[index].primary.identity.w &
+        kPrimarySurfaceFlagValidV2) == 0u)
     {
         L8ClearMotion(index);
         return;
@@ -78,7 +77,14 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     const float previousLinearDepth = -previousView.z;
     const bool resultValid = all(isfinite(currentUv)) && all(isfinite(previousUv)) &&
         isfinite(previousLinearDepth) && previousLinearDepth >= 0.0f;
-    gMotionGBuffer[index].motion = resultValid ? previousUv - currentUv : 0.0f.xx;
-    gMotionGBuffer[index].expectedPreviousLinearDepth = resultValid ? previousLinearDepth : 0.0f;
-    gMotionGBuffer[index].motionValid = resultValid ? 1u : 0u;
+    gMotionGBuffer[index].motion.motionExpectedDepth = float4(
+        resultValid ? previousUv - currentUv : 0.0f.xx,
+        resultValid ? previousLinearDepth : 0.0f,
+        0.0f);
+    gMotionGBuffer[index].motion.currentPreviousUv = float4(
+        currentUv,
+        resultValid ? previousUv : currentUv);
+    gMotionGBuffer[index].motion.identity = uint4(
+        gMotionGBuffer[index].primary.identity.xyz,
+        resultValid ? kMotionFlagValidV2 : kMotionFlagNoneV2);
 }

@@ -1,6 +1,7 @@
 #include "include/WavefrontResources.hlsli"
 #include "include/WavefrontRng.hlsli"
 #include "include/PbrWavefrontShading.hlsli"
+#include "include/WavefrontReconstructionExport.hlsli"
 
 [numthreads(128, 1, 1)]
 void ShadeCS(
@@ -35,16 +36,34 @@ void ShadeCS(
     }
     else
     {
-        WfSetFatal(kWfFatalInvalidCapacity);
+        WfSetFatal(kWfFatalShadeSourceQueue);
         return;
     }
 
     const WfMaterialWorkItem work = gWfMaterialWork[index];
-    const uint pathIndex = ray.path.x;
-    if (pathIndex >= gWfFrame.capacityModeSeed.x)
+    const uint pathIndex = ray.identity.y;
+    // One progressive path is allocated per pixel. identity.x is a unique ray
+    // ID and intentionally includes a bounce * capacity offset after the first
+    // bounce; identity.y remains the stable path/pixel index.
+    const uint pixelIndex = pathIndex;
+    // Host allocation rejects pixel products above the 32-bit queue contract.
+    const uint pixelCount =
+        gWfFrame.imageSample.x * gWfFrame.imageSample.y;
+    const uint expectedRayId =
+        pathIndex + bounce * gWfFrame.capacityModeSeed.x;
+    if (pathIndex >= gWfFrame.capacityModeSeed.x
+        || pixelIndex >= pixelCount
+        || ray.identity.x != expectedRayId)
     {
-        WfSetFatal(kWfFatalInvalidCapacity);
+        WfSetFatal(kWfFatalShadePathIndex);
         return;
+    }
+
+    if (bounce == 0u)
+    {
+        // Every primary path overwrites its ABI-v2 slot. Miss/error paths stay
+        // explicitly invalid instead of leaking an earlier frame's surface.
+        WfClearPrimarySurfaceV2(pixelIndex);
     }
 
     WfPathState state = gWfPaths[pathIndex];
@@ -52,7 +71,7 @@ void ShadeCS(
     WfNextBounceCandidate nextCandidate = (WfNextBounceCandidate)0;
     WfShadowWorkItem shadowCandidate = (WfShadowWorkItem)0;
 
-    if (work.identity.z == kWfHitMiss)
+    if (work.metadata.y == kWfHitMiss)
     {
         const float3 environment = PbrEnvironmentRadianceL6(ray.directionTMax.xyz);
         float misWeight = 1.0f;
@@ -60,16 +79,30 @@ void ShadeCS(
             (state.identity.w & kWfPathPreviousDelta) == 0u &&
             gPbrFrameL6.sampling.w != 0u)
         {
-            const float lightPdf = PbrSelectedLightPdfL6(
-                gPbrFrameL6.environment.x,
-                WfPreviousLightContext(state),
-                ray.directionTMax.xyz,
-                0.0f,
-                0.0f);
-            if (lightPdf > 0.0f)
+            const bool restirOwnsPrimaryEnvironment =
+                gPbrFrameL6.sampling.w == PBR_L6_ESTIMATOR_RESTIR_PRIMARY &&
+                bounce == 1u &&
+                (state.identity.w & kWfPathPreviousRestirOwned) != 0u;
+            if (restirOwnsPrimaryEnvironment)
             {
-                misWeight = PbrPowerHeuristicL6(
-                    state.previousPositionPdf.w, lightPdf);
+                // A non-delta primary BSDF miss is the same direct-light path
+                // already owned by ReSTIR. Delta paths remain visible, and
+                // secondary misses continue through the ordinary MIS branch.
+                misWeight = 0.0f;
+            }
+            else
+            {
+                const float lightPdf = PbrSelectedLightPdfL6(
+                    gPbrFrameL6.environment.x,
+                    WfPreviousLightContext(state),
+                    ray.directionTMax.xyz,
+                    0.0f,
+                    0.0f);
+                if (lightPdf > 0.0f)
+                {
+                    misWeight = PbrPowerHeuristicL6(
+                        state.previousPositionPdf.w, lightPdf);
+                }
             }
         }
         if (PbrIsFinite3L6(environment) && PbrIsFiniteFloatL6(misWeight) &&
@@ -83,6 +116,7 @@ void ShadeCS(
         }
         state.identity.w = (state.identity.w & ~kWfPathActive) | kWfPathTerminated;
         gWfPaths[pathIndex] = state;
+        WfPublishSharedPath(pathIndex, state);
         if (gWfFrame.capacityModeSeed.y == kWfQueueModePrefixScan)
         {
             gWfFlags[index] = flags;
@@ -98,6 +132,7 @@ void ShadeCS(
             (state.identity.w & ~kWfPathActive) |
             kWfPathTerminated | kWfPathError;
         gWfPaths[pathIndex] = state;
+        WfPublishSharedPath(pathIndex, state);
         if (gWfFrame.capacityModeSeed.y == kWfQueueModePrefixScan)
         {
             gWfFlags[index] = flags;
@@ -113,11 +148,37 @@ void ShadeCS(
             (state.identity.w & ~kWfPathActive) |
             kWfPathTerminated | kWfPathError;
         gWfPaths[pathIndex] = state;
+        WfPublishSharedPath(pathIndex, state);
         if (gWfFrame.capacityModeSeed.y == kWfQueueModePrefixScan)
         {
             gWfFlags[index] = flags;
         }
         return;
+    }
+    const BsdfParamsL6 bsdfParameters = PbrMaterialToBsdfParamsL6(material);
+    const bool currentRestirOwned = bounce == 0u
+        && BsdfSupportsRestirPrimaryDirectL6(bsdfParameters);
+
+    if (bounce == 0u)
+    {
+        WfPublishPrimarySurfaceV2(
+            pixelIndex,
+            hit.position,
+            dot(
+                hit.position - gPbrFrameL6.cameraPositionTanHalfFov.xyz,
+                normalize(gPbrFrameL6.cameraForwardAspect.xyz)),
+            hit.geometricNormal,
+            hit.shadingNormal,
+            hit.materialIndex,
+            hit.instanceId,
+            hit.primitiveId,
+            hit.frontFace,
+            material.baseColorMetallic.xyz,
+            material.baseColorMetallic.w,
+            material.emissiveRoughness.w,
+            material.transmissionIor.x,
+            material.f0.xyz,
+            currentRestirOwned);
     }
 
     float3 beta = state.throughputEta.xyz;
@@ -135,6 +196,7 @@ void ShadeCS(
             (state.identity.w & ~kWfPathActive) |
             kWfPathTerminated | kWfPathError;
         gWfPaths[pathIndex] = state;
+        WfPublishSharedPath(pathIndex, state);
         if (gWfFrame.capacityModeSeed.y == kWfQueueModePrefixScan)
         {
             gWfFlags[index] = flags;
@@ -153,16 +215,30 @@ void ShadeCS(
             (state.identity.w & kWfPathPreviousDelta) == 0u &&
             gPbrFrameL6.sampling.w != 0u)
         {
-            const float lightPdf = PbrSelectedLightPdfL6(
-                hit.emitterLightIndex,
-                WfPreviousLightContext(state),
-                ray.directionTMax.xyz,
-                hit.t,
-                hit.geometricNormal);
-            if (lightPdf > 0.0f)
+            const bool restirOwnsPrimaryEmitter =
+                gPbrFrameL6.sampling.w == PBR_L6_ESTIMATOR_RESTIR_PRIMARY &&
+                bounce == 1u &&
+                (state.identity.w & kWfPathPreviousRestirOwned) != 0u;
+            if (restirOwnsPrimaryEmitter)
             {
-                misWeight = PbrPowerHeuristicL6(
-                    state.previousPositionPdf.w, lightPdf);
+                // Suppress only the non-delta primary emitter path. ReSTIR
+                // cannot replace a delta chain, and deeper emitter hits remain
+                // part of the Wavefront indirect MIS estimate.
+                misWeight = 0.0f;
+            }
+            else
+            {
+                const float lightPdf = PbrSelectedLightPdfL6(
+                    hit.emitterLightIndex,
+                    WfPreviousLightContext(state),
+                    ray.directionTMax.xyz,
+                    hit.t,
+                    hit.geometricNormal);
+                if (lightPdf > 0.0f)
+                {
+                    misWeight = PbrPowerHeuristicL6(
+                        state.previousPositionPdf.w, lightPdf);
+                }
             }
         }
         if (!WfPbrAccumulateTerminal(state, bounce, emission, misWeight))
@@ -172,6 +248,7 @@ void ShadeCS(
                 (state.identity.w & ~kWfPathActive) |
                 kWfPathTerminated | kWfPathError;
             gWfPaths[pathIndex] = state;
+            WfPublishSharedPath(pathIndex, state);
             if (gWfFrame.capacityModeSeed.y == kWfQueueModePrefixScan)
             {
                 gWfFlags[index] = flags;
@@ -185,6 +262,7 @@ void ShadeCS(
     {
         state.identity.w = (state.identity.w & ~kWfPathActive) | kWfPathTerminated;
         gWfPaths[pathIndex] = state;
+        WfPublishSharedPath(pathIndex, state);
         if (gWfFrame.capacityModeSeed.y == kWfQueueModePrefixScan)
         {
             gWfFlags[index] = flags;
@@ -192,7 +270,6 @@ void ShadeCS(
         return;
     }
 
-    const BsdfParamsL6 bsdfParameters = PbrMaterialToBsdfParamsL6(material);
     const BsdfContextL6 bsdfContext = PbrBuildBsdfContextL6(hit, material);
     if (!ValidateBsdfParamsL6(bsdfContext, bsdfParameters))
     {
@@ -201,6 +278,7 @@ void ShadeCS(
             (state.identity.w & ~kWfPathActive) |
             kWfPathTerminated | kWfPathError;
         gWfPaths[pathIndex] = state;
+        WfPublishSharedPath(pathIndex, state);
         if (gWfFrame.capacityModeSeed.y == kWfQueueModePrefixScan)
         {
             gWfFlags[index] = flags;
@@ -220,6 +298,7 @@ void ShadeCS(
         beta,
         betaDiffuse,
         betaSpecular,
+        currentRestirOwned,
         shadowCandidate))
     {
         flags.y = 1u;
@@ -331,6 +410,10 @@ void ShadeCS(
             {
                 eventFlags |= kWfPathPreviousSpecular;
             }
+            if (currentRestirOwned)
+            {
+                eventFlags |= kWfPathPreviousRestirOwned;
+            }
             nextCandidate.originTMin = float4(
                 PbrOffsetRayOriginL6(
                     hit.position, hit.geometricNormal, bsdfSample.direction),
@@ -370,7 +453,11 @@ void ShadeCS(
             uint slot;
             if (WfTryReserve(kWfQueueShadow, slot))
             {
-                gWfShadowQueue[slot] = shadowCandidate;
+                WfShadowQueueItem sharedShadow;
+                WfShadowAovItem shadowAov;
+                WfPackShadowQueue(slot, shadowCandidate, sharedShadow, shadowAov);
+                gWfShadowQueue[slot] = sharedShadow;
+                gWfShadowAov[slot] = shadowAov;
                 uint ignored;
                 InterlockedAdd(gWfBounceCounters[bounce].work.z, 1u, ignored);
             }
@@ -388,4 +475,5 @@ void ShadeCS(
         state.identity.w = (state.identity.w & ~kWfPathActive) | kWfPathTerminated;
     }
     gWfPaths[pathIndex] = state;
+    WfPublishSharedPath(pathIndex, state);
 }

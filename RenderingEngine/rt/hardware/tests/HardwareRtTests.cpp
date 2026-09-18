@@ -3,6 +3,7 @@
 #include "ParityHarness.hpp"
 #include "RayQueryBackend.hpp"
 #include "RtPipelineBackend.hpp"
+#include "RtPipelineTraversalAdapter.hpp"
 #include "SbtBuilder.hpp"
 
 #include "contracts/AbiVersion.hpp"
@@ -22,6 +23,7 @@
 
 namespace Hw = RenderingEngine::Rt::Hardware;
 namespace Abi = RenderingEngine::Contracts::AbiV0;
+namespace Gpu = RenderingEngine::Rt::Gpu;
 
 namespace
 {
@@ -179,6 +181,139 @@ namespace
             "pre-1.3 device creation requests VK_KHR_synchronization2");
     }
 
+    void TestRayQueryAbiV1Adapter()
+    {
+        Check(sizeof(Hw::RayQueryPushConstants) == 24u &&
+                sizeof(Hw::RayBatchPushConstants) == 24u,
+            "Ray Query and RT Pipeline push constants carry independent v1 ray/hit offsets");
+        Check(Hw::kCanonicalSceneConstantsBinding == 0u &&
+                Hw::kCanonicalSceneVerticesBinding == 1u &&
+                Hw::kCanonicalSceneIndicesBinding == 2u &&
+                Hw::kCanonicalSceneGeometriesBinding == 3u &&
+                Hw::kCanonicalSceneInstancesBinding == 4u &&
+                Hw::kCanonicalSceneMaterialsBinding == 5u &&
+                Hw::kCanonicalSceneLightsBinding == 6u,
+            "Ray Query scene layout retains canonical bindings 0..6");
+
+        Hw::RayQueryBackend backend;
+        Hw::RayQueryTraversalAdapter adapter(backend, 4u, 2u);
+        const Gpu::GpuTraversalBackendDescriptor descriptor = adapter.Descriptor();
+        Check(descriptor.stableToken == "hardware-ray-query" && descriptor.supportsClosest &&
+                descriptor.supportsAny && descriptor.requiresAccelerationStructure,
+            "Ray Query adapter advertises the shared hardware backend contract");
+
+        const auto fakeCommandBuffer = reinterpret_cast<VkCommandBuffer>(static_cast<std::uintptr_t>(1u));
+        const auto fakeSceneSet = reinterpret_cast<VkDescriptorSet>(static_cast<std::uintptr_t>(2u));
+        const auto fakeTraversalSet = reinterpret_cast<VkDescriptorSet>(static_cast<std::uintptr_t>(3u));
+
+        Gpu::GpuTraceBatch trace{};
+        trace.commandBuffer = fakeCommandBuffer;
+        trace.canonicalSceneSet = fakeSceneSet;
+        trace.traversalSet = fakeTraversalSet;
+        trace.sceneFingerprint = 17u;
+        trace.sceneGeneration = 3u;
+        trace.rayOffset = 5u;
+        trace.hitOffset = 11u;
+        trace.rayCount = 2u;
+        const Gpu::GpuTraversalStatus beforeBuild = adapter.RecordTraceClosestBatch(trace);
+        Check(!beforeBuild && beforeBuild.code == Gpu::GpuTraversalStatusCode::MissingScene,
+            "Ray Query adapter rejects trace before scene identity is accepted");
+
+        Gpu::GpuSceneBuildRequest scene{};
+        scene.commandBuffer = fakeCommandBuffer;
+        scene.canonicalSceneSet = fakeSceneSet;
+        scene.sceneFingerprint = trace.sceneFingerprint;
+        scene.sceneGeneration = trace.sceneGeneration;
+        const Gpu::GpuTraversalStatus sceneStatus = adapter.BuildOrUpdateScene(scene);
+        Check(static_cast<bool>(sceneStatus),
+            "Ray Query adapter accepts and remembers a non-zero scene fingerprint/generation");
+
+        Gpu::GpuTraceBatch wrongScene = trace;
+        wrongScene.sceneGeneration += 1u;
+        const Gpu::GpuTraversalStatus wrongIdentity = adapter.RecordTraceAnyBatch(wrongScene);
+        Check(!wrongIdentity && wrongIdentity.code == Gpu::GpuTraversalStatusCode::MissingScene,
+            "Ray Query adapter rejects a trace with a stale scene generation");
+
+        const Gpu::GpuTraversalStatus forwarded = adapter.RecordTraceClosestBatch(trace);
+        Check(!forwarded && forwarded.code == Gpu::GpuTraversalStatusCode::RecordingFailed,
+            "Ray Query adapter propagates an uninitialized command-recording failure");
+
+        Gpu::GpuTraceBatch overflow = trace;
+        overflow.rayOffset = std::numeric_limits<std::uint32_t>::max();
+        const Gpu::GpuTraversalStatus overflowStatus = adapter.RecordTraceAnyBatch(overflow);
+        Check(!overflowStatus && overflowStatus.code == Gpu::GpuTraversalStatusCode::InvalidArgument,
+            "Ray Query adapter rejects overflowing independent queue offsets");
+
+        const Hw::Status emptyBatch = backend.RecordTraceClosestBatch(
+            fakeCommandBuffer, fakeSceneSet, fakeTraversalSet, 0u, 0u, 0u, 0u);
+        Check(!emptyBatch,
+            "Ray Query host record interface reports invalid input instead of silently returning");
+    }
+
+    void TestRtPipelineAbiV1Adapter()
+    {
+        Hw::RtPipelineBackend backend;
+        Hw::RtPipelineTraversalAdapter adapter(backend, 7u, 3u);
+        const Gpu::GpuTraversalBackendDescriptor descriptor = adapter.Descriptor();
+        Check(descriptor.stableToken == "hardware-rt-pipeline" &&
+                descriptor.supportsClosest && descriptor.supportsAny &&
+                descriptor.requiresAccelerationStructure,
+            "RT Pipeline adapter advertises the shared hardware backend contract");
+
+        const auto fakeCommandBuffer =
+            reinterpret_cast<VkCommandBuffer>(static_cast<std::uintptr_t>(11u));
+        const auto fakeSceneSet =
+            reinterpret_cast<VkDescriptorSet>(static_cast<std::uintptr_t>(12u));
+        const auto fakeTraversalSet =
+            reinterpret_cast<VkDescriptorSet>(static_cast<std::uintptr_t>(13u));
+        Gpu::GpuTraceBatch trace{};
+        trace.commandBuffer = fakeCommandBuffer;
+        trace.canonicalSceneSet = fakeSceneSet;
+        trace.traversalSet = fakeTraversalSet;
+        trace.sceneFingerprint = 31u;
+        trace.sceneGeneration = 9u;
+        trace.rayOffset = 23u;
+        trace.hitOffset = 41u;
+        trace.rayCount = 4u;
+        const Gpu::GpuTraversalStatus beforeBuild =
+            adapter.RecordTraceAnyBatch(trace);
+        Check(!beforeBuild && beforeBuild.code == Gpu::GpuTraversalStatusCode::MissingScene,
+            "RT Pipeline adapter rejects trace before scene identity is accepted");
+
+        Gpu::GpuSceneBuildRequest scene{};
+        scene.commandBuffer = fakeCommandBuffer;
+        scene.canonicalSceneSet = fakeSceneSet;
+        scene.sceneFingerprint = trace.sceneFingerprint;
+        scene.sceneGeneration = trace.sceneGeneration;
+        Check(static_cast<bool>(adapter.BuildOrUpdateScene(scene)),
+            "RT Pipeline adapter accepts canonical scene identity");
+
+        Gpu::GpuTraceBatch stale = trace;
+        ++stale.sceneGeneration;
+        const Gpu::GpuTraversalStatus staleStatus =
+            adapter.RecordTraceClosestBatch(stale);
+        Check(!staleStatus && staleStatus.code == Gpu::GpuTraversalStatusCode::MissingScene,
+            "RT Pipeline adapter rejects a stale scene generation");
+
+        Gpu::GpuTraceBatch overflow = trace;
+        overflow.hitOffset = (std::numeric_limits<std::uint32_t>::max)();
+        const Gpu::GpuTraversalStatus overflowStatus =
+            adapter.RecordTraceAnyBatch(overflow);
+        Check(!overflowStatus &&
+                overflowStatus.code == Gpu::GpuTraversalStatusCode::InvalidArgument,
+            "RT Pipeline adapter rejects overflowing independent hit offsets");
+
+        const Gpu::GpuTraversalStatus forwarded =
+            adapter.RecordTraceClosestBatch(trace);
+        Check(!forwarded && forwarded.code == Gpu::GpuTraversalStatusCode::RecordingFailed,
+            "RT Pipeline adapter forwards closest batches through the Status-returning offset API");
+        const Hw::Status emptyBatch = backend.RecordTraceAnyBatch(
+            fakeCommandBuffer, fakeSceneSet, fakeTraversalSet,
+            5u, 8u, 0u, 0u);
+        Check(!emptyBatch && emptyBatch.result == VK_ERROR_VALIDATION_FAILED_EXT,
+            "RT Pipeline Status API rejects an empty offset batch");
+    }
+
     void TestSbtLayout()
     {
         Hw::HardwareRtLimits limits{};
@@ -316,6 +451,8 @@ int main(int argc, char** argv)
     TestUpdatePolicy();
     TestImmutableBuildSignatures();
     TestCapabilityFeatureChain();
+    TestRayQueryAbiV1Adapter();
+    TestRtPipelineAbiV1Adapter();
     TestSbtLayout();
     TestCorpusAndParity();
     if (argc > 1 && std::string_view(argv[1]) == "--probe")

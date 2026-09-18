@@ -108,6 +108,12 @@ namespace RenderingEngine::Wavefront
         allocation.materialBytes = CheckedMultiply(paths, sizeof(MaterialWorkItem), "Material queue size overflowed.");
         allocation.nextBytes = CheckedMultiply(paths, sizeof(NextBounceCandidate), "Next queue size overflowed.");
         allocation.shadowBytes = CheckedMultiply(paths, sizeof(ShadowWorkItem), "Shadow queue size overflowed.");
+        allocation.shadowAovBytes = CheckedMultiply(paths, sizeof(ShadowAovItem), "Shadow AOV sidecar size overflowed.");
+        allocation.primarySurfaceV2Bytes = CheckedMultiply(
+            pixels,
+            sizeof(Contracts::AbiV2::GpuPrimarySurfaceV2),
+            "Primary-surface v2 export size overflowed.");
+        allocation.sharedPathStateBytes = CheckedMultiply(paths, sizeof(SharedPathState), "Shared path-state size overflowed.");
         allocation.pathStateBytes = CheckedMultiply(paths, sizeof(WavefrontPathState), "Path-state size overflowed.");
         allocation.flagBytes = CheckedMultiply(paths, sizeof(std::uint32_t) * 2u, "Flag buffer size overflowed.");
 

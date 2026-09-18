@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <string_view>
 #include <utility>
 
@@ -39,16 +40,19 @@ namespace RenderingEngine::Rt::Hardware
             VkDescriptorSet sceneSet,
             const HardwareSceneBufferBindings& bindings) noexcept
         {
-            const std::array infos{bindings.vertices, bindings.indices, bindings.geometries,
-                bindings.instances, bindings.materials};
-            std::array<VkWriteDescriptorSet, 5> writes{};
+            const std::array infos{bindings.constants, bindings.vertices,
+                bindings.indices, bindings.geometries, bindings.instances,
+                bindings.materials, bindings.lights};
+            std::array<VkWriteDescriptorSet, 7> writes{};
             for (std::size_t index = 0u; index < writes.size(); ++index)
             {
                 writes[index].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 writes[index].dstSet = sceneSet;
-                writes[index].dstBinding = static_cast<std::uint32_t>(index) + 1u;
+                writes[index].dstBinding = static_cast<std::uint32_t>(index);
                 writes[index].descriptorCount = 1u;
-                writes[index].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                writes[index].descriptorType = index == 0u
+                    ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+                    : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                 writes[index].pBufferInfo = &infos[index];
             }
             vkUpdateDescriptorSets(device, static_cast<std::uint32_t>(writes.size()), writes.data(), 0u, nullptr);
@@ -154,11 +158,13 @@ namespace RenderingEngine::Rt::Hardware
             VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR |
             VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
         const std::array sceneBindings{
+            VkDescriptorSetLayoutBinding{0u, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1u, rayStages, nullptr},
             VkDescriptorSetLayoutBinding{1u, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1u, rayStages, nullptr},
             VkDescriptorSetLayoutBinding{2u, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1u, rayStages, nullptr},
             VkDescriptorSetLayoutBinding{3u, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1u, rayStages, nullptr},
             VkDescriptorSetLayoutBinding{4u, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1u, rayStages, nullptr},
-            VkDescriptorSetLayoutBinding{5u, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1u, rayStages, nullptr}};
+            VkDescriptorSetLayoutBinding{5u, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1u, rayStages, nullptr},
+            VkDescriptorSetLayoutBinding{6u, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1u, rayStages, nullptr}};
         status = CreateDescriptorLayout(device_, sceneBindings, sceneAdapterLayout_);
         if (!status)
         {
@@ -306,7 +312,8 @@ namespace RenderingEngine::Rt::Hardware
         }
         const std::array poolSizes{
             VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, batchCount},
-            VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 7u * batchCount},
+            VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, batchCount},
+            VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 8u * batchCount},
             VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, batchCount},
             VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_SAMPLER, batchCount}};
         VkDescriptorPoolCreateInfo info{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
@@ -354,6 +361,36 @@ namespace RenderingEngine::Rt::Hardware
         UpdateTraversal(device_, traversalSet, bindings);
     }
 
+    Status RtPipelineBackend::RecordTraceClosestBatch(
+        VkCommandBuffer commandBuffer,
+        VkDescriptorSet sceneSet,
+        VkDescriptorSet traversalSet,
+        std::uint32_t rayOffset,
+        std::uint32_t hitOffset,
+        std::uint32_t rayCount,
+        std::uint32_t alphaAtlasLayerCount,
+        std::uint32_t alphaSamplerId) const noexcept
+    {
+        return Record(commandBuffer, sceneSet, traversalSet,
+            RayBatchPushConstants{rayCount, RayBatchQuery::Closest, alphaAtlasLayerCount,
+                alphaSamplerId, rayOffset, hitOffset});
+    }
+
+    Status RtPipelineBackend::RecordTraceAnyBatch(
+        VkCommandBuffer commandBuffer,
+        VkDescriptorSet sceneSet,
+        VkDescriptorSet traversalSet,
+        std::uint32_t rayOffset,
+        std::uint32_t hitOffset,
+        std::uint32_t rayCount,
+        std::uint32_t alphaAtlasLayerCount,
+        std::uint32_t alphaSamplerId) const noexcept
+    {
+        return Record(commandBuffer, sceneSet, traversalSet,
+            RayBatchPushConstants{rayCount, RayBatchQuery::Any, alphaAtlasLayerCount,
+                alphaSamplerId, rayOffset, hitOffset});
+    }
+
     void RtPipelineBackend::RecordTraceClosestBatch(
         VkCommandBuffer commandBuffer,
         VkDescriptorSet sceneSet,
@@ -362,9 +399,9 @@ namespace RenderingEngine::Rt::Hardware
         std::uint32_t alphaAtlasLayerCount,
         std::uint32_t alphaSamplerId) const noexcept
     {
-        Record(commandBuffer, sceneSet, traversalSet,
+        static_cast<void>(Record(commandBuffer, sceneSet, traversalSet,
             RayBatchPushConstants{rayCount, RayBatchQuery::Closest, alphaAtlasLayerCount,
-                alphaSamplerId, 0u});
+                alphaSamplerId, 0u, 0u}));
     }
 
     void RtPipelineBackend::RecordTraceAnyBatch(
@@ -375,9 +412,9 @@ namespace RenderingEngine::Rt::Hardware
         std::uint32_t alphaAtlasLayerCount,
         std::uint32_t alphaSamplerId) const noexcept
     {
-        Record(commandBuffer, sceneSet, traversalSet,
+        static_cast<void>(Record(commandBuffer, sceneSet, traversalSet,
             RayBatchPushConstants{rayCount, RayBatchQuery::Any, alphaAtlasLayerCount,
-                alphaSamplerId, 0u});
+                alphaSamplerId, 0u, 0u}));
     }
 
     VkDescriptorSetLayout RtPipelineBackend::SceneAdapterLayout() const noexcept { return sceneAdapterLayout_; }
@@ -386,18 +423,39 @@ namespace RenderingEngine::Rt::Hardware
     VkPipeline RtPipelineBackend::Pipeline() const noexcept { return pipeline_; }
     const ShaderBindingTable& RtPipelineBackend::Sbt() const noexcept { return sbt_; }
 
-    void RtPipelineBackend::Record(
+    Status RtPipelineBackend::Record(
         VkCommandBuffer commandBuffer,
         VkDescriptorSet sceneSet,
         VkDescriptorSet traversalSet,
         const RayBatchPushConstants& constants) const noexcept
     {
-        if (constants.rayCount == 0u || commandBuffer == VK_NULL_HANDLE ||
-            sceneSet == VK_NULL_HANDLE || traversalSet == VK_NULL_HANDLE ||
+        if (constants.rayCount == 0u)
+        {
+            return Status::Failure(VK_ERROR_VALIDATION_FAILED_EXT,
+                "RT Pipeline trace batch must contain at least one ray");
+        }
+        if (commandBuffer == VK_NULL_HANDLE || sceneSet == VK_NULL_HANDLE ||
+            traversalSet == VK_NULL_HANDLE ||
             pipeline_ == VK_NULL_HANDLE || pipelineLayout_ == VK_NULL_HANDLE ||
             dispatch_ == nullptr || !sbt_.IsValid() || maxRayDispatchInvocationCount_ == 0u)
         {
-            return;
+            return Status::Failure(VK_ERROR_INITIALIZATION_FAILED,
+                "RT Pipeline trace batch has an uninitialized command or pipeline handle");
+        }
+        if (constants.query != RayBatchQuery::Closest && constants.query != RayBatchQuery::Any)
+        {
+            return Status::Failure(VK_ERROR_VALIDATION_FAILED_EXT,
+                "RT Pipeline trace batch has an unknown query mode");
+        }
+        const std::uint64_t rayEnd =
+            static_cast<std::uint64_t>(constants.rayOffset) + constants.rayCount;
+        const std::uint64_t hitEnd =
+            static_cast<std::uint64_t>(constants.hitOffset) + constants.rayCount;
+        if (rayEnd > (std::numeric_limits<std::uint32_t>::max)() ||
+            hitEnd > (std::numeric_limits<std::uint32_t>::max)())
+        {
+            return Status::Failure(VK_ERROR_VALIDATION_FAILED_EXT,
+                "RT Pipeline trace batch record range overflows uint32");
         }
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline_);
         const std::array sets{sceneSet, traversalSet};
@@ -409,7 +467,8 @@ namespace RenderingEngine::Rt::Hardware
         while (remaining != 0u)
         {
             chunk.rayCount = std::min(remaining, maxRayDispatchInvocationCount_);
-            chunk.rayOffset = offset;
+            chunk.rayOffset = constants.rayOffset + offset;
+            chunk.hitOffset = constants.hitOffset + offset;
             vkCmdPushConstants(commandBuffer, pipelineLayout_,
                 VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR |
                     VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
@@ -420,5 +479,6 @@ namespace RenderingEngine::Rt::Hardware
             remaining -= chunk.rayCount;
             offset += chunk.rayCount;
         }
+        return Status::Success();
     }
 }

@@ -215,7 +215,7 @@ namespace RenderingEngine::Demos
         {
             switch (value)
             {
-            case TraversalBackend::LegacyAnalyticGpu: return "legacy-analytic-gpu";
+            case TraversalBackend::CanonicalLinearGpu: return "canonical-linear-gpu";
             case TraversalBackend::CpuBruteForce: return "cpu-brute-force";
             case TraversalBackend::CpuSahBvh: return "cpu-sah";
             case TraversalBackend::GpuFlattenedSahBvh: return "gpu-flattened-sah";
@@ -226,15 +226,24 @@ namespace RenderingEngine::Demos
             return nullptr;
         }
 
-        [[nodiscard]] const char* Token(Integrator value) noexcept
+        [[nodiscard]] const char* Token(TransportModel value) noexcept
         {
             switch (value)
             {
-            case Integrator::Pbr: return "pbr";
-            case Integrator::Whitted: return "whitted";
-            case Integrator::CpuReferencePathTracer: return "cpu-reference";
-            case Integrator::GpuMegakernelPathTracer: return "megakernel";
-            case Integrator::GpuWavefrontPathTracer: return "wavefront";
+            case TransportModel::Pbr: return "pbr";
+            case TransportModel::Whitted: return "whitted";
+            }
+            return nullptr;
+        }
+
+        [[nodiscard]] const char* Token(ExecutionArchitecture value) noexcept
+        {
+            switch (value)
+            {
+            case ExecutionArchitecture::Staged: return "staged";
+            case ExecutionArchitecture::CpuReference: return "cpu-reference";
+            case ExecutionArchitecture::Megakernel: return "megakernel";
+            case ExecutionArchitecture::Wavefront: return "wavefront";
             }
             return nullptr;
         }
@@ -243,7 +252,6 @@ namespace RenderingEngine::Demos
         {
             switch (value)
             {
-            case DirectLightingEstimator::LegacyAnalyticDirect: return "legacy-analytic-direct";
             case DirectLightingEstimator::BsdfOnly: return "bsdf-only";
             case DirectLightingEstimator::NextEventEstimation: return "nee";
             case DirectLightingEstimator::MultipleImportanceSampling: return "mis";
@@ -252,14 +260,22 @@ namespace RenderingEngine::Demos
             return nullptr;
         }
 
-        [[nodiscard]] const char* Token(LightProposalDistribution value) noexcept
+        [[nodiscard]] const char* Token(LightSelectionStrategy value) noexcept
         {
             switch (value)
             {
-            case LightProposalDistribution::LegacyAnalyticLights: return "legacy-analytic";
-            case LightProposalDistribution::UniformLights: return "uniform";
-            case LightProposalDistribution::PowerWeightedLights: return "power";
-            case LightProposalDistribution::EnvironmentImportance: return "environment";
+            case LightSelectionStrategy::Uniform: return "uniform";
+            case LightSelectionStrategy::PowerWeighted: return "power";
+            }
+            return nullptr;
+        }
+
+        [[nodiscard]] const char* Token(EnvironmentDirectionSampler value) noexcept
+        {
+            switch (value)
+            {
+            case EnvironmentDirectionSampler::UniformSphere: return "uniform-sphere";
+            case EnvironmentDirectionSampler::ImportanceMap: return "importance-map";
             }
             return nullptr;
         }
@@ -268,9 +284,10 @@ namespace RenderingEngine::Demos
         {
             switch (value)
             {
-            case ReconstructionMode::Raw: return "raw";
+            case ReconstructionMode::ProgressiveMean: return "progressive-mean";
+            case ReconstructionMode::CurrentFrame: return "current-frame";
             case ReconstructionMode::TemporalAccumulation: return "temporal";
-            case ReconstructionMode::TemporalFixedAtrous: return "temporal-atrous";
+            case ReconstructionMode::SpatialFixedAtrous: return "atrous-spatial";
             case ReconstructionMode::Svgf: return "svgf";
             }
             return nullptr;
@@ -297,6 +314,52 @@ namespace RenderingEngine::Demos
             case DebugView::Roughness: return "roughness";
             case DebugView::Metallic: return "metallic";
             case DebugView::Emissive: return "emissive";
+            case DebugView::Motion: return "motion";
+            case DebugView::HistoryLength: return "history-length";
+            case DebugView::Moments: return "moments";
+            case DebugView::Variance: return "variance";
+            case DebugView::TemporalAcceptance: return "temporal-acceptance";
+            case DebugView::TemporalRejectReasons: return "temporal-reject-reasons";
+            case DebugView::ReservoirM: return "reservoir-m";
+            case DebugView::ReservoirWeight: return "reservoir-weight";
+            case DebugView::ReservoirLightId: return "reservoir-light-id";
+            case DebugView::ReservoirSource: return "reservoir-source";
+            case DebugView::ReservoirReuse: return "reservoir-reuse";
+            case DebugView::ReservoirRejection: return "reservoir-rejection";
+            case DebugView::WinnerVisibility: return "winner-visibility";
+            }
+            return nullptr;
+        }
+
+        [[nodiscard]] const char* Token(ManyLightsTier value) noexcept
+        {
+            switch (value)
+            {
+            case ManyLightsTier::Lights100: return "100";
+            case ManyLightsTier::Lights1000: return "1000";
+            case ManyLightsTier::Lights10000: return "10000";
+            }
+            return nullptr;
+        }
+
+        [[nodiscard]] const char* Token(RestirReuseStage value) noexcept
+        {
+            switch (value)
+            {
+            case RestirReuseStage::Initial: return "initial";
+            case RestirReuseStage::Spatial: return "spatial";
+            case RestirReuseStage::Temporal: return "temporal";
+            case RestirReuseStage::TemporalSpatial: return "temporal-spatial";
+            }
+            return nullptr;
+        }
+
+        [[nodiscard]] const char* Token(RestirBiasMode value) noexcept
+        {
+            switch (value)
+            {
+            case RestirBiasMode::ExplicitlyBiased: return "explicitly-biased";
+            case RestirBiasMode::ReferenceCorrection: return "reference-correction";
             }
             return nullptr;
         }
@@ -351,12 +414,17 @@ namespace RenderingEngine::Demos
         {
             if (Token(config.scene) == nullptr
                 || Token(config.backend) == nullptr
-                || Token(config.integrator) == nullptr
+                || Token(config.transportModel) == nullptr
+                || Token(config.executionArchitecture) == nullptr
                 || Token(config.directLightingEstimator) == nullptr
-                || Token(config.lightProposalDistribution) == nullptr
+                || Token(config.lightSelection) == nullptr
+                || Token(config.environmentSampler) == nullptr
                 || Token(config.reconstruction) == nullptr
                 || Token(config.debugView) == nullptr
                 || Token(config.shadowMethod) == nullptr
+                || Token(config.restir.manyLightsTier) == nullptr
+                || Token(config.restir.reuseStage) == nullptr
+                || Token(config.restir.biasMode) == nullptr
                 || Token(config.render.vsync) == nullptr
                 || Token(config.run.validation) == nullptr)
             {
@@ -375,7 +443,7 @@ namespace RenderingEngine::Demos
             const CapabilityDecision decision = CapabilityTable::Evaluate(config);
             if (decision.status == CapabilityStatus::InvalidConfiguration)
             {
-                reason = "RuntimeConfig is invalid under runtime-config-v0: ";
+                reason = "RuntimeConfig is invalid under runtime-config-v2: ";
                 reason.append(decision.reason);
                 reason.push_back('.');
                 return false;
@@ -428,17 +496,26 @@ namespace RenderingEngine::Demos
             output.append(childIndent).append("\"scene\": ");
             AppendJsonString(output, Token(config.scene));
             output.append(",\n");
+            output.append(childIndent).append("\"scene_variant\": ");
+            AppendJsonString(output, config.sceneVariant);
+            output.append(",\n");
             output.append(childIndent).append("\"backend\": ");
             AppendJsonString(output, Token(config.backend));
             output.append(",\n");
-            output.append(childIndent).append("\"integrator\": ");
-            AppendJsonString(output, Token(config.integrator));
+            output.append(childIndent).append("\"transport_model\": ");
+            AppendJsonString(output, Token(config.transportModel));
+            output.append(",\n");
+            output.append(childIndent).append("\"execution_architecture\": ");
+            AppendJsonString(output, Token(config.executionArchitecture));
             output.append(",\n");
             output.append(childIndent).append("\"direct_lighting_estimator\": ");
             AppendJsonString(output, Token(config.directLightingEstimator));
             output.append(",\n");
-            output.append(childIndent).append("\"light_proposal_distribution\": ");
-            AppendJsonString(output, Token(config.lightProposalDistribution));
+            output.append(childIndent).append("\"light_selection\": ");
+            AppendJsonString(output, Token(config.lightSelection));
+            output.append(",\n");
+            output.append(childIndent).append("\"environment_sampler\": ");
+            AppendJsonString(output, Token(config.environmentSampler));
             output.append(",\n");
             output.append(childIndent).append("\"reconstruction\": ");
             AppendJsonString(output, Token(config.reconstruction));
@@ -507,7 +584,41 @@ namespace RenderingEngine::Demos
             output.append(",\n");
             output.append(grandchildIndent).append("\"run_identifier\": ");
             AppendJsonString(output, config.run.runIdentifier);
-            output.append("\n").append(childIndent).append("}\n");
+            output.append("\n").append(childIndent).append("},\n");
+
+            output.append(childIndent).append("\"restir\": {\n");
+            output.append(grandchildIndent).append("\"many_lights_tier\": ");
+            AppendJsonString(output, Token(config.restir.manyLightsTier));
+            output.append(",\n");
+            output.append(grandchildIndent).append("\"reuse_stage\": ");
+            AppendJsonString(output, Token(config.restir.reuseStage));
+            output.append(",\n");
+            output.append(grandchildIndent).append("\"bias_mode\": ");
+            AppendJsonString(output, Token(config.restir.biasMode));
+            output.append(",\n");
+            output.append(grandchildIndent).append("\"initial_candidates_per_pixel\": ");
+            AppendInteger(output, config.restir.initialCandidatesPerPixel);
+            output.append(",\n");
+            output.append(grandchildIndent).append("\"spatial_neighbors\": ");
+            AppendInteger(output, config.restir.spatialNeighbors);
+            output.append(",\n");
+            output.append(grandchildIndent).append("\"maximum_reservoir_m\": ");
+            AppendInteger(output, config.restir.maximumReservoirM);
+            output.append(",\n");
+            output.append(grandchildIndent).append("\"maximum_history_age\": ");
+            AppendInteger(output, config.restir.maximumHistoryAge);
+            output.append(",\n");
+            output.append(grandchildIndent).append("\"comparison_candidate_budget_per_pixel\": ");
+            AppendInteger(output, config.restir.comparisonCandidateBudgetPerPixel);
+            output.append(",\n");
+            output.append(grandchildIndent).append("\"comparison_visibility_budget_per_pixel\": ");
+            AppendInteger(output, config.restir.comparisonVisibilityBudgetPerPixel);
+            output.append(",\n");
+            output.append(grandchildIndent).append("\"animate_lights\": ")
+                .append(config.restir.animateLights ? "true" : "false").append(",\n");
+            output.append(grandchildIndent).append("\"animate_rigid_occluders\": ")
+                .append(config.restir.animateRigidOccluders ? "true" : "false").append("\n");
+            output.append(childIndent).append("}\n");
             output.append(indent).append("}");
         }
 
@@ -621,6 +732,18 @@ namespace RenderingEngine::Demos
             AppendNamedHashes(output, metadata.assetHashes, "    ");
             output.append(",\n    \"camera_preset\": ");
             AppendJsonString(output, metadata.cameraPreset);
+            output.append(",\n    \"submitted_camera_position_forward_right_up_fov\": ");
+            if (metadata.submittedCamera.has_value())
+            {
+                output.push_back('[');
+                for (std::size_t index = 0; index < metadata.submittedCamera->size(); ++index)
+                {
+                    if (index != 0u) output.append(", ");
+                    AppendFloat(output, (*metadata.submittedCamera)[index]);
+                }
+                output.push_back(']');
+            }
+            else output.append("null");
             output.append("\n  },\n  \"runtime_config\": {\n    \"requested\": ");
             AppendRuntimeConfig(output, metadata.requestedRuntimeConfig, "    ");
             output.append(",\n    \"effective\": ");
@@ -657,6 +780,10 @@ namespace RenderingEngine::Demos
 
         [[nodiscard]] bool IsRequiredStringMissing(const CaptureMetadata& metadata)
         {
+            if (metadata.submittedCamera.has_value()
+                && std::any_of(metadata.submittedCamera->begin(), metadata.submittedCamera->end(),
+                    [](float value) { return !std::isfinite(value); }))
+                return true;
             return metadata.schemaVersion.empty()
                 || metadata.contractVersions.empty()
                 || metadata.gitCommit.empty()

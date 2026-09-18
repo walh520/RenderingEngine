@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{C4C78D7B-35F4-4DCF-94E6-8D632724F2DF}</ProjectGuid>
+    <RootNamespace>RenderingEngineWave2TraversalGate</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <Import Project="..\..\..\msbuild\RenderingEngine.Common.props" />
+  <PropertyGroup>
+    <OutDir>$(MSBuildProjectDirectory)\build\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\build\obj\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>RenderingEngine.Wave2TraversalGate</TargetName>
+    <VcpkgEnableManifest>false</VcpkgEnableManifest>
+    <Wave2ShaderDir>$(OutDir)shaders\</Wave2ShaderDir>
+    <Wave2Dxc>$(VULKAN_SDK)\Bin\dxc.exe</Wave2Dxc>
+    <Wave2SpirvVal>$(VULKAN_SDK)\Bin\spirv-val.exe</Wave2SpirvVal>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(RenderingEngineSourceRoot);$(RenderingEngineSourceRoot)rt\hardware\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>VK_ENABLE_BETA_EXTENSIONS;_CONSOLE;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(VULKAN_SDK)\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
+      <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DebugInformationFormat>OldStyle</DebugInformationFormat>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link><GenerateDebugInformation>true</GenerateDebugInformation></Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Wave2TraversalGate.cpp" />
+    <ClCompile Include="..\..\..\rt\hardware\src\AccelerationStructures.cpp" />
+    <ClCompile Include="..\..\..\rt\hardware\src\DeviceBuffer.cpp" />
+    <ClCompile Include="..\..\..\rt\hardware\src\DeviceDispatch.cpp" />
+    <ClCompile Include="..\..\..\rt\hardware\src\RayQueryBackend.cpp" />
+    <ClCompile Include="..\..\..\rt\hardware\src\RtPipelineBackend.cpp" />
+    <ClCompile Include="..\..\..\rt\hardware\src\SbtBuilder.cpp" />
+    <ClCompile Include="..\..\..\src\rt\gpu\CanonicalTraversalScene.cpp" />
+    <ClCompile Include="..\..\..\src\rt\gpu\GpuTraversalContracts.cpp" />
+    <ClCompile Include="..\..\..\src\rt\software_gpu\SoftwareGpu.cpp" />
+    <ClCompile Include="..\..\..\src\rt\software_gpu\SoftwareGpuBackend.cpp" />
+    <ClCompile Include="..\..\..\src\scene\CanonicalScene.cpp" />
+    <ClCompile Include="..\..\..\integrators\megakernel\MegakernelBridge.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Wave2Shader Include="$(RenderingEngineSourceRoot)resources\shaders\traversal\software_trace_v1.hlsl">
+      <TargetProfile>cs_6_6</TargetProfile><EntryFlag>-E SoftwareTraceV1</EntryFlag><OutputFile>software_trace_v1.spv</OutputFile><ExtraArgs></ExtraArgs>
+    </Wave2Shader>
+    <Wave2Shader Include="$(RenderingEngineSourceRoot)rt\hardware\shaders\HardwareRayQuery.hlsl">
+      <TargetProfile>cs_6_6</TargetProfile><EntryFlag>-E RayQueryMain</EntryFlag><OutputFile>hardware_ray_query_v1.spv</OutputFile><ExtraArgs>-fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </Wave2Shader>
+    <Wave2Shader Include="$(RenderingEngineSourceRoot)rt\hardware\shaders\HardwareRtPipeline.hlsl">
+      <TargetProfile>lib_6_6</TargetProfile><EntryFlag></EntryFlag><OutputFile>hardware_rt_pipeline_v2.spv</OutputFile><ExtraArgs>-fspv-extension=SPV_KHR_ray_tracing</ExtraArgs>
+    </Wave2Shader>
+    <Wave2Shader Include="$(RenderingEngineSourceRoot)resources\shaders\integrators\pbr_canonical_megakernel.hlsl">
+      <TargetProfile>cs_6_6</TargetProfile><EntryFlag>-E CSMain</EntryFlag><OutputFile>pbr_megakernel_software.spv</OutputFile><ExtraArgs>-DPBR_L6_TRAVERSAL_SOFTWARE -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_ENABLE_RESTIR_OWNERSHIP -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_MATERIAL_METALLIC_ROUGHNESS_ONLY -DPBR_L6_CANONICAL_LIGHTS_ONLY -DPBR_L6_MONOLITHIC_GROUP_SIZE=1</ExtraArgs>
+    </Wave2Shader>
+    <Wave2Shader Include="$(RenderingEngineSourceRoot)resources\shaders\integrators\pbr_canonical_megakernel.hlsl">
+      <TargetProfile>cs_6_6</TargetProfile><EntryFlag>-E CSMain</EntryFlag><OutputFile>pbr_megakernel_rayquery.spv</OutputFile><ExtraArgs>-DPBR_L6_TRAVERSAL_RAY_QUERY -DPBR_L6_WAVE2_PRODUCTION -DPBR_L6_ENABLE_RESTIR_OWNERSHIP -DPBR_L6_DISABLE_PROFILER_COUNTERS -DPBR_L6_MATERIAL_METALLIC_ROUGHNESS_ONLY -DPBR_L6_CANONICAL_LIGHTS_ONLY -DPBR_L6_MONOLITHIC_GROUP_SIZE=1 -fspv-extension=SPV_KHR_ray_query</ExtraArgs>
+    </Wave2Shader>
+    <Wave2Shader Include="$(RenderingEngineSourceRoot)resources\shaders\integrators\pbr_sampling_probe.hlsl">
+      <TargetProfile>cs_6_6</TargetProfile><EntryFlag>-E ProbeMain</EntryFlag><OutputFile>pbr_sampling_probe.spv</OutputFile><ExtraArgs></ExtraArgs>
+    </Wave2Shader>
+    <Wave2ShaderDependency Include="$(RenderingEngineSourceRoot)resources\shaders\traversal\*.hlsli" />
+    <Wave2ShaderDependency Include="$(RenderingEngineSourceRoot)resources\shaders\include\contracts\*.hlsli" />
+    <Wave2ShaderDependency Include="$(RenderingEngineSourceRoot)resources\shaders\include\bsdf\*.hlsli" />
+    <Wave2ShaderDependency Include="$(RenderingEngineSourceRoot)resources\shaders\integrators\*.hlsli" />
+  </ItemGroup>
+  <Target Name="CompileWave2TraversalShaders" BeforeTargets="ClCompile"
+          Inputs="@(Wave2Shader);@(Wave2ShaderDependency);$(MSBuildProjectFullPath)"
+          Outputs="@(Wave2Shader->'$(Wave2ShaderDir)%(OutputFile)')">
+    <Error Condition="'$(VULKAN_SDK)' == ''" Text="VULKAN_SDK is required for the Wave 2 traversal gate." />
+    <MakeDir Directories="$(Wave2ShaderDir)" />
+    <Exec Command="&quot;$(Wave2Dxc)&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -HV 2021 -T %(Wave2Shader.TargetProfile) %(Wave2Shader.EntryFlag) -I &quot;$(RenderingEngineSourceRoot)resources\shaders\traversal&quot; -I &quot;$(RenderingEngineSourceRoot)resources\shaders\include&quot; %(Wave2Shader.ExtraArgs) -Fo &quot;$(Wave2ShaderDir)%(Wave2Shader.OutputFile)&quot; &quot;%(Wave2Shader.FullPath)&quot;" />
+    <Exec Command="&quot;$(Wave2SpirvVal)&quot; --target-env vulkan1.3 &quot;$(Wave2ShaderDir)%(Wave2Shader.OutputFile)&quot;" />
+  </Target>
+  <Target Name="RunWave2TraversalGate" AfterTargets="Build">
+    <Exec Command="&quot;$(TargetPath)&quot; &quot;$(Wave2ShaderDir)software_trace_v1.spv&quot; &quot;$(Wave2ShaderDir)hardware_ray_query_v1.spv&quot; &quot;$(Wave2ShaderDir)hardware_rt_pipeline_v2.spv&quot; &quot;$(Wave2ShaderDir)pbr_megakernel_software.spv&quot; &quot;$(Wave2ShaderDir)pbr_megakernel_rayquery.spv&quot; &quot;$(Wave2ShaderDir)pbr_sampling_probe.spv&quot;" />
+  </Target>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

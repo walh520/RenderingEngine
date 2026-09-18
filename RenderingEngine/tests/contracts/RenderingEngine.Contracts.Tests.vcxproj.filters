@@ -8,12 +8,30 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AbiLayoutStaticTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="AbiV3LayoutStaticTests.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="AbiLayoutTestsMain.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="ReSTIRDIRuntimeTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="ReSTIRFrameParametersTests.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="RuntimeControlTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="VulkanReSTIRRecorderTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Wave3AcceptanceTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Wave3ExecutionTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Wave3FrameGraphTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Wave4AcceptanceTests.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="Wave4FrameGraphTests.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="..\..\src\app\ArtifactLayout.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
     <ClCompile Include="..\..\src\app\CapabilityTable.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
     <ClCompile Include="..\..\src\app\CommandLine.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\src\app\IntegratedModuleRegistry.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
     <ClCompile Include="..\..\src\app\RuntimeConfig.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\src\demos\ShowcaseEvidence.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\src\renderers\Wave3Acceptance.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\src\renderers\Wave3Execution.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\src\renderers\Wave3FrameGraph.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\src\renderers\ReSTIRDIRuntime.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\src\renderers\ReSTIRFrameParameters.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\src\renderers\Wave4Acceptance.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
+    <ClCompile Include="..\..\src\renderers\Wave4FrameGraph.cpp"><Filter>Runtime Contract Sources</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="AbiV0LayoutProbe.hlsl"><Filter>Shader Probe</Filter></None>

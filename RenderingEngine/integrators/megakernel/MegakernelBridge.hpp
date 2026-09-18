@@ -1,5 +1,7 @@
 #pragma once
 
+#include "contracts/GpuRecordsAbiV1.hpp"
+
 #include <array>
 #include <cstdint>
 #include <span>
@@ -37,11 +39,151 @@ namespace RenderingEngine::Integrators::Megakernel
         MaterialFlagThinWalled = 1u << 1u
     };
 
-    enum class LightProposal : std::uint32_t
+    enum class LightSelection : std::uint32_t
     {
         Uniform = 0u,
-        Power = 1u
+        PowerWeighted = 1u
     };
+
+    enum class EnvironmentSampler : std::uint32_t
+    {
+        UniformSphere = 0u,
+        ImportanceMap = 1u
+    };
+
+    // This is the L6-private shader encoding. It deliberately starts at zero
+    // because the field is a private frame payload, not the public
+    // RuntimeConfig enum (which reserves a legacy value at zero).
+    enum class DirectLightingEstimator : std::uint32_t
+    {
+        BsdfOnly = 0u,
+        NextEventEstimation = 1u,
+        Mis = 2u,
+        MultipleImportanceSampling = Mis,
+        // Wave 4: L9 owns primary-hit direct lighting. L6 keeps camera/delta
+        // emission and uses MIS only for secondary non-primary vertices.
+        RestirPrimary = 3u
+    };
+
+    enum class TraversalBackend : std::uint32_t
+    {
+        Fixture = 0u,
+        FlattenedSah = 1u,
+        HardwareRayQuery = 2u,
+        // Canonical-scene compatibility implementation for the public
+        // CanonicalLinearGpu selection.  It linearly tests every canonical
+        // triangle and therefore remains algorithmically distinct from SAH.
+        CanonicalLinear = 3u
+    };
+
+    enum class EmitterHitKind : std::uint32_t
+    {
+        Camera = 0u,
+        DeltaBsdf = 1u,
+        NonDeltaBsdf = 2u
+    };
+
+    // The light-sampling private measure encoding predates abi-v1 and is kept
+    // stable for the private shader records. Do not reinterpret it as the
+    // public AbiV1::SampleMeasure enum: its discrete value is zero and its
+    // area value precedes solid-angle.
+    enum class PrivateLightSampleMeasure : std::uint32_t
+    {
+        Discrete = 0u,
+        Area = 1u,
+        SolidAngle = 2u,
+        Invalid = 0xffffffffu
+    };
+
+    // PbrBsdf.hlsli has its own historical encoding (invalid=0,
+    // solid-angle=1, discrete=2). It also needs an explicit bridge when its
+    // result is exported through the shared ABI.
+    enum class PrivateBsdfMeasure : std::uint32_t
+    {
+        Invalid = 0u,
+        SolidAngle = 1u,
+        Discrete = 2u
+    };
+
+    [[nodiscard]] constexpr Contracts::AbiV1::SampleMeasure ToAbiSampleMeasure(
+        const PrivateLightSampleMeasure value) noexcept
+    {
+        switch (value)
+        {
+        case PrivateLightSampleMeasure::Discrete:
+            return Contracts::AbiV1::SampleMeasureDiscrete;
+        case PrivateLightSampleMeasure::Area:
+            return Contracts::AbiV1::SampleMeasureArea;
+        case PrivateLightSampleMeasure::SolidAngle:
+            return Contracts::AbiV1::SampleMeasureSolidAngle;
+        case PrivateLightSampleMeasure::Invalid:
+        default:
+            return Contracts::AbiV1::SampleMeasureInvalid;
+        }
+    }
+
+    [[nodiscard]] constexpr PrivateLightSampleMeasure FromAbiSampleMeasure(
+        const Contracts::AbiV1::SampleMeasure value) noexcept
+    {
+        switch (value)
+        {
+        case Contracts::AbiV1::SampleMeasureDiscrete:
+            return PrivateLightSampleMeasure::Discrete;
+        case Contracts::AbiV1::SampleMeasureArea:
+            return PrivateLightSampleMeasure::Area;
+        case Contracts::AbiV1::SampleMeasureSolidAngle:
+            return PrivateLightSampleMeasure::SolidAngle;
+        case Contracts::AbiV1::SampleMeasureInvalid:
+        default:
+            return PrivateLightSampleMeasure::Invalid;
+        }
+    }
+
+    [[nodiscard]] constexpr Contracts::AbiV1::SampleMeasure ToAbiSampleMeasure(
+        const PrivateBsdfMeasure value) noexcept
+    {
+        switch (value)
+        {
+        case PrivateBsdfMeasure::SolidAngle:
+            return Contracts::AbiV1::SampleMeasureSolidAngle;
+        case PrivateBsdfMeasure::Discrete:
+            return Contracts::AbiV1::SampleMeasureDiscrete;
+        case PrivateBsdfMeasure::Invalid:
+        default:
+            return Contracts::AbiV1::SampleMeasureInvalid;
+        }
+    }
+
+    [[nodiscard]] constexpr PrivateBsdfMeasure FromAbiBsdfSampleMeasure(
+        const Contracts::AbiV1::SampleMeasure value) noexcept
+    {
+        switch (value)
+        {
+        case Contracts::AbiV1::SampleMeasureSolidAngle:
+            return PrivateBsdfMeasure::SolidAngle;
+        case Contracts::AbiV1::SampleMeasureDiscrete:
+            return PrivateBsdfMeasure::Discrete;
+        case Contracts::AbiV1::SampleMeasureInvalid:
+        case Contracts::AbiV1::SampleMeasureArea:
+        default:
+            return PrivateBsdfMeasure::Invalid;
+        }
+    }
+
+    struct EmitterHitWeightResult
+    {
+        float weight = 0.0f;
+        bool valid = false;
+    };
+
+    // Host-side oracle for the shader's emitter-hit policy. It is intentionally
+    // kept next to the frame contract so CPU tests can exercise all estimator
+    // modes without requiring a Vulkan device.
+    [[nodiscard]] EmitterHitWeightResult ComputeEmitterHitWeight(
+        DirectLightingEstimator estimator,
+        EmitterHitKind kind,
+        float previousBsdfPdf = 0.0f,
+        float lightPdf = 0.0f) noexcept;
 
     // These identifiers are mirrored by pbr_l6_types.hlsli. Counters are reset
     // for every dispatch and accumulated into 64-bit host totals after readback.
@@ -136,7 +278,7 @@ namespace RenderingEngine::Integrators::Megakernel
         Float4 radianceScale;
         Float4 shapeParams; // radius, spot cos-inner, triangle area, reserved.
         UInt4 identity;     // LightType, LightFlags, stable light ID, primitive ID.
-        UInt4 payload;      // fixture geometry, texture, distribution offset/count.
+        UInt4 payload;      // fixture geometry, texture, distribution offset, stable instance ID.
     };
 
     struct alignas(16) AliasEntryGpu
@@ -147,12 +289,23 @@ namespace RenderingEngine::Integrators::Megakernel
         std::uint32_t item;
     };
 
+    // Sorted lexicographically by (instanceId, primitiveId). L6 performs a
+    // bounded binary lookup on emitter hits instead of assuming primitive IDs
+    // remain unique when canonical geometry is instanced.
+    struct alignas(16) EmitterMapEntryGpu
+    {
+        std::uint32_t instanceId{kInvalidIndex};
+        std::uint32_t primitiveId{kInvalidIndex};
+        std::uint32_t lightIndex{kInvalidIndex};
+        std::uint32_t reserved{};
+    };
+
     struct alignas(16) FixtureTriangleGpu
     {
         Float4 p0;
         Float4 p1;
         Float4 p2;
-        UInt4 metadata; // material, primitive, emitter light, flags.
+        UInt4 metadata; // material, primitive, stable instance ID, flags.
     };
 
     struct alignas(16) FixtureSphereGpu
@@ -169,9 +322,9 @@ namespace RenderingEngine::Integrators::Megakernel
         Float4 cameraUpExposure;
         UInt4 image;        // width, height, sample index, maximum depth.
         UInt4 trace;        // triangles, spheres, materials, lights.
-        UInt4 sampling;     // seed low/high, proposal, direct-lighting enabled.
-        UInt4 environment;  // light index, width, height, flags.
-        UInt4 distribution; // light alias, env rows, env columns, primitive map.
+        UInt4 sampling;     // seed low/high, light selection, direct estimator.
+        UInt4 environment;  // light index, width, height, environment sampler.
+        UInt4 distribution; // light alias, env rows, env columns, emitter-map entries.
         Float4 russianRoulette; // start depth, minimum/maximum continuation, epsilon.
         Float4 sceneCenterRadius;
         Float4 environmentToWorld0;
@@ -180,7 +333,8 @@ namespace RenderingEngine::Integrators::Megakernel
         Float4 worldToEnvironment0;
         Float4 worldToEnvironment1;
         Float4 worldToEnvironment2;
-        UInt4 output; // stream tag and private output flags.
+        UInt4 traversal; // backend, flattened node count, triangle count, alpha-atlas layers.
+        UInt4 output; // stream tag, alpha sampler ID, transport model, shadow method.
     };
 
     struct AliasTable
@@ -229,9 +383,15 @@ namespace RenderingEngine::Integrators::Megakernel
 
     [[nodiscard]] TopLevelLightDistribution BuildTopLevelLightDistribution(
         std::span<const PbrLightGpu> lights,
-        LightProposal proposal,
+        LightSelection selection,
         float sceneRadius,
         double environmentIntegratedLuminance);
+
+    // Builds the unique, shader-searchable mapping from an instanced emissive
+    // primitive to its finite-light record. Emissive-triangle light records
+    // publish the stable instance ID in payload.w and primitive ID in identity.w.
+    [[nodiscard]] std::vector<EmitterMapEntryGpu> BuildEmitterMap(
+        std::span<const PbrLightGpu> lights);
 
     [[nodiscard]] bool ValidateMegakernelFrameConstants(
         const MegakernelFrameConstantsGpu& frame) noexcept;
@@ -277,8 +437,17 @@ namespace RenderingEngine::Integrators::Megakernel
     static_assert(sizeof(PbrMaterialGpu) == 128u);
     static_assert(sizeof(PbrLightGpu) == 96u);
     static_assert(sizeof(AliasEntryGpu) == 16u);
+    static_assert(sizeof(EmitterMapEntryGpu) == 16u);
     static_assert(sizeof(FixtureTriangleGpu) == 64u);
     static_assert(sizeof(FixtureSphereGpu) == 32u);
-    static_assert(sizeof(MegakernelFrameConstantsGpu) == 288u);
+    static_assert(sizeof(MegakernelFrameConstantsGpu) == 304u);
     static_assert(static_cast<std::uint32_t>(Counter::Count) == 26u);
+    static_assert(static_cast<std::uint32_t>(DirectLightingEstimator::BsdfOnly) == 0u);
+    static_assert(static_cast<std::uint32_t>(DirectLightingEstimator::NextEventEstimation) == 1u);
+    static_assert(static_cast<std::uint32_t>(DirectLightingEstimator::Mis) == 2u);
+    static_assert(static_cast<std::uint32_t>(DirectLightingEstimator::RestirPrimary) == 3u);
+    static_assert(static_cast<std::uint32_t>(TraversalBackend::Fixture) == 0u);
+    static_assert(static_cast<std::uint32_t>(TraversalBackend::FlattenedSah) == 1u);
+    static_assert(static_cast<std::uint32_t>(TraversalBackend::HardwareRayQuery) == 2u);
+    static_assert(static_cast<std::uint32_t>(TraversalBackend::CanonicalLinear) == 3u);
 }

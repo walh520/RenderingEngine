@@ -9,6 +9,12 @@
   </PropertyGroup>
   <ItemGroup>
     <VulkanShaderDependency Include="$(RenderingEngineSourceRoot)resources\shaders\include\**\*.hlsli" />
+    <VulkanShaderDependency Include="$(RenderingEngineSourceRoot)resources\shaders\integrators\*.hlsl" />
+    <VulkanShaderDependency Include="$(RenderingEngineSourceRoot)resources\shaders\integrators\*.hlsli" />
+    <VulkanShaderDependency Include="$(RenderingEngineSourceRoot)resources\shaders\restir\*.hlsli" />
+    <VulkanShaderDependency Include="$(RenderingEngineSourceRoot)resources\shaders\traversal\*.hlsli" />
+    <VulkanShaderDependency Include="$(RenderingEngineSourceRoot)integrators\wavefront\shaders\include\*.hlsli" />
+    <VulkanShaderDependency Include="$(RenderingEngineSourceRoot)reconstruction\shaders\*.hlsli" />
   </ItemGroup>
 
   <Target Name="ValidateVulkanShaderToolchain"
@@ -28,7 +34,7 @@
     <MakeDir Directories="$(OutDir)" />
     <MakeDir Directories="$(IntDir)" />
     <Delete Files="$(VulkanShaderValidationStamp)" />
-    <Exec Command="&quot;$(VulkanDxcExecutable)&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -T %(VulkanShaderCompile.Profile) -E %(VulkanShaderCompile.EntryPoint) $(ShaderCompileFlags) -Fo &quot;$(OutDir)%(VulkanShaderCompile.OutputFile)&quot; &quot;%(VulkanShaderCompile.FullPath)&quot;" />
+    <Exec Command="&quot;$(VulkanDxcExecutable)&quot; -spirv -fspv-target-env=vulkan1.3 -fvk-use-dx-layout -Ges -WX -HV 2021 -T %(VulkanShaderCompile.Profile) -E %(VulkanShaderCompile.EntryPoint) %(VulkanShaderCompile.IncludeDirs) %(VulkanShaderCompile.ExtraArgs) $(ShaderCompileFlags) -Fo &quot;$(OutDir)%(VulkanShaderCompile.OutputFile)&quot; &quot;%(VulkanShaderCompile.FullPath)&quot;" />
     <Exec Command="&quot;$(SpirvValExecutable)&quot; --target-env vulkan1.3 &quot;$(OutDir)%(VulkanShaderCompile.OutputFile)&quot;" />
     <Touch Files="$(VulkanShaderValidationStamp)" AlwaysCreate="true" />
     <OnError ExecuteTargets="DeleteVulkanShaderValidationOutputs" />

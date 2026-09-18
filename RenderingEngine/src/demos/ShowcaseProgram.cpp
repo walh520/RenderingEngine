@@ -53,12 +53,12 @@ namespace RenderingEngine::Demos
         });
 
         constexpr auto kAlgorithms = std::to_array<AlgorithmDescriptor>({
-            { "legacy-whitted", "Legacy Whitted", "Integrator", "L0", "algorithm:legacy-whitted",
-                "Recursive specular reflection, refraction, Fresnel, and shadow rays.",
-                "Compatibility path; it is not a diffuse global-illumination reference." },
-            { "legacy-pbr", "Legacy PBR", "Integrator", "L0", "algorithm:legacy-pbr",
-                "Migrated baseline physically based shading used for visual continuity.",
-                "Compatibility output is not an independent correctness oracle." },
+            { "whitted", "Whitted Specular Transport", "Transport", "L0", "algorithm:whitted",
+                "Local direct light followed by sampled ideal reflection/transmission chains.",
+                "Uses stochastic branch selection and roulette, not an exhaustive Whitted tree or diffuse-GI oracle." },
+            { "pbr", "PBR Path Transport", "Transport", "L6", "algorithm:pbr",
+                "Monte Carlo transport over the shared PBR BSDF and light contracts.",
+                "Execution architecture is selected independently." },
             { "cpu-brute-force", "CPU Brute Force", "Traversal", "L3", "algorithm:cpu-brute-force",
                 "Tests every primitive to provide a simple hit-parity oracle.",
                 "Linear primitive cost makes it unsuitable for performance comparison." },
@@ -77,16 +77,16 @@ namespace RenderingEngine::Demos
             { "rt-pipeline", "Vulkan RT Pipeline", "Traversal", "L5", "algorithm:rt-pipeline",
                 "Dedicated ray-generation, hit, miss, and SBT execution path.",
                 "SBT and pipeline support must be reported independently from Ray Query." },
-            { "cpu-reference", "CPU Reference Path Tracer", "Integrator", "L3", "algorithm:cpu-reference",
+            { "cpu-reference", "CPU Reference", "Execution", "L3", "algorithm:cpu-reference",
                 "Independent seeded path tracer used as a numerical image oracle.",
                 "Correctness use requires matched scene, camera, seed, and generations." },
             { "high-spp-reference", "High-SPP CPU Reference", "Reference", "L3", "algorithm:high-spp-reference",
                 "Long-running CPU accumulation used for low-noise comparison images.",
                 "It is a reference budget, not an equal-realtime-budget leg." },
-            { "megakernel", "GPU Megakernel Path Tracer", "Integrator", "L6", "algorithm:megakernel",
+            { "megakernel", "GPU Megakernel", "Execution", "L6", "algorithm:megakernel",
                 "Keeps a complete path loop inside one GPU dispatch.",
                 "Divergence and long-path occupancy can limit scalability." },
-            { "wavefront", "GPU Wavefront Path Tracer", "Integrator", "L7", "algorithm:wavefront",
+            { "wavefront", "GPU Wavefront", "Execution", "L7", "algorithm:wavefront",
                 "Compacts path stages into queues and indirect dispatches.",
                 "Queue and compaction overhead must be included in timings." },
             { "bsdf-only", "BSDF-only Direct Lighting", "Direct Lighting", "L6", "algorithm:bsdf-only",
@@ -101,13 +101,13 @@ namespace RenderingEngine::Demos
             { "ggx-bsdf", "GGX BSDF", "Material", "L6", "algorithm:ggx-bsdf",
                 "Microfacet reflection using GGX distribution, masking, and Fresnel.",
                 "Energy and PDF validation remain provider-owned evidence." },
-            { "environment-importance", "Environment Importance Sampling", "Light Proposal", "L6", "algorithm:environment-importance",
+            { "environment-importance", "Environment Importance Map", "Environment Direction", "L6", "algorithm:environment-importance",
                 "Samples an environment map according to its luminance distribution.",
                 "Distribution rebuilds must track environment resource generation." },
-            { "uniform-one-light", "Uniform One-light Sampling", "Light Proposal", "L6", "algorithm:uniform-one-light",
+            { "uniform-one-light", "Uniform One-light Selection", "Light Selection", "L6", "algorithm:uniform-one-light",
                 "Chooses one light uniformly and compensates with its selection PDF.",
                 "Variance rises when light powers differ substantially." },
-            { "power-weighted-one-light", "Power-weighted One-light Sampling", "Light Proposal", "L6", "algorithm:power-weighted-one-light",
+            { "power-weighted-one-light", "Power-weighted One-light Selection", "Light Selection", "L6", "algorithm:power-weighted-one-light",
                 "Chooses one light from a power-weighted discrete distribution.",
                 "Stale power tables invalidate the estimator and its evidence." },
             { "temporal", "Temporal Accumulation", "Reconstruction", "L8", "algorithm:temporal",
@@ -148,7 +148,7 @@ namespace RenderingEngine::Demos
             std::string_view stableToken;
             std::string_view label;
             std::string_view directEstimatorToken;
-            std::string_view lightProposalToken;
+            std::string_view lightSelectionToken;
             std::string_view algorithmProviderToken;
             std::array<std::string_view, 2> requiredAlgorithmProviderTokens;
             std::uint8_t requiredAlgorithmProviderCount;
@@ -186,7 +186,7 @@ namespace RenderingEngine::Demos
                     ManyLightsBiasModeRequirement{
                         "biased", ManyLightsBiasClassification::Biased },
                     ManyLightsBiasModeRequirement{
-                        "unbiased", ManyLightsBiasClassification::Unbiased }
+                        "reference-correction", ManyLightsBiasClassification::ReferenceCorrection }
                 }, 2u
             },
             {
@@ -207,7 +207,7 @@ namespace RenderingEngine::Demos
                 "baseline-hero", "baseline", "Baseline hero",
                 "Preserve the migrated baseline look and capture path.",
                 CaptureShotKind::Hero, 0u,
-                { "algorithm:legacy-whitted", "algorithm:legacy-pbr" }, 2u
+                { "algorithm:whitted", "algorithm:pbr" }, 2u
             },
             {
                 "intersection-correctness", "intersection-bvh", "Intersection parity",
@@ -222,7 +222,7 @@ namespace RenderingEngine::Demos
                 "whitted-optics-hero", "whitted-optics", "Whitted optics",
                 "Frame reflection, refraction, Fresnel, and TIR behavior.",
                 CaptureShotKind::Hero, 0u,
-                { "algorithm:legacy-whitted" }, 1u
+                { "algorithm:whitted" }, 1u
             },
             {
                 "cornell-convergence", "cornell", "Cornell convergence",
@@ -320,7 +320,7 @@ namespace RenderingEngine::Demos
         constexpr auto kFinalVideoShots = std::to_array<FinalVideoShotDescriptor>({
             { "opening-baseline", "Opening: stable baseline", "baseline-hero", "Establish the renderer and interaction baseline." },
             { "intersection-lab", "Intersection and BVH lab", "intersection-correctness", "Show correctness diagnostics before performance claims." },
-            { "optics-room", "Whitted optics room", "whitted-optics-hero", "Show deterministic reflection and transmission paths." },
+            { "optics-room", "Whitted optics room", "whitted-optics-hero", "Show ideal specular chains with sampled reflection and transmission." },
             { "cornell-gi", "Cornell GI", "cornell-convergence", "Show convergence and direct-lighting estimator comparisons." },
             { "material-lab", "GGX and MIS material lab", "ggx-mis-grid", "Show controlled material and energy evidence." },
             { "environment-dome", "Environment sampling dome", "environment-variance", "Show importance-sampling variance reduction." },
@@ -826,7 +826,7 @@ namespace RenderingEngine::Demos
             leg.stableToken = source.stableToken;
             leg.label = source.label;
             leg.directEstimatorToken = source.directEstimatorToken;
-            leg.lightProposalToken = source.lightProposalToken;
+            leg.lightSelectionToken = source.lightSelectionToken;
             leg.algorithmProviderToken = source.algorithmProviderToken;
             leg.requiredAlgorithmProviderTokens = source.requiredAlgorithmProviderTokens;
             leg.requiredAlgorithmProviderCount = source.requiredAlgorithmProviderCount;

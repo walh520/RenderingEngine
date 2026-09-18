@@ -1,12 +1,12 @@
 # Artifact layout v0
 
-Status: **frozen naming and metadata contract; writer deferred**
+Status: **frozen naming and metadata contract; Wave 1 capture/reference writers attached**
 Configuration contract: `runtime-config-v0`
 
 This contract gives capture, benchmark, reference comparison, CI, and portfolio
-tools one deterministic output shape. Wave 0 can resolve an artifact layout in
-memory, but it does not implement image capture, benchmark collection,
-reference comparison, directory creation, or file writing.
+tools one deterministic output shape. Wave 1 attaches the live renderer capture
+writer and the L3 CPU-reference writer. Benchmark collection and numerical
+reference comparison remain deferred.
 
 ## Root and run identity
 
@@ -83,9 +83,11 @@ it is never copied over the normative output. The comparison result belongs in
 - Capture and benchmark code records the exact requested and effective config;
   it never hides a capability fallback.
 
-## Wave 0 boundary
+## Current producer boundary
 
 Supplying only `--artifact-root` and/or `--run-id` is valid and performs layout
-planning without I/O. `--capture`, `--benchmark`, or `--reference` requests an
-unimplemented producer and therefore exits with code 4 before artifact-layout
-resolution, platform creation, or any filesystem I/O.
+planning without I/O. `--capture` on the supported GLFW baseline tuple writes
+the live EXR/PNG/metadata bundle. The supported L3 CPU-reference tuple writes
+linear EXR, display BMP, and metadata under `references/`. `--benchmark` and `--reference` still
+request unattached producers and return code 4 before platform or filesystem
+creation.

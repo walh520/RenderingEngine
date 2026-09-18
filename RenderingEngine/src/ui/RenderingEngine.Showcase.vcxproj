@@ -55,11 +55,16 @@
   <ItemGroup>
     <ClCompile Include="ActionMap.cpp" />
     <ClCompile Include="DebugProfilerModel.cpp" />
+    <ClCompile Include="Wave2TelemetryAdapter.cpp" />
+    <ClCompile Include="Wave4TelemetryAdapter.cpp" />
+    <ClCompile Include="GlfwActionAdapter.cpp" />
     <ClCompile Include="ImGuiShowcasePanels.cpp" />
     <ClCompile Include="RuntimeConfigHarness.cpp" />
     <ClCompile Include="ShowcaseController.cpp" />
     <ClCompile Include="ShowcaseViewModel.cpp" />
     <ClCompile Include="..\demos\CaptureBundleWriter.cpp" />
+    <ClCompile Include="..\demos\CapturePreview.cpp" />
+    <ClCompile Include="..\demos\ManyLightsWave4.cpp" />
     <ClCompile Include="..\demos\ShowcaseEvidence.cpp" />
     <ClCompile Include="..\demos\ShowcaseProgram.cpp" />
     <ClCompile Include="..\demos\ShowcaseReport.cpp" />
@@ -68,15 +73,25 @@
   <ItemGroup>
     <ClInclude Include="..\..\include\ui\ActionMap.hpp" />
     <ClInclude Include="..\..\include\ui\DebugProfilerModel.hpp" />
+    <ClInclude Include="..\..\include\ui\Wave2TelemetryAdapter.hpp" />
+    <ClInclude Include="..\..\include\ui\Wave4TelemetryAdapter.hpp" />
+    <ClInclude Include="..\..\include\ui\GlfwActionAdapter.hpp" />
     <ClInclude Include="..\..\include\ui\ImGuiShowcasePanels.hpp" />
     <ClInclude Include="..\..\include\ui\RuntimeConfigHarness.hpp" />
     <ClInclude Include="..\..\include\ui\ShowcaseController.hpp" />
     <ClInclude Include="..\..\include\ui\ShowcaseViewModel.hpp" />
     <ClInclude Include="..\..\include\demos\CaptureBundleWriter.hpp" />
+    <ClInclude Include="..\..\include\demos\CapturePreview.hpp" />
+    <ClInclude Include="..\..\include\demos\ManyLightsWave4.hpp" />
     <ClInclude Include="..\..\include\demos\ShowcaseEvidence.hpp" />
     <ClInclude Include="..\..\include\demos\ShowcaseProgram.hpp" />
     <ClInclude Include="..\..\include\demos\ShowcaseReport.hpp" />
     <ClInclude Include="..\..\include\demos\ShowcaseWorkflow.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\platform\glfw\RenderingEngine.PlatformGlfw.vcxproj">
+      <Project>{FC06E194-84C3-4B39-83C9-E270995B7A34}</Project>
+    </ProjectReference>
   </ItemGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

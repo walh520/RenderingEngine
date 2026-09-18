@@ -91,7 +91,7 @@ namespace RenderingEngine
 
         [[nodiscard]] TraversalBackend ParseBackend(std::string_view text)
         {
-            if (text == "legacy-analytic-gpu") return TraversalBackend::LegacyAnalyticGpu;
+            if (text == "canonical-linear-gpu") return TraversalBackend::CanonicalLinearGpu;
             if (text == "cpu-brute-force") return TraversalBackend::CpuBruteForce;
             if (text == "cpu-sah" || text == "cpu-sah-bvh") return TraversalBackend::CpuSahBvh;
             if (text == "gpu-flattened-sah") return TraversalBackend::GpuFlattenedSahBvh;
@@ -101,21 +101,29 @@ namespace RenderingEngine
             throw CommandLineError("Unknown backend: " + std::string(text) + '.');
         }
 
-        [[nodiscard]] Integrator ParseIntegrator(std::string_view text)
+        [[nodiscard]] TransportModel ParseTransportModel(std::string_view text)
         {
-            if (text == "pbr") return Integrator::Pbr;
-            if (text == "whitted") return Integrator::Whitted;
-            if (text == "cpu-reference" || text == "cpu-reference-path") return Integrator::CpuReferencePathTracer;
-            if (text == "megakernel" || text == "gpu-megakernel-path") return Integrator::GpuMegakernelPathTracer;
-            if (text == "wavefront" || text == "gpu-wavefront-path") return Integrator::GpuWavefrontPathTracer;
+            if (text == "pbr") return TransportModel::Pbr;
+            if (text == "whitted") return TransportModel::Whitted;
             throw CommandLineError(
-                "Unknown integrator: " + std::string(text)
-                + " (expected pbr, whitted, or a declared path-tracer token).");
+                "Unknown transport model: " + std::string(text)
+                + " (expected pbr or whitted).");
+        }
+
+        [[nodiscard]] ExecutionArchitecture ParseExecutionArchitecture(
+            std::string_view text)
+        {
+            if (text == "staged") return ExecutionArchitecture::Staged;
+            if (text == "cpu-reference") return ExecutionArchitecture::CpuReference;
+            if (text == "megakernel") return ExecutionArchitecture::Megakernel;
+            if (text == "wavefront") return ExecutionArchitecture::Wavefront;
+            throw CommandLineError(
+                "Unknown execution architecture: " + std::string(text)
+                + " (expected staged, cpu-reference, megakernel, or wavefront).");
         }
 
         [[nodiscard]] DirectLightingEstimator ParseDirectLighting(std::string_view text)
         {
-            if (text == "legacy-analytic-direct") return DirectLightingEstimator::LegacyAnalyticDirect;
             if (text == "bsdf-only") return DirectLightingEstimator::BsdfOnly;
             if (text == "nee") return DirectLightingEstimator::NextEventEstimation;
             if (text == "mis") return DirectLightingEstimator::MultipleImportanceSampling;
@@ -123,20 +131,36 @@ namespace RenderingEngine
             throw CommandLineError("Unknown direct-lighting estimator: " + std::string(text) + '.');
         }
 
-        [[nodiscard]] LightProposalDistribution ParseLightProposal(std::string_view text)
+        [[nodiscard]] LightSelectionStrategy ParseLightSelection(
+            std::string_view text)
         {
-            if (text == "legacy-analytic") return LightProposalDistribution::LegacyAnalyticLights;
-            if (text == "uniform") return LightProposalDistribution::UniformLights;
-            if (text == "power") return LightProposalDistribution::PowerWeightedLights;
-            if (text == "environment") return LightProposalDistribution::EnvironmentImportance;
-            throw CommandLineError("Unknown light proposal: " + std::string(text) + '.');
+            if (text == "uniform") return LightSelectionStrategy::Uniform;
+            if (text == "power") return LightSelectionStrategy::PowerWeighted;
+            throw CommandLineError(
+                "Unknown light-selection strategy: " + std::string(text) + '.');
+        }
+
+        [[nodiscard]] EnvironmentDirectionSampler ParseEnvironmentSampler(
+            std::string_view text)
+        {
+            if (text == "uniform-sphere")
+            {
+                return EnvironmentDirectionSampler::UniformSphere;
+            }
+            if (text == "importance-map")
+            {
+                return EnvironmentDirectionSampler::ImportanceMap;
+            }
+            throw CommandLineError(
+                "Unknown environment direction sampler: " + std::string(text) + '.');
         }
 
         [[nodiscard]] ReconstructionMode ParseReconstruction(std::string_view text)
         {
-            if (text == "raw") return ReconstructionMode::Raw;
+            if (text == "progressive-mean") return ReconstructionMode::ProgressiveMean;
+            if (text == "current-frame") return ReconstructionMode::CurrentFrame;
             if (text == "temporal") return ReconstructionMode::TemporalAccumulation;
-            if (text == "temporal-atrous") return ReconstructionMode::TemporalFixedAtrous;
+            if (text == "atrous-spatial") return ReconstructionMode::SpatialFixedAtrous;
             if (text == "svgf") return ReconstructionMode::Svgf;
             throw CommandLineError("Unknown reconstruction mode: " + std::string(text) + '.');
         }
@@ -158,7 +182,49 @@ namespace RenderingEngine
             if (text == "roughness") return DebugView::Roughness;
             if (text == "metallic") return DebugView::Metallic;
             if (text == "emissive") return DebugView::Emissive;
+            if (text == "motion") return DebugView::Motion;
+            if (text == "history-length") return DebugView::HistoryLength;
+            if (text == "moments") return DebugView::Moments;
+            if (text == "variance") return DebugView::Variance;
+            if (text == "temporal-acceptance") return DebugView::TemporalAcceptance;
+            if (text == "temporal-reject-reasons") return DebugView::TemporalRejectReasons;
+            if (text == "reservoir-m") return DebugView::ReservoirM;
+            if (text == "reservoir-weight") return DebugView::ReservoirWeight;
+            if (text == "reservoir-light-id") return DebugView::ReservoirLightId;
+            if (text == "reservoir-source") return DebugView::ReservoirSource;
+            if (text == "reservoir-reuse") return DebugView::ReservoirReuse;
+            if (text == "reservoir-rejection") return DebugView::ReservoirRejection;
+            if (text == "winner-visibility") return DebugView::WinnerVisibility;
             throw CommandLineError("Unknown debug view: " + std::string(text) + '.');
+        }
+
+        [[nodiscard]] ManyLightsTier ParseManyLightsTier(std::string_view text)
+        {
+            if (text == "100") return ManyLightsTier::Lights100;
+            if (text == "1000" || text == "1k") return ManyLightsTier::Lights1000;
+            if (text == "10000" || text == "10k") return ManyLightsTier::Lights10000;
+            throw CommandLineError("--many-lights-tier requires 100, 1000, or 10000.");
+        }
+
+        [[nodiscard]] RestirReuseStage ParseRestirStage(std::string_view text)
+        {
+            if (text == "initial") return RestirReuseStage::Initial;
+            if (text == "spatial") return RestirReuseStage::Spatial;
+            if (text == "temporal") return RestirReuseStage::Temporal;
+            if (text == "spatial" || text == "temporal-spatial")
+                return RestirReuseStage::TemporalSpatial;
+            throw CommandLineError(
+                "--restir-stage requires initial, temporal, spatial, or temporal-spatial.");
+        }
+
+        [[nodiscard]] RestirBiasMode ParseRestirBias(std::string_view text)
+        {
+            if (text == "biased" || text == "explicitly-biased")
+                return RestirBiasMode::ExplicitlyBiased;
+            if (text == "reference-correction")
+                return RestirBiasMode::ReferenceCorrection;
+            throw CommandLineError(
+                "--restir-bias requires explicitly-biased or reference-correction.");
         }
 
         void ParseResolution(std::string_view text, RuntimeConfig& config)
@@ -216,32 +282,139 @@ namespace RenderingEngine
                 result.config.scene = ParseScene(RequireValue(index, argumentCount, arguments, argument));
                 continue;
             }
+            if (argument == "--scene-variant")
+            {
+                const std::string_view value = RequireValue(index, argumentCount, arguments, argument);
+                if (value.empty()) throw CommandLineError("--scene-variant requires a non-empty scene-local ID.");
+                result.config.sceneVariant = value;
+                continue;
+            }
             if (argument == "--backend")
             {
                 result.config.backend = ParseBackend(RequireValue(index, argumentCount, arguments, argument));
                 continue;
             }
-            if (argument == "--integrator")
+            if (argument == "--transport")
             {
-                result.config.integrator = ParseIntegrator(RequireValue(index, argumentCount, arguments, argument));
+                result.config.transportModel = ParseTransportModel(
+                    RequireValue(index, argumentCount, arguments, argument));
                 continue;
             }
-            if (argument == "--direct-lighting" || argument == "--light-sampler")
+            if (argument == "--execution")
+            {
+                result.config.executionArchitecture = ParseExecutionArchitecture(
+                    RequireValue(index, argumentCount, arguments, argument));
+                continue;
+            }
+            if (argument == "--direct-lighting")
             {
                 result.config.directLightingEstimator =
                     ParseDirectLighting(RequireValue(index, argumentCount, arguments, argument));
                 continue;
             }
-            if (argument == "--light-proposal")
+            if (argument == "--light-selection")
             {
-                result.config.lightProposalDistribution =
-                    ParseLightProposal(RequireValue(index, argumentCount, arguments, argument));
+                result.config.lightSelection = ParseLightSelection(
+                    RequireValue(index, argumentCount, arguments, argument));
+                continue;
+            }
+            if (argument == "--environment-sampler")
+            {
+                result.config.environmentSampler = ParseEnvironmentSampler(
+                    RequireValue(index, argumentCount, arguments, argument));
                 continue;
             }
             if (argument == "--reconstruction")
             {
                 result.config.reconstruction =
                     ParseReconstruction(RequireValue(index, argumentCount, arguments, argument));
+                continue;
+            }
+            if (argument == "--many-lights-tier")
+            {
+                result.config.restir.manyLightsTier = ParseManyLightsTier(
+                    RequireValue(index, argumentCount, arguments, argument));
+                continue;
+            }
+            if (argument == "--restir-stage")
+            {
+                result.config.restir.reuseStage = ParseRestirStage(
+                    RequireValue(index, argumentCount, arguments, argument));
+                if (!UsesRestirSpatialReuse(result.config.restir.reuseStage))
+                    result.config.restir.spatialNeighbors = 0u;
+                continue;
+            }
+            if (argument == "--restir-bias")
+            {
+                result.config.restir.biasMode = ParseRestirBias(
+                    RequireValue(index, argumentCount, arguments, argument));
+                continue;
+            }
+            if (argument == "--restir-candidates"
+                || argument == "--comparison-candidate-budget")
+            {
+                const std::uint32_t value = ParseInteger<std::uint32_t>(
+                    RequireValue(index, argumentCount, arguments, argument), argument);
+                if (value == 0u || value > 64u)
+                {
+                    throw CommandLineError(
+                        std::string(argument) + " must be from 1 to 64.");
+                }
+                if (argument == "--restir-candidates")
+                    result.config.restir.initialCandidatesPerPixel = value;
+                else
+                    result.config.restir.comparisonCandidateBudgetPerPixel = value;
+                continue;
+            }
+            if (argument == "--restir-neighbors")
+            {
+                const std::uint32_t value = ParseInteger<std::uint32_t>(
+                    RequireValue(index, argumentCount, arguments, argument), argument);
+                if (value > 30u)
+                    throw CommandLineError("--restir-neighbors must be from 0 to 30.");
+                result.config.restir.spatialNeighbors = value;
+                continue;
+            }
+            if (argument == "--restir-max-m" || argument == "--restir-history-age")
+            {
+                const std::uint32_t value = ParseInteger<std::uint32_t>(
+                    RequireValue(index, argumentCount, arguments, argument), argument);
+                if (value == 0u || value > 4096u)
+                    throw CommandLineError(
+                        std::string(argument) + " must be from 1 to 4096.");
+                if (argument == "--restir-max-m")
+                    result.config.restir.maximumReservoirM = value;
+                else
+                    result.config.restir.maximumHistoryAge = value;
+                continue;
+            }
+            if (argument == "--comparison-visibility-budget")
+            {
+                const std::uint32_t value = ParseInteger<std::uint32_t>(
+                    RequireValue(index, argumentCount, arguments, argument), argument);
+                if (value == 0u || value > 64u)
+                    throw CommandLineError(
+                        "--comparison-visibility-budget must be from 1 to 64.");
+                result.config.restir.comparisonVisibilityBudgetPerPixel = value;
+                continue;
+            }
+            if (argument == "--animate-many-lights")
+            {
+                const RuntimeToggle toggle = ParseToggle(
+                    RequireValue(index, argumentCount, arguments, argument), argument);
+                if (toggle == RuntimeToggle::RendererDefault)
+                    throw CommandLineError("--animate-many-lights requires on or off.");
+                result.config.restir.animateLights = toggle == RuntimeToggle::Enabled;
+                continue;
+            }
+            if (argument == "--animate-rigid-occluders")
+            {
+                const RuntimeToggle toggle = ParseToggle(
+                    RequireValue(index, argumentCount, arguments, argument), argument);
+                if (toggle == RuntimeToggle::RendererDefault)
+                    throw CommandLineError("--animate-rigid-occluders requires on or off.");
+                result.config.restir.animateRigidOccluders =
+                    toggle == RuntimeToggle::Enabled;
                 continue;
             }
             if (argument == "--frames")
@@ -406,6 +579,16 @@ namespace RenderingEngine
             throw CommandLineError("Unknown command-line argument: " + std::string(argument));
         }
 
+        // A startup stop condition must be attainable. During interactive axis
+        // changes the stored film target is retained but inactive outside Final
+        // Progressive Mean; it is not an algorithm capability restriction.
+        if (result.config.render.targetSamplesPerPixel > 0
+            && (result.config.debugView != DebugView::Final
+                || result.config.reconstruction != ReconstructionMode::ProgressiveMean))
+        {
+            throw CommandLineError(
+                "--spp requires progressive-mean and the final debug view; use --frames for other outputs.");
+        }
         if (result.config.run.captureDirectory.has_value())
         {
             const std::filesystem::path captureRoot =
@@ -426,22 +609,36 @@ namespace RenderingEngine
     std::string_view CommandLineHelpText() noexcept
     {
         return
-            "Vulkan HLSL Rendering Engine\n"
-            "Legacy-compatible options:\n"
+            "Vulkan RT Wave 5 Debug Showcase\n"
+            "RuntimeConfig v2 options:\n"
             "  --frames N                 Render N frames and exit; 0 runs until exit.\n"
-            "  --integrator MODE          pbr (default), whitted, cpu-reference, megakernel, wavefront.\n"
+            "  --transport MODE           pbr (default) or whitted.\n"
+            "  --execution MODE           staged (default), cpu-reference, megakernel, or wavefront.\n"
             "  --max-depth N              Trace depth from 1 to 12 (default 8).\n"
             "  --exposure X               Linear exposure from 0.01 to 64.\n"
             "  --shadow MODE              physical, pcf, or pcss.\n"
-            "  --debug-view VIEW          final, base-color, normal, roughness, metallic, emissive.\n"
+            "  --debug-view VIEW          final, material, motion/history/variance, reservoir views.\n"
             "  --resize-test              Exercise swapchain recreation in a finite run.\n"
-            "Wave 0 control contract:\n"
+            "Independent algorithm axes:\n"
             "  --scene NAME               baseline, intersection-bvh, whitted-optics, cornell, ...\n"
-            "  --backend NAME             legacy-analytic-gpu, cpu-sah, ray-query, rt-pipeline, ...\n"
-            "  --direct-lighting MODE     legacy-analytic-direct, bsdf-only, nee, mis, restir-di.\n"
-            "  --light-sampler MODE       Compatibility alias for --direct-lighting.\n"
-            "  --light-proposal MODE      legacy-analytic, uniform, power, environment.\n"
-            "  --reconstruction MODE      raw, temporal, temporal-atrous, svgf.\n"
+            "  --scene-variant ID         Select an existing scene-local experiment; unknown IDs are rejected.\n"
+            "  --backend NAME             canonical-linear-gpu, cpu-sah, ray-query, ...\n"
+            "  --direct-lighting MODE     bsdf-only, nee, mis, or restir-di.\n"
+            "  --light-selection MODE     uniform or power.\n"
+            "  --environment-sampler MODE uniform-sphere or importance-map.\n"
+            "  --reconstruction MODE      current-frame, progressive-mean, temporal, atrous-spatial, svgf.\n"
+            "ReSTIR / Many Lights settings:\n"
+            "  --many-lights-tier N       100, 1000, or 10000 lights.\n"
+            "  --restir-stage MODE        initial, temporal, spatial, or temporal-spatial.\n"
+            "  --restir-bias MODE         explicitly-biased or reference-correction.\n"
+            "  --restir-candidates N      Initial candidates per pixel, 1..64.\n"
+            "  --restir-neighbors N       Spatial neighbors per pixel, 0..30.\n"
+            "  --restir-max-m N           Reservoir M clamp, 1..4096.\n"
+            "  --restir-history-age N     Maximum retained history age, 1..4096.\n"
+            "  --comparison-candidate-budget N   Equal-budget comparison candidates.\n"
+            "  --comparison-visibility-budget N  Equal-budget comparison visibility rays.\n"
+            "  --animate-many-lights STATE       Select animated/static initial light layout.\n"
+            "  --animate-rigid-occluders STATE   Select animated/static initial occluder layout.\n"
             "  --resolution WxH           Initial client resolution.\n"
             "  --render-scale X           Internal render scale.\n"
             "  --spp-per-frame N          Samples per rendered frame.\n"
@@ -453,20 +650,32 @@ namespace RenderingEngine
             "  --validation STATE         renderer-default, on, or off.\n"
             "  --artifact-root PATH       Artifact planning root (default .artifacts).\n"
             "  --run-id ID                Artifact run directory name (default manual).\n"
-            "  --headless                  Request headless execution.\n"
-            "  --capture DIRECTORY         Request capture; DIRECTORY becomes artifact root.\n"
-            "  --benchmark PRESET          Request a benchmark preset.\n"
-            "  --reference IMAGE.exr       Request comparison with a reference image.\n"
-            "                              These four requests are rejected until implemented.\n"
+            "  --headless                  Use the supported CPU-reference headless path.\n"
+            "  --capture DIRECTORY         Capture live linear EXR, PNG preview, and metadata.\n"
+            "                              DIRECTORY becomes the artifact root.\n"
+            "  --benchmark PRESET          Request a benchmark preset (not yet attached).\n"
+            "  --reference IMAGE.exr       Request comparison (not yet attached).\n"
             "  --help | --version         Print information without creating a window.\n"
             "  --integration-status       List central-build and production-runtime boundaries.\n"
             "Known roadmap modes that are not built return exit code 4 without fallback.\n"
-            "Controls: WASD move, Space/Ctrl vertical, Shift sprint, mouse look, "
-            "wheel zoom, 1 PCF, 2 PCSS, 3 physical, Tab release mouse, Esc exit.\n";
+            "Wave 5 Debug controls:\n"
+            "  W/A/S/D move, Q/E descend/ascend, Left Shift fast, Left Ctrl fine.\n"
+            "  Mouse look; wheel changes speed; Alt+wheel changes field of view.\n"
+            "  Tab captures/releases the cursor; Esc releases only; Alt+F4 exits.\n"
+            "  Home fixed camera; P pause; O single-step; K locks camera/base seed/origin.\n"
+            "  B backend, I transport, Ctrl+I execution, L direct-lighting; Shift reverses.\n"
+            "  Ctrl+L light selection, Alt+L environment sampler, Ctrl+Alt+L shadow.\n"
+            "  N reconstruction, V debug view.\n"
+            "  0-9 select scenes only; unsupported scenes keep the current scene and report why.\n"
+            "  R reset; [/] bounce; -/= exposure; PageDown/PageUp render scale.\n"
+            "  F1 help, F2 algorithm, F3 profiler, F4 capture, F5 shader reload,\n"
+            "  F6 fixed-seed A/B, F7 legend, F8 Benchmark entry, F9 reference.\n"
+            "  F10 current/Presentation study card; F11 restore Presentation; F12 cycles Diagnosis variants.\n"
+            "Unsupported actions never mutate the current tuple and show an explicit reason.\n";
     }
 
     std::string_view RuntimeVersionText() noexcept
     {
-        return "RenderingEngine runtime-config-v0";
+        return "RenderingEngine runtime-config-v2 abi-v3";
     }
 }

@@ -11,6 +11,9 @@
 #include <string_view>
 #include <vector>
 
+bool RunLightHistoryTests();
+bool RunVulkanProductionRuntimeTests();
+
 namespace
 {
     using namespace RenderingEngine::Restir;
@@ -306,7 +309,7 @@ namespace
         Pcg32 historyOnlyRandom(89u, 2u);
         RejectionReason historyOnlyRejection = RejectionReason::InvalidCandidate;
         const Reservoir historyOnly = ReuseTemporal(
-            {}, history, input, EstimatorMode::UnbiasedReference, config, historyOnlyRandom,
+            {}, history, input, EstimatorMode::ReferenceCorrection, config, historyOnlyRandom,
             reevaluate, [](const Candidate&) { return true; }, historyOnlyRejection);
         L9_CHECK(context, historyOnlyRejection == RejectionReason::None);
         L9_CHECK(context, historyOnly.selected.sourceSurfaceIndex == 1u);
@@ -470,7 +473,7 @@ namespace
             current,
             history,
             input,
-            EstimatorMode::UnbiasedReference,
+            EstimatorMode::ReferenceCorrection,
             config,
             random,
             [](const Candidate& candidate, const SurfaceRecord&) { return candidate; },
@@ -584,6 +587,14 @@ int main(const int argc, const char* const argv[])
         TestReferenceModeAndVisibility(context);
         TestDirectLightingMutualExclusion(context);
         TestManyLightsBenchmarkHarness(context);
+        if (!RunLightHistoryTests())
+        {
+            return 1;
+        }
+        if (!RunVulkanProductionRuntimeTests())
+        {
+            return 1;
+        }
         const RenderingEngine::Restir::Tests::VulkanSmokeReport vulkan =
             RenderingEngine::Restir::Tests::RunVulkanSmoke();
         if (vulkan.status == RenderingEngine::Restir::Tests::VulkanSmokeStatus::SkippedUnavailable)

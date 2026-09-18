@@ -1,8 +1,10 @@
 # L5 Vulkan Hardware RT module
 
-This directory is a lane-private implementation adapter over the frozen
-`abi-v0` Ray/Hit and canonical scene records. It does not change shared
-contracts or register itself in the root solution.
+This directory is the L5 implementation over the frozen abi-v0 scene records
+and published abi-v1 Ray/Hit queue records. In the Wave 3 shadow it is composed
+by the central project through L0-owned item props, while production capability
+publication remains disabled until the application supplies a real AS/dispatch
+owner.
 
 ## Implemented paths
 
@@ -28,6 +30,13 @@ contracts or register itself in the root solution.
   canonical miss encoding;
 - fixed ray corpus and CPU/Software/HW parity comparison seam, including
   equivalent-hit sets for shared-edge/equidistant ambiguity.
+
+Ray Query and RT Pipeline consume the same `GpuRayQueueRecordV1` and produce
+the same `GpuHitQueueRecordV1`. Their six-word push constants carry independent
+ray and hit offsets, so split dispatches preserve queue identity. The Wave 3
+GPU gate binds the same canonical scene/AS/SBT and compares closest-hit and
+any-hit results against CPU SAH and Software GPU without changing scene or
+material semantics.
 
 `VkAccelerationStructureInstanceKHR::instanceCustomIndex` must contain the
 canonical instance-buffer index. A BLAS geometry order must match the
@@ -59,8 +68,8 @@ remain alive before replacing the source. UPDATE is accepted only from
 compaction requires a `Ready` source created with `ALLOW_COMPACTION` and an
 `Allocated` destination produced by `CreateCompactedCopy`.
 
-Build the lane-local project directly; L0 may add it to the root solution only
-after integration review:
+Build the lane-local project directly for module checks. Central-build status
+does not imply production runtime or performance acceptance:
 
 ```powershell
 msbuild RenderingEngine.HardwareRT.Tests.vcxproj /t:Rebuild /p:Configuration=Release /p:Platform=x64

@@ -14,12 +14,10 @@
   <ItemGroup>
     <ClCompile Include="src\core\Main.cpp"><Filter>Source Files\Core</Filter></ClCompile>
     <ClCompile Include="src\renderers\VulkanWhittedRenderer.cpp"><Filter>Source Files\Renderers</Filter></ClCompile>
-    <ClCompile Include="src\scene\GpuScene.cpp"><Filter>Source Files\Scene</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\core\Camera.hpp"><Filter>Header Files\Core</Filter></ClInclude>
     <ClInclude Include="include\renderers\VulkanWhittedRenderer.hpp"><Filter>Header Files\Renderers</Filter></ClInclude>
-    <ClInclude Include="include\scene\GpuScene.hpp"><Filter>Header Files\Scene</Filter></ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md"><Filter>Project Documents</Filter></None>

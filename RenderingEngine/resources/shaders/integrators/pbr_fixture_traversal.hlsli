@@ -1,25 +1,10 @@
 #ifndef RENDERING_ENGINE_PBR_FIXTURE_TRAVERSAL_HLSLI
 #define RENDERING_ENGINE_PBR_FIXTURE_TRAVERSAL_HLSLI
 
-// This analytic fixture is a private seam for L6 development. Production
-// traversal adapters can replace the two PBR_L6_TRACE_* macros without changing
-// the path integrator or its sampling dimensions.
-[[vk::binding(7, 0)]] StructuredBuffer<uint> gPbrPrimitiveToLightL6;
-[[vk::binding(8, 0)]] StructuredBuffer<PbrFixtureTriangleGpuL6> gPbrFixtureTrianglesL6;
-[[vk::binding(9, 0)]] StructuredBuffer<PbrFixtureSphereGpuL6> gPbrFixtureSpheresL6;
-
-uint PbrResolveEmitterLightL6(uint primitiveId, uint embeddedLightIndex)
-{
-    if (embeddedLightIndex != PBR_L6_INVALID_INDEX)
-    {
-        return embeddedLightIndex;
-    }
-    if (primitiveId < gPbrFrameL6.distribution.w)
-    {
-        return gPbrPrimitiveToLightL6[primitiveId];
-    }
-    return PBR_L6_INVALID_INDEX;
-}
+// This analytic fixture remains the deterministic L6 unit-test seam. The
+// production adapters implement the same trace macros without changing the
+// estimator or its RNG dimensions.
+#include "pbr_traversal_resources.hlsli"
 
 bool PbrIntersectFixtureTriangleL6(
     PbrRayL6 ray,
@@ -107,10 +92,12 @@ bool PbrIntersectFixtureSphereL6(
     return true;
 }
 
+[noinline]
 bool PbrTraceClosestFixtureIgnoringL6(
     PbrRayL6 ray,
     float tMinimum,
     float tMaximum,
+    uint ignoredInstanceId,
     uint ignoredPrimitiveId,
     out PbrHitL6 hit)
 {
@@ -119,6 +106,7 @@ bool PbrTraceClosestFixtureIgnoringL6(
     hit.geometricNormal = 0.0f;
     hit.shadingNormal = 0.0f;
     hit.materialIndex = PBR_L6_INVALID_INDEX;
+    hit.instanceId = PBR_L6_INVALID_INDEX;
     hit.primitiveId = PBR_L6_INVALID_INDEX;
     hit.emitterLightIndex = PBR_L6_INVALID_INDEX;
     hit.frontFace = 0u;
@@ -128,8 +116,9 @@ bool PbrTraceClosestFixtureIgnoringL6(
     for (uint triangleIndex = 0u; triangleIndex < gPbrFrameL6.trace.x; ++triangleIndex)
     {
         const PbrFixtureTriangleGpuL6 fixtureTriangle = gPbrFixtureTrianglesL6[triangleIndex];
+        const uint instanceId = fixtureTriangle.metadata.z;
         const uint primitiveId = fixtureTriangle.metadata.y;
-        if (primitiveId == ignoredPrimitiveId)
+        if (instanceId == ignoredInstanceId && primitiveId == ignoredPrimitiveId)
         {
             continue;
         }
@@ -143,15 +132,19 @@ bool PbrTraceClosestFixtureIgnoringL6(
             candidateT,
             outwardNormal))
         {
-            const bool equalDistanceLowerId = candidateT == hit.t && primitiveId < hit.primitiveId;
-            if (!found || candidateT < hit.t || equalDistanceLowerId)
+            const bool equalDistanceLowerKey = candidateT == hit.t &&
+                (instanceId < hit.instanceId ||
+                 (instanceId == hit.instanceId && primitiveId < hit.primitiveId));
+            if (!found || candidateT < hit.t || equalDistanceLowerKey)
             {
                 found = true;
                 hit.t = candidateT;
                 hit.geometricNormal = outwardNormal;
                 hit.materialIndex = fixtureTriangle.metadata.x;
+                hit.instanceId = instanceId;
                 hit.primitiveId = primitiveId;
-                hit.emitterLightIndex = PbrResolveEmitterLightL6(primitiveId, fixtureTriangle.metadata.z);
+                hit.emitterLightIndex = PbrResolveEmitterLightL6(
+                    instanceId, primitiveId, PBR_L6_INVALID_INDEX);
             }
         }
     }
@@ -160,8 +153,9 @@ bool PbrTraceClosestFixtureIgnoringL6(
     for (uint sphereIndex = 0u; sphereIndex < gPbrFrameL6.trace.y; ++sphereIndex)
     {
         const PbrFixtureSphereGpuL6 sphere = gPbrFixtureSpheresL6[sphereIndex];
+        const uint instanceId = PBR_L6_INVALID_INDEX;
         const uint primitiveId = sphere.metadata.y;
-        if (primitiveId == ignoredPrimitiveId)
+        if (instanceId == ignoredInstanceId && primitiveId == ignoredPrimitiveId)
         {
             continue;
         }
@@ -175,15 +169,19 @@ bool PbrTraceClosestFixtureIgnoringL6(
             candidateT,
             outwardNormal))
         {
-            const bool equalDistanceLowerId = candidateT == hit.t && primitiveId < hit.primitiveId;
-            if (!found || candidateT < hit.t || equalDistanceLowerId)
+            const bool equalDistanceLowerKey = candidateT == hit.t &&
+                (instanceId < hit.instanceId ||
+                 (instanceId == hit.instanceId && primitiveId < hit.primitiveId));
+            if (!found || candidateT < hit.t || equalDistanceLowerKey)
             {
                 found = true;
                 hit.t = candidateT;
                 hit.geometricNormal = outwardNormal;
                 hit.materialIndex = sphere.metadata.x;
+                hit.instanceId = instanceId;
                 hit.primitiveId = primitiveId;
-                hit.emitterLightIndex = PbrResolveEmitterLightL6(primitiveId, sphere.metadata.z);
+                hit.emitterLightIndex = PbrResolveEmitterLightL6(
+                    instanceId, primitiveId, sphere.metadata.z);
             }
         }
     }
@@ -208,6 +206,7 @@ bool PbrTraceClosestFixtureL6(
         tMinimum,
         tMaximum,
         PBR_L6_INVALID_INDEX,
+        PBR_L6_INVALID_INDEX,
         hit);
 }
 
@@ -215,6 +214,7 @@ bool PbrTraceAnyFixtureL6(
     PbrRayL6 ray,
     float tMinimum,
     float tMaximum,
+    uint ignoredInstanceId,
     uint ignoredPrimitiveId)
 {
     PbrHitL6 ignoredHit;
@@ -222,8 +222,26 @@ bool PbrTraceAnyFixtureL6(
         ray,
         tMinimum,
         tMaximum,
+        ignoredInstanceId,
         ignoredPrimitiveId,
         ignoredHit);
+}
+
+// Compatibility overload for pre-Wave-2 fixture consumers whose analytic
+// primitives have no instance identity. New L6 code always supplies the full
+// (instance, primitive) key through the five-argument overload above.
+bool PbrTraceAnyFixtureL6(
+    PbrRayL6 ray,
+    float tMinimum,
+    float tMaximum,
+    uint ignoredPrimitiveId)
+{
+    return PbrTraceAnyFixtureL6(
+        ray,
+        tMinimum,
+        tMaximum,
+        PBR_L6_INVALID_INDEX,
+        ignoredPrimitiveId);
 }
 
 #ifndef PBR_L6_TRACE_CLOSEST

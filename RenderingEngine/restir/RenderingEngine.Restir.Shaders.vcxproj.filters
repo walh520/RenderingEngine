@@ -11,5 +11,18 @@
     <None Include="..\resources\shaders\restir\RestirSpatial.comp.hlsl"><Filter>Shaders</Filter></None>
     <None Include="..\resources\shaders\restir\RestirVisibility.comp.hlsl"><Filter>Shaders</Filter></None>
     <None Include="..\resources\shaders\restir\RestirDebug.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirProductionV3.hlsli"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirClearV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirDebugV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirInitialV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirPublishDirectV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirPublishHistoryV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirReferenceResolveV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirReferenceVisibilityPrepareV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirSpatialV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirTemporalV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirWinnerResolveV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\restir\RestirWinnerVisibilityPrepareV3.comp.hlsl"><Filter>Shaders</Filter></None>
+    <None Include="..\resources\shaders\integrators\pbr_restir_candidate_export_v3.hlsl"><Filter>Shaders</Filter></None>
   </ItemGroup>
 </Project>

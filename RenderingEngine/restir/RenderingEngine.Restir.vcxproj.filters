@@ -7,14 +7,19 @@
   <ItemGroup>
     <ClCompile Include="..\src\restir\Benchmark.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="..\src\restir\CandidateGenerators.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\src\restir\LightHistory.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="..\src\restir\Reservoir.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="..\src\restir\RestirDi.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\src\restir\VulkanProductionAttachment.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\src\restir\VulkanProductionRuntime.cpp"><Filter>Source Files</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\restir\Benchmark.hpp"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="..\include\restir\CandidateGenerators.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\include\restir\LightHistory.hpp"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="..\include\restir\Reservoir.hpp"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="..\include\restir\RestirDi.hpp"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="..\include\restir\RestirTypes.hpp"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\include\restir\VulkanProductionRuntime.hpp"><Filter>Header Files</Filter></ClInclude>
   </ItemGroup>
 </Project>

@@ -280,18 +280,14 @@ namespace RenderingEngine::Rt::Cpu
             return primitiveOrder_;
         }
 
-    private:
+        // Read-only structural view for downstream adapters. This is an
+        // in-memory inspection seam only; it is not a serialized GPU layout
+        // or an ownership transfer contract. The view intentionally exposes
+        // the same node storage used by CPU traversal so an adapter can
+        // preserve the L3 build's topology, leaf ranges, and bounds exactly.
         static constexpr std::size_t kNoNode = (std::numeric_limits<std::size_t>::max)();
 
-        struct PrimitiveReference
-        {
-            std::size_t triangleIndex{};
-            std::uint32_t primitiveId{kInvalidPrimitiveId};
-            Aabb<T> bounds{};
-            Vec3<T> centroid{};
-        };
-
-        struct Node
+        struct NodeView
         {
             Aabb<T> bounds{};
             std::size_t leftChild{kNoNode};
@@ -304,6 +300,27 @@ namespace RenderingEngine::Rt::Cpu
                 return primitiveCount != 0u;
             }
         };
+
+        [[nodiscard]] std::span<const NodeView> Nodes() const noexcept
+        {
+            return nodes_;
+        }
+
+        [[nodiscard]] std::span<const Triangle<T>> Triangles() const noexcept
+        {
+            return triangles_;
+        }
+
+    private:
+        struct PrimitiveReference
+        {
+            std::size_t triangleIndex{};
+            std::uint32_t primitiveId{kInvalidPrimitiveId};
+            Aabb<T> bounds{};
+            Vec3<T> centroid{};
+        };
+
+        using Node = NodeView;
 
         struct SahBin
         {

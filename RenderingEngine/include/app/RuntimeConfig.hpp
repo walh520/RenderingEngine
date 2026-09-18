@@ -3,11 +3,13 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>
 
 namespace RenderingEngine
 {
-    inline constexpr std::uint32_t kRuntimeConfigVersion = 0;
+    inline constexpr std::uint32_t kRuntimeConfigVersion = 2;
 
     enum class ScenePreset : std::uint32_t
     {
@@ -25,7 +27,7 @@ namespace RenderingEngine
 
     enum class TraversalBackend : std::uint32_t
     {
-        LegacyAnalyticGpu = 0,
+        CanonicalLinearGpu = 0,
         CpuBruteForce,
         CpuSahBvh,
         GpuFlattenedSahBvh,
@@ -34,40 +36,47 @@ namespace RenderingEngine
         VulkanRayTracingPipeline
     };
 
-    // Pbr and Whitted retain their legacy numeric values because the current renderer
-    // copies them into its existing shader-facing control path.
-    enum class Integrator : std::uint32_t
+    enum class TransportModel : std::uint32_t
     {
         Pbr = 0,
-        Whitted = 1,
-        CpuReferencePathTracer,
-        GpuMegakernelPathTracer,
-        GpuWavefrontPathTracer
+        Whitted
+    };
+
+    enum class ExecutionArchitecture : std::uint32_t
+    {
+        Staged = 0,
+        CpuReference,
+        Megakernel,
+        Wavefront
     };
 
     enum class DirectLightingEstimator : std::uint32_t
     {
-        LegacyAnalyticDirect = 0,
-        BsdfOnly,
+        BsdfOnly = 0,
         NextEventEstimation,
         MultipleImportanceSampling,
         RestirDirectIllumination
     };
 
-    enum class LightProposalDistribution : std::uint32_t
+    enum class LightSelectionStrategy : std::uint32_t
     {
-        LegacyAnalyticLights = 0,
-        UniformLights,
-        PowerWeightedLights,
-        EnvironmentImportance
+        Uniform = 0,
+        PowerWeighted
+    };
+
+    enum class EnvironmentDirectionSampler : std::uint32_t
+    {
+        UniformSphere = 0,
+        ImportanceMap
     };
 
     enum class ReconstructionMode : std::uint32_t
     {
-        Raw = 0,
+        ProgressiveMean = 0,
         TemporalAccumulation,
-        TemporalFixedAtrous,
-        Svgf
+        SpatialFixedAtrous,
+        Svgf,
+        CurrentFrame
     };
 
     enum class ShadowMethod : std::uint32_t
@@ -84,7 +93,51 @@ namespace RenderingEngine
         Normal = 2,
         Roughness = 3,
         Metallic = 4,
-        Emissive = 5
+        Emissive = 5,
+        Motion,
+        HistoryLength,
+        Moments,
+        Variance,
+        TemporalAcceptance,
+        TemporalRejectReasons,
+        ReservoirM,
+        ReservoirWeight,
+        ReservoirLightId,
+        ReservoirSource,
+        ReservoirReuse,
+        ReservoirRejection,
+        WinnerVisibility
+    };
+
+    enum class ManyLightsTier : std::uint32_t
+    {
+        Lights100 = 0u,
+        Lights1000,
+        Lights10000
+    };
+
+    enum class RestirReuseStage : std::uint32_t
+    {
+        Initial = 0u,
+        Temporal,
+        TemporalSpatial,
+        Spatial
+    };
+
+    [[nodiscard]] constexpr bool UsesRestirTemporalReuse(RestirReuseStage stage) noexcept
+    {
+        return stage == RestirReuseStage::Temporal || stage == RestirReuseStage::TemporalSpatial;
+    }
+
+    [[nodiscard]] constexpr bool UsesRestirSpatialReuse(RestirReuseStage stage) noexcept
+    {
+        return stage == RestirReuseStage::Spatial || stage == RestirReuseStage::TemporalSpatial;
+    }
+
+    enum class RestirBiasMode : std::uint32_t
+    {
+        ExplicitlyBiased = 0u,
+        ReferenceCorrection
     };
 
     enum class RuntimeToggle : std::uint8_t
@@ -121,44 +174,98 @@ namespace RenderingEngine
         std::string runIdentifier = "manual";
     };
 
+    // Wave 4 settings remain host-side control state. They never alter the
+    // binary abi-v3 records, so UI and CLI can share this tuple without making
+    // descriptor layouts depend on application policy.
+    struct RestirSettings
+    {
+        ManyLightsTier manyLightsTier = ManyLightsTier::Lights100;
+        RestirReuseStage reuseStage = RestirReuseStage::TemporalSpatial;
+        RestirBiasMode biasMode = RestirBiasMode::ExplicitlyBiased;
+        std::uint32_t initialCandidatesPerPixel = 8u;
+        std::uint32_t spatialNeighbors = 5u;
+        std::uint32_t maximumReservoirM = 32u;
+        std::uint32_t maximumHistoryAge = 20u;
+        std::uint32_t comparisonCandidateBudgetPerPixel = 8u;
+        std::uint32_t comparisonVisibilityBudgetPerPixel = 1u;
+        bool animateLights = true;
+        bool animateRigidOccluders = true;
+    };
+
     struct RuntimeConfig
     {
         std::uint32_t version = kRuntimeConfigVersion;
         ScenePreset scene = ScenePreset::BaselineGallery;
-        TraversalBackend backend = TraversalBackend::LegacyAnalyticGpu;
-        Integrator integrator = Integrator::Pbr;
-        DirectLightingEstimator directLightingEstimator = DirectLightingEstimator::LegacyAnalyticDirect;
-        LightProposalDistribution lightProposalDistribution = LightProposalDistribution::LegacyAnalyticLights;
-        ReconstructionMode reconstruction = ReconstructionMode::Raw;
+        TraversalBackend backend = TraversalBackend::CanonicalLinearGpu;
+        TransportModel transportModel = TransportModel::Pbr;
+        ExecutionArchitecture executionArchitecture = ExecutionArchitecture::Staged;
+        DirectLightingEstimator directLightingEstimator =
+            DirectLightingEstimator::NextEventEstimation;
+        LightSelectionStrategy lightSelection = LightSelectionStrategy::Uniform;
+        EnvironmentDirectionSampler environmentSampler =
+            EnvironmentDirectionSampler::UniformSphere;
+        ReconstructionMode reconstruction = ReconstructionMode::ProgressiveMean;
         DebugView debugView = DebugView::Final;
         ShadowMethod shadowMethod = ShadowMethod::Physical;
         RenderSettings render;
         RunSettings run;
+        RestirSettings restir;
+        // Scene-local experiment ID; empty chooses the presentation variant.
+        std::string sceneVariant;
     };
 
-    // Compatibility payload for the legacy monolithic renderer. Application composition
-    // is the only layer that projects canonical RuntimeConfig into this shape.
-    struct RunOptions
+    // Versioned teaching recommendation for one experiment scene. This is
+    // application policy only: it does not change RuntimeConfig's layout or
+    // the renderer/shader ABI version.
+    struct SceneRecommendedProfile
     {
-        std::uint32_t initialWidth = 1280;
-        std::uint32_t initialHeight = 720;
-        std::uint32_t frameLimit = 0;
-        bool resizeTest = false;
-        float exposure = 1.0f;
-        std::uint32_t maximumTraceDepth = 8;
-        std::uint32_t targetSamplesPerPixel = 0;
-        std::uint64_t baseSeed = 0;
-        float verticalFovDegrees = 52.0f;
-        RuntimeToggle vsync = RuntimeToggle::RendererDefault;
-        RuntimeToggle validation = RuntimeToggle::RendererDefault;
-        Integrator integrator = Integrator::Pbr;
-        ShadowMethod shadowMethod = ShadowMethod::Physical;
+        ScenePreset scene = ScenePreset::BaselineGallery;
+        std::string_view stableId;
+        TraversalBackend backend = TraversalBackend::CanonicalLinearGpu;
+        TransportModel transportModel = TransportModel::Pbr;
+        ExecutionArchitecture executionArchitecture = ExecutionArchitecture::Staged;
+        DirectLightingEstimator directLightingEstimator =
+            DirectLightingEstimator::NextEventEstimation;
+        LightSelectionStrategy lightSelection = LightSelectionStrategy::Uniform;
+        EnvironmentDirectionSampler environmentSampler =
+            EnvironmentDirectionSampler::UniformSphere;
+        ReconstructionMode reconstruction = ReconstructionMode::ProgressiveMean;
         DebugView debugView = DebugView::Final;
+        ShadowMethod shadowMethod = ShadowMethod::Physical;
+        std::uint32_t maximumBounce = 8u;
+        std::optional<RestirSettings> restir;
     };
 
-    [[nodiscard]] RunOptions MakeLegacyRunOptions(const RuntimeConfig& config) noexcept;
+    [[nodiscard]] std::span<const SceneRecommendedProfile>
+        GetSceneRecommendedProfiles() noexcept;
+
+    [[nodiscard]] const SceneRecommendedProfile* FindSceneRecommendedProfile(
+        ScenePreset scene) noexcept;
+
+    // Copies source and overwrites only the fields owned by the recommendation:
+    // the eight algorithm axes, Final debug view, maximum bounce, and (only when
+    // present) the scene-specific ReSTIR teaching settings.
+    [[nodiscard]] RuntimeConfig MakeSceneRecommendedConfig(
+        const RuntimeConfig& source,
+        const SceneRecommendedProfile& profile) noexcept;
+
+    [[nodiscard]] bool MatchesSceneRecommendedProfile(
+        const RuntimeConfig& config,
+        const SceneRecommendedProfile& profile) noexcept;
+
+    [[nodiscard]] constexpr std::uint32_t ResolveManyLightsCount(
+        const ManyLightsTier tier) noexcept
+    {
+        switch (tier)
+        {
+        case ManyLightsTier::Lights100: return 100u;
+        case ManyLightsTier::Lights1000: return 1000u;
+        case ManyLightsTier::Lights10000: return 10000u;
+        }
+        return 0u;
+    }
 
     // Test fixture only: constructing this value never creates a platform window.
-    // The Wave 0 production capability table intentionally rejects headless execution.
+    // Production headless execution is restricted to the explicit L3 CPU-reference tuple.
     [[nodiscard]] RuntimeConfig MakeHeadlessMockRuntimeConfig();
 }

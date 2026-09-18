@@ -37,6 +37,15 @@
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
 
+  <PropertyGroup>
+    <VcpkgRoot Condition="'$(VcpkgRoot)'=='' and '$(VCToolsInstallDir)'!=''">$([System.IO.Path]::GetFullPath('$(VCToolsInstallDir)..\..\..\vcpkg'))</VcpkgRoot>
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+    <VcpkgManifestRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\'))</VcpkgManifestRoot>
+    <VcpkgInstalledDir>$(VcpkgManifestRoot)vcpkg_installed\</VcpkgInstalledDir>
+    <VcpkgTriplet>x64-windows</VcpkgTriplet>
+  </PropertyGroup>
+  <Import Project="$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props" Condition="Exists('$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props')" />
+
   <ImportGroup Label="ExtensionSettings" />
   <ImportGroup Label="Shared" />
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -53,10 +62,18 @@
 
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)build\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(RenderingEngineRepositoryRoot)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(RenderingEngineRepositoryRoot)build\$(Platform)\$(Configuration)\</IntDir>
     <TargetName>RenderingEngine</TargetName>
-    <VcpkgEnableManifest>false</VcpkgEnableManifest>
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <!-- Keep F5 deterministic and presentation-ready even when Visual Studio
+         has retained stale per-user debugger settings. -->
+    <LocalDebuggerCommand>$(TargetPath)</LocalDebuggerCommand>
+    <LocalDebuggerWorkingDirectory>$(RenderingEngineRepositoryRoot)</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerCommandArguments>--scene many-lights --backend ray-query --transport pbr --execution wavefront --direct-lighting restir-di --light-selection power --environment-sampler uniform-sphere --reconstruction svgf --many-lights-tier 100 --restir-stage temporal-spatial --restir-bias explicitly-biased --restir-candidates 1 --restir-neighbors 5 --max-bounce 4 --animate-many-lights off --animate-rigid-occluders off --debug-view final --resolution 1280x720 --validation on</LocalDebuggerCommandArguments>
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
     <ShaderCompileFlags>-Od -Zi -Qembed_debug</ShaderCompileFlags>
@@ -64,6 +81,13 @@
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <ShaderCompileFlags>-O3</ShaderCompileFlags>
   </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(RenderingEngineSourceRoot);$(RenderingEngineSourceRoot)rt\hardware\include;$(RenderingEngineSourceRoot)integrators\megakernel;$(RenderingEngineSourceRoot)integrators\wavefront\include;$(RenderingEngineSourceRoot)reconstruction\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>VK_ENABLE_BETA_EXTENSIONS;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
 
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -74,7 +98,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
       <AdditionalLibraryDirectories>$(VULKAN_SDK)\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>vulkan-1.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>vulkan-1.lib;glfw3dll.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 
@@ -89,7 +113,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
       <AdditionalLibraryDirectories>$(VULKAN_SDK)\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>vulkan-1.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>vulkan-1.lib;glfw3dll.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 
@@ -101,7 +125,77 @@
   <Import Project="msbuild\lanes\Renderer.Shaders.Items.props" />
   <Import Project="msbuild\lanes\Integration.Items.props" />
 
+  <ItemGroup>
+    <ProjectReference Include="src\rt\gpu\RenderingEngine.GpuTraversalContract.vcxproj">
+      <Project>{6F79534E-2D7F-4D76-A15D-931E8CB24819}</Project>
+    </ProjectReference>
+    <ProjectReference Include="src\platform\glfw\RenderingEngine.PlatformGlfw.vcxproj">
+      <Project>{FC06E194-84C3-4B39-83C9-E270995B7A34}</Project>
+    </ProjectReference>
+    <ProjectReference Include="src\scene\RenderingEngine.SceneWave1.vcxproj">
+      <Project>{F14B5DBA-D9DB-47E5-A61F-C8ECADFBDB2A}</Project>
+    </ProjectReference>
+    <ProjectReference Include="restir\RenderingEngine.Restir.vcxproj">
+      <Project>{93342811-2C94-4072-B53E-CB4097B70FD2}</Project>
+    </ProjectReference>
+    <ProjectReference Include="src\ui\RenderingEngine.Showcase.vcxproj">
+      <Project>{B87BDD72-28BE-476F-85C1-EC0CED6BB8C8}</Project>
+    </ProjectReference>
+    <ProjectReference Include="rt\software_gpu\RenderingEngine.SoftwareGpu.vcxproj">
+      <Project>{2A92B65D-5BE1-4C91-A710-F9D7D5F503B4}</Project>
+    </ProjectReference>
+  </ItemGroup>
+
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.targets" Condition="Exists('$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.targets')" />
+  <PropertyGroup>
+    <PinnedMinizBinSubdir Condition="'$(Configuration)'=='Debug'">debug\bin\</PinnedMinizBinSubdir>
+    <PinnedMinizBinSubdir Condition="'$(PinnedMinizBinSubdir)'==''">bin\</PinnedMinizBinSubdir>
+    <PinnedMinizRuntime>$(VcpkgInstalledDir)$(VcpkgTriplet)\$(PinnedMinizBinSubdir)miniz.dll</PinnedMinizRuntime>
+    <PinnedGlfwRuntime>$(VcpkgInstalledDir)$(VcpkgTriplet)\$(PinnedMinizBinSubdir)glfw3.dll</PinnedGlfwRuntime>
+  </PropertyGroup>
+  <!-- Several manifest consumers intentionally share OutDir. Their independent
+       vcpkg clean/write logs can remove a DLL copied by an earlier project.
+       Reassert this executable's direct runtime dependency after all of its
+       ordinary Build targets; do not rely on a prior project's app-local copy. -->
+  <Target Name="EnsureRenderingEngineMinizRuntime" AfterTargets="Build">
+    <Error Condition="!Exists('$(PinnedMinizRuntime)')"
+           Text="Pinned miniz runtime was not found at $(PinnedMinizRuntime)." />
+    <Error Condition="!Exists('$(PinnedGlfwRuntime)')"
+           Text="Pinned GLFW runtime was not found at $(PinnedGlfwRuntime)." />
+    <Copy SourceFiles="$(PinnedMinizRuntime)"
+          DestinationFiles="$(OutDir)miniz.dll"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(PinnedGlfwRuntime)"
+          DestinationFiles="$(OutDir)glfw3.dll"
+          SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="Wave1RequireVcpkg" BeforeTargets="PrepareForBuild" Condition="!Exists('$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props')">
+    <Error Text="Wave 1 GLFW composition requires the pinned vcpkg integration. Pass /p:VcpkgRoot=&lt;path&gt;." />
+  </Target>
   <Import Project="msbuild\VulkanShaders.targets" />
+  <PropertyGroup>
+    <!-- VS may retain an old executable path in its private .suo even after the
+         project is corrected. Keep that retired path as a byte-for-byte Wave 5
+         runtime mirror so it can never launch the Wave 0 executable again. -->
+    <LegacyVisualStudioOutDir>$(MSBuildProjectDirectory)\bin\$(Platform)\$(Configuration)\</LegacyVisualStudioOutDir>
+  </PropertyGroup>
+  <Target Name="MirrorWave5RuntimeForLegacyVisualStudioPath" AfterTargets="Build">
+    <Error Condition="!Exists('$(OutDir)RenderingEngine.exe')"
+           Text="Wave 5 executable was not produced at $(OutDir)RenderingEngine.exe." />
+    <MakeDir Directories="$(LegacyVisualStudioOutDir)" />
+    <ItemGroup>
+      <Wave5LegacyMirrorFile Include="$(OutDir)RenderingEngine.exe" />
+      <Wave5LegacyMirrorFile Include="$(OutDir)RenderingEngine.pdb"
+                             Condition="Exists('$(OutDir)RenderingEngine.pdb')" />
+      <Wave5LegacyMirrorFile Include="$(OutDir)*.dll" />
+      <Wave5LegacyMirrorFile Include="$(OutDir)*.spv" />
+    </ItemGroup>
+    <Copy SourceFiles="@(Wave5LegacyMirrorFile)"
+          DestinationFolder="$(LegacyVisualStudioOutDir)"
+          SkipUnchangedFiles="true" />
+    <Message Importance="High"
+             Text="Wave 5 VS launch mirror: $(LegacyVisualStudioOutDir)RenderingEngine.exe" />
+  </Target>
   <ImportGroup Label="ExtensionTargets" />
 </Project>

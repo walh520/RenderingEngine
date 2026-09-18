@@ -27,7 +27,7 @@ namespace RenderingEngine::Contracts::AbiV0
         HitFlagAlphaTested = 1u << 1u
     };
 
-    // Traversal-only query data. Integrator/path state intentionally belongs to
+    // Traversal-only query data. Transport/path state intentionally belongs to
     // abi-v1 and must not be added to this record.
     struct alignas(16) GpuRayV0
     {
