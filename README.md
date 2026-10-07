@@ -2,33 +2,23 @@
 
 Vulkan 路径追踪与 ReSTIR 实验平台
 
-> Windows x64 研究与工程演示平台；局部 Debug 验证有记录，完整性能与视觉验收仍需补齐。
+> 在同一运行时中探索光传输、遍历后端、GPU 执行架构与时域重建。
 
 [GitHub 仓库](https://github.com/walh520/RenderingEngine)
 
-## 简介与公开范围
+## 项目简介
 
-基于 Vulkan 1.3、C++ 与 HLSL 的渲染实验平台。公开仓库包括交互式 Debug 展示、CPU 参考工具、Vulkan smoke/validation 测试、Shader 校验、跨语言 ABI 契约与捕获元数据。定位为研究与工程演示，不承诺完整游戏引擎或生产渲染器能力。
+基于 Vulkan 1.3、C++ 与 HLSL 的 Windows x64 渲染实验平台。项目将交互式展示、CPU 参考实现、多条 GPU 渲染路径和捕获工具放在同一套配置体系中，便于比较算法与追踪结果。
 
-## 本地工程与公开快照
-
-已只读核对当前 RenderingEngine 工程与公开提交 `4f3cd6b138dc3`：公开树中的 519 个文件均在本地对应，273 个逐字节相同，246 个仅 CRLF/LF 换行不同，没有内容差异或缺失。
-
-这一结果确认公开代码与当前工作目录的一致性，不是一次新构建或运行验证。下文保留原仓库的局部验收条件；本轮没有重新测量帧时、显存、收敛或长期稳定性。
-
-## 演示
-
-[作品总集](https://www.bilibili.com/video/BV1MVak6jEPv/) · [B 站主页](https://space.bilibili.com/1080308077)
-
-目前提供的是作品总集入口，未将其中未核对的片段指定为本仓库独立演示。视频可能包含比当前仓库更多的内容；功能和验证范围以下述代码与记录为准。
+仓库包含渲染代码、Vulkan smoke/validation 测试、Shader 校验、跨语言 ABI 契约和捕获元数据。
 
 ## 实现与贡献
 
-公开 README 将该项目描述为自建综合渲染引擎；本页只整理可在代码和文档中审阅的实现重点，不将通用算法或第三方库记为个人发明。
+项目实现围绕渲染路径组织、数据契约和实验工具展开：
 
-- 运行配置与能力表：分离场景、遍历、光传输、执行架构和重建选项，显式拒绝不支持的组合。
-- Vulkan 渲染路径与版本化 C++/HLSL ABI：围绕数据布局、描述符和历史资源组织模块。
-- ImGui 展示与 EXR/PNG/JSON 捕获：让配置、结果及验证证据可以对应。
+- 运行配置与能力表：分离场景、遍历、光传输、执行架构和重建选项，集中管理可用组合。
+- Vulkan 渲染路径与版本化 C++/HLSL ABI：组织数据布局、描述符和跨帧历史资源。
+- ImGui 交互展示与 EXR/PNG/JSON 捕获：记录运行参数、输出结果和验证数据。
 
 ## 核心功能
 
@@ -40,30 +30,29 @@ Vulkan 路径追踪与 ReSTIR 实验平台
 
 ## 方案与取舍
 
-| 选择 | 目的与代价 |
+| 选择 | 作用 |
 | --- | --- |
-| 用独立配置轴与 CapabilityTable 约束组合 | 便于同场景比较；不支持的组合会拒绝执行，不做隐式替代。 |
-| CPU 参考与多条 GPU 路径并存 | 提供交叉核对入口；单个参考场景通过不能证明所有后端与场景。 |
-| 用版本化 ABI 和确定性捕获组织实验 | 增加契约维护成本，换取参数与数据布局可追踪。 |
-| 将未就绪资产路径设为门控 | Sponza 在许可、哈希和纹理 glTF 路径就绪前不可用。 |
+| 独立配置轴与 CapabilityTable | 在同一场景下比较不同算法，并明确各组合的运行条件。 |
+| CPU 参考与多条 GPU 路径并存 | 提供像素、采样和遍历结果的交叉核对入口。 |
+| 版本化 ABI 与确定性捕获 | 追踪参数、数据布局和跨帧状态，支持复现实验。 |
+| 资产加载门控 | 在资源许可、哈希和加载路径就绪后开放对应场景。 |
 
-源码核对入口：`CapabilityTable.cpp` 约束整组运行配置；`restir` 的蓄水池复用和可见性、`reconstruction` 的历史重投影与过滤分别有契约。GPU LBVH 与 RT Pipeline/SBT 的局部代码仍不能越过当前交互能力门控；不能用“源码目录存在”替代可选后端已打通。
+当前交互后端以 CapabilityTable 为准。GPU LBVH 与 Vulkan RT Pipeline/SBT 处于局部实现阶段；Sponza 的资产与纹理 glTF 加载路径仍保留门控。
 
 ## 代码阅读入口
 
-1. [RuntimeConfig](RenderingEngine/src/app/RuntimeConfig.cpp) → [CapabilityTable](RenderingEngine/src/app/CapabilityTable.cpp)：先看可选维度与拒绝条件。
-2. [renderers](RenderingEngine/src/renderers/) → [rt](RenderingEngine/rt/) → [integrators](RenderingEngine/integrators/)：理解遍历与执行的分工。
-3. [reconstruction](RenderingEngine/reconstruction/) 与 [restir](RenderingEngine/restir/)：追踪历史数据和直接光复用。
-4. [RuntimeConfig v2 契约](RenderingEngine/docs/contracts/runtime-config-v2.md)、[当前场景审阅](RenderingEngine/docs/current-scenes-and-algorithms-review.md)、[P0 验收记录](RenderingEngine/docs/handoffs/L0/p0-2-through-p0-4.md)：把实现与证据对应。
+1. [RuntimeConfig](RenderingEngine/src/app/RuntimeConfig.cpp) → [CapabilityTable](RenderingEngine/src/app/CapabilityTable.cpp)：运行配置与可用组合。
+2. [renderers](RenderingEngine/src/renderers/) → [rt](RenderingEngine/rt/) → [integrators](RenderingEngine/integrators/)：遍历、光传输与执行架构。
+3. [reconstruction](RenderingEngine/reconstruction/) 与 [restir](RenderingEngine/restir/)：历史数据、重建与直接光复用。
+4. [RuntimeConfig v2 契约](RenderingEngine/docs/contracts/runtime-config-v2.md)、[当前场景与算法](RenderingEngine/docs/current-scenes-and-algorithms-review.md)、[P0 验证记录](RenderingEngine/docs/handoffs/L0/p0-2-through-p0-4.md)。
 
-## 验证与性能
+## 验证状态
 
-仓库记录了 Debug 构建、Shader/SPIR-V 校验、Vulkan validation、部分 CPU/GPU parity、固定种子 Film 一致性、ReSTIR ABI-v3 GPU oracle 与统计回读。这些属于原仓库记录，本次整理没有重新执行渲染程序或测试。
+仓库已有 Debug 构建、Shader/SPIR-V 校验、Vulkan validation、部分 CPU/GPU parity、固定种子 Film 一致性、ReSTIR ABI-v3 GPU oracle 与统计回读记录。
 
-- Film 三架构一致性记录包含固定 Cornell / MIS / 640×360 / 三帧 / 最大反弹 4 的条件；不能外推动态历史或全部场景。
-- ReSTIR 后续验证另有静态配置与短帧记录，需按 [P0 验收记录](RenderingEngine/docs/handoffs/L0/p0-2-through-p0-4.md) 的具体条件解释。
-- 完整 1000/10000 灯性能基准、完整收敛与无偏性研究、Release 帧时/显存/长时质量仍需专门测量。
-- 本页不提供未测得的 FPS、加速比或性能排名。
+- Film 三架构一致性记录采用 Cornell / MIS / 640×360 / 三帧 / 最大反弹 4。
+- ReSTIR 的静态配置与短帧测试条件见 [P0 验证记录](RenderingEngine/docs/handoffs/L0/p0-2-through-p0-4.md)。
+- 完整 1000/10000 灯基准、收敛与无偏性研究，以及 Release 帧时、显存和长期画质评估仍待完成。
 
 ## 依赖与运行方式
 
@@ -82,8 +71,7 @@ Vulkan 路径追踪与 ReSTIR 实验平台
 
 交互：W/A/S/D、Q/E 移动；B 切遍历；I / Ctrl+I 切光传输 / 执行架构；N 切重建；0–9 选场景；R 重置历史；P/O 暂停/单步；F4 捕获；F5 重载 Shader。完整按键以当前仓库说明为准。
 
-## 限制与来源许可
 
-GPU LBVH 和 Vulkan RT Pipeline/SBT 仍属于声明或局部实现，不能表述为当前交互生产后端。Sponza 保留资产门控；完整视觉和性能验收尚未完成。
+## 来源与许可
 
-[第三方来源说明](RenderingEngine/THIRD_PARTY_NOTICES.md) 记录了 glTF、Filament、PBRT、GGX/VNDF 等参考；其中 PBR Neutral tone mapping 为 Khronos 参考实现的 HLSL 改写，保留其 Apache-2.0 来源说明。本次检查未见仓库根目录的统一 LICENSE，不据此声明整库采用某一开源许可。
+[第三方来源说明](RenderingEngine/THIRD_PARTY_NOTICES.md) 列出了 glTF、Filament、PBRT、GGX/VNDF 等参考。PBR Neutral tone mapping 为 Khronos 参考实现的 HLSL 改写，保留 Apache-2.0 来源声明。仓库根目录暂未提供统一 LICENSE。
